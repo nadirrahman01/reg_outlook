@@ -1,9 +1,8 @@
-import os
+from pathlib import Path
 import re
 import json
 import sqlite3
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 import pandas as pd
@@ -11,18 +10,26 @@ import pdfplumber
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
-
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
 DB_PATH = BASE_DIR / "regulatory_dashboard.db"
+TEMPLATE_DIR = BASE_DIR / "templates"
+STATIC_DIR = BASE_DIR / "static"
 
 UPLOAD_DIR.mkdir(exist_ok=True)
+TEMPLATE_DIR.mkdir(exist_ok=True)
+STATIC_DIR.mkdir(exist_ok=True)
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder=str(TEMPLATE_DIR),
+    static_folder=str(STATIC_DIR),
+    static_url_path="/static",
+)
+
 app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
 app.config["UPLOAD_FOLDER"] = str(UPLOAD_DIR)
 ALLOWED_EXTENSIONS = {"pdf", "xlsx", "xls"}
-
 
 KNOWN_SECTIONS = [
     "Multi-sector",
@@ -56,8 +63,12 @@ THEME_RULES = [
         "theme": "Market Conduct / Trading",
         "sub_theme": "Transaction Reporting",
         "keywords": [
-            "transaction reporting", "mifir", "regulatory reporting",
-            "reporting fields", "approved reporting mechanism", "arm"
+            "transaction reporting",
+            "mifir",
+            "regulatory reporting",
+            "reporting fields",
+            "approved reporting mechanism",
+            "arm",
         ],
         "impact": "May require review of transaction reporting controls, reconciliations, exception monitoring and governance.",
         "primary_owner": "Compliance",
@@ -154,11 +165,30 @@ THEME_RULES = [
 ]
 
 FMRUK_KEYWORDS = [
-    "uk", "fca", "pra", "investment firm", "asset management", "investment management",
-    "mifid", "mifidpru", "consumer duty", "transaction reporting", "market abuse",
-    "best execution", "outsourcing", "operational resilience", "financial crime",
-    "sanctions", "governance", "remuneration", "sustainability", "disclosure",
-    "regulatory reporting", "firm", "firms", "data collections"
+    "uk",
+    "fca",
+    "pra",
+    "investment firm",
+    "asset management",
+    "investment management",
+    "mifid",
+    "mifidpru",
+    "consumer duty",
+    "transaction reporting",
+    "market abuse",
+    "best execution",
+    "outsourcing",
+    "operational resilience",
+    "financial crime",
+    "sanctions",
+    "governance",
+    "remuneration",
+    "sustainability",
+    "disclosure",
+    "regulatory reporting",
+    "firm",
+    "firms",
+    "data collections",
 ]
 
 
@@ -252,9 +282,7 @@ def parse_section_and_subcategory(line: str, current_section: Optional[str], cur
 
 def looks_like_lead_line(line: str) -> bool:
     cleaned = normalise_ws(line)
-    if not cleaned:
-        return False
-    if len(cleaned) > 40:
+    if not cleaned or len(cleaned) > 40:
         return False
     return bool(LEAD_PATTERN.match(cleaned))
 
@@ -266,6 +294,7 @@ def parse_pdf_initiatives(path: Path) -> List[Dict[str, Any]]:
     current_section = None
     current_subcategory = None
     current_item = None
+    consumed_next_title = False
 
     skip_lines = {
         "Lead Initiative Expected key milestones",
@@ -274,16 +303,29 @@ def parse_pdf_initiatives(path: Path) -> List[Dict[str, Any]]:
         "Timing updated",
         "New",
         "Key",
+        "Lead",
+        "Initiative",
+        "Expected key milestones",
     }
 
     for page in pages:
         raw_lines = [normalise_ws(x) for x in page["text"].splitlines()]
         lines = [x for x in raw_lines if x]
 
-        for idx, line in enumerate(lines):
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+
+            if consumed_next_title:
+                consumed_next_title = False
+                i += 1
+                continue
+
             if line in skip_lines:
+                i += 1
                 continue
             if line.startswith("Regulatory Initiatives Grid |"):
+                i += 1
                 continue
 
             current_section, current_subcategory = parse_section_and_subcategory(
@@ -291,8 +333,8 @@ def parse_pdf_initiatives(path: Path) -> List[Dict[str, Any]]:
             )
 
             if looks_like_lead_line(line):
-                next_line = lines[idx + 1] if idx + 1 < len(lines) else ""
-                if next_line and len(next_line) > 3 and next_line not in KNOWN_SECTIONS and next_line not in KNOWN_SUBCATEGORIES:
+                next_line = lines[i + 1] if i + 1 < len(lines) else ""
+                if next_line and next_line not in KNOWN_SECTIONS and next_line not in KNOWN_SUBCATEGORIES:
                     if current_item:
                         initiatives.append(current_item)
 
@@ -310,13 +352,16 @@ def parse_pdf_initiatives(path: Path) -> List[Dict[str, Any]]:
                         "timing_bucket": "",
                         "raw_text": f"{line}\n{next_line}\n",
                     }
+                    consumed_next_title = True
+                    i += 1
+                    i += 1
                     continue
 
             if current_item:
-                if line == current_item["initiative_title"] or line == current_item["lead_regulator"]:
-                    continue
+                if line != current_item["initiative_title"] and line != current_item["lead_regulator"]:
+                    current_item["raw_text"] += line + "\n"
 
-                current_item["raw_text"] += line + "\n"
+            i += 1
 
     if current_item:
         initiatives.append(current_item)
@@ -339,10 +384,10 @@ def enrich_from_raw_text(item: Dict[str, Any]) -> Dict[str, Any]:
         item["indicative_impact_on_firms"] = impact_match.group(1)
 
     new_match = re.search(r"\bnew\b", text, flags=re.IGNORECASE)
-    item["is_new"] = "Yes" if new_match else item.get("is_new") or "No"
+    item["is_new"] = "Yes" if new_match else (item.get("is_new") or "No")
 
     timing_update_match = re.search(r"timing", text, flags=re.IGNORECASE)
-    item["timing_updated"] = "Possible" if timing_update_match else item.get("timing_updated") or "No"
+    item["timing_updated"] = "Possible" if timing_update_match else (item.get("timing_updated") or "No")
 
     milestones = []
     milestone_patterns = [
@@ -369,9 +414,7 @@ def enrich_from_raw_text(item: Dict[str, Any]) -> Dict[str, Any]:
     desc = normalise_ws(desc)
     item["initiative_description"] = desc[:1200]
 
-    bucket = infer_timing_bucket(raw)
-    item["timing_bucket"] = bucket
-
+    item["timing_bucket"] = infer_timing_bucket(raw)
     return item
 
 
@@ -419,7 +462,6 @@ def parse_excel_initiatives(path: Path) -> List[Dict[str, Any]]:
         new_col = col_like(["new"])
         sector_col = col_like(["sector", "section"])
         subcat_col = col_like(["subcategory", "sub-category", "category"])
-        timing_bucket_col = col_like(["post july", "q1", "q2", "q3", "q4"])
 
         if not init_col:
             continue
@@ -440,9 +482,15 @@ def parse_excel_initiatives(path: Path) -> List[Dict[str, Any]]:
                 "consumer_interest": normalise_ws(str(row.get(consumer_col, ""))) if consumer_col else "",
                 "timing_updated": normalise_ws(str(row.get(timing_updated_col, ""))) if timing_updated_col else "",
                 "is_new": normalise_ws(str(row.get(new_col, ""))) if new_col else "",
-                "timing_bucket": normalise_ws(str(row.get(timing_bucket_col, ""))) if timing_bucket_col else "",
+                "timing_bucket": "",
                 "raw_text": json.dumps({k: str(v) for k, v in row.to_dict().items()}, ensure_ascii=False),
             })
+
+    for item in initiatives:
+        if not item.get("timing_bucket"):
+            item["timing_bucket"] = infer_timing_bucket(
+                f'{item.get("expected_key_milestones", "")} {item.get("initiative_description", "")}'
+            )
 
     return dedupe_initiatives(initiatives)
 
@@ -515,8 +563,16 @@ def determine_impact_level(indicative_impact: str, title: str, description: str)
         return "Low"
 
     high_terms = [
-        "consumer duty", "transaction reporting", "operational resilience", "outsourcing",
-        "mifidpru", "capital", "liquidity", "market abuse", "sanctions", "data collections"
+        "consumer duty",
+        "transaction reporting",
+        "operational resilience",
+        "outsourcing",
+        "mifidpru",
+        "capital",
+        "liquidity",
+        "market abuse",
+        "sanctions",
+        "data collections",
     ]
     medium_terms = ["consultation", "disclosure", "governance", "cyber", "ict", "sustainability"]
 
@@ -545,7 +601,7 @@ def score_relevance(title: str, description: str, section_name: str, theme: str,
         "Capital / Liquidity",
         "Consumer Duty",
         "AML / KYC / Sanctions",
-        "AI / Data / Cyber"
+        "AI / Data / Cyber",
     }:
         score += 12
 
@@ -590,7 +646,7 @@ def analyse_initiatives(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         impact_level = determine_impact_level(
             item.get("indicative_impact_on_firms", ""),
             item.get("initiative_title", ""),
-            item.get("initiative_description", "")
+            item.get("initiative_description", ""),
         )
         relevance = score_relevance(
             item.get("initiative_title", ""),
@@ -636,17 +692,12 @@ def analyse_initiatives(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return analysed
 
 
-def clear_existing_upload_data(conn, upload_id: int):
-    conn.execute("DELETE FROM initiatives WHERE upload_id = ?", (upload_id,))
-    conn.commit()
-
-
 def save_upload(filename: str, saved_path: str, file_type: str) -> int:
     conn = get_db()
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO uploads (filename, saved_path, file_type, uploaded_at) VALUES (?, ?, ?, ?)",
-        (filename, saved_path, file_type, datetime.now(timezone.utc).isoformat())
+        (filename, saved_path, file_type, datetime.now(timezone.utc).isoformat()),
     )
     upload_id = cur.lastrowid
     conn.commit()
@@ -711,6 +762,24 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/health")
+def health():
+    return {
+        "ok": True,
+        "base_dir": str(BASE_DIR),
+        "template_dir_exists": TEMPLATE_DIR.exists(),
+        "static_dir_exists": STATIC_DIR.exists(),
+        "styles_exists": (STATIC_DIR / "styles.css").exists(),
+        "app_js_exists": (STATIC_DIR / "app.js").exists(),
+        "db_exists": DB_PATH.exists(),
+    }
+
+
+@app.route("/debug/static/<path:filename>")
+def debug_static(filename):
+    return send_from_directory(STATIC_DIR, filename)
+
+
 @app.route("/api/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
@@ -746,7 +815,7 @@ def upload_file():
             "upload_id": upload_id,
             "filename": filename,
             "file_type": ext,
-            "initiative_count": len(analysed)
+            "initiative_count": len(analysed),
         })
     except Exception as e:
         return jsonify({"ok": False, "error": f"Parsing failed: {str(e)}"}), 500
@@ -808,7 +877,7 @@ def get_summary():
             "high_impact": 0,
             "fmruk_relevant": 0,
             "top_themes": [],
-            "top_owners": []
+            "top_owners": [],
         })
 
     conn = get_db()
@@ -857,4 +926,9 @@ def download_uploaded_file(upload_id: int):
 
 if __name__ == "__main__":
     init_db()
+    print("Running app from:", BASE_DIR)
+    print("Templates:", TEMPLATE_DIR)
+    print("Static:", STATIC_DIR)
+    print("styles.css exists:", (STATIC_DIR / "styles.css").exists())
+    print("app.js exists:", (STATIC_DIR / "app.js").exists())
     app.run(debug=True, host="0.0.0.0", port=5000)
