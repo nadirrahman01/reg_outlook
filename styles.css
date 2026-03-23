@@ -12,6 +12,7 @@
   --xp-green: #2f6f2f;
   --xp-amber: #8b6a10;
   --xp-red: #8a1e1e;
+  --xp-slate: #374151;
 }
 
 * {
@@ -22,20 +23,15 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: #7f9db9;
   color: var(--xp-text);
   font-family: Tahoma, Verdana, Arial, sans-serif;
   font-size: 12px;
-}
-
-body {
+  background: linear-gradient(180deg, #7fa2ce 0%, #b7cbe1 40%, #8ba9ca 100%);
   min-height: 100vh;
-  background:
-    linear-gradient(180deg, #7fa2ce 0%, #b7cbe1 35%, #8aa7c8 100%);
 }
 
 .app-shell {
-  max-width: 1450px;
+  max-width: 1600px;
   margin: 12px auto;
   padding: 0 12px 16px;
 }
@@ -64,13 +60,8 @@ body {
   border-bottom: 1px solid #183a75;
 }
 
-.titlebar-text {
-  letter-spacing: 0.2px;
-}
-
 .titlebar-meta {
   font-size: 11px;
-  opacity: 0.95;
 }
 
 .toolbar {
@@ -97,7 +88,7 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 390px 1fr;
   gap: 12px;
 }
 
@@ -109,7 +100,6 @@ body {
 }
 
 .panel {
-  padding: 0;
   overflow: hidden;
 }
 
@@ -154,16 +144,10 @@ select {
   font-size: 12px;
 }
 
-input[type="text"]:focus,
-select:focus {
-  background: #fffff3;
-}
-
 .checkbox-row {
   flex-direction: row !important;
   align-items: center;
   gap: 8px !important;
-  margin-top: 2px;
 }
 
 .checkbox-row input {
@@ -193,13 +177,6 @@ select:focus {
 
 .xp-btn:hover {
   background: linear-gradient(180deg, #fffdf7, #e4dfd1);
-}
-
-.xp-btn:active {
-  border-top: 1px solid #5a5a5a;
-  border-left: 1px solid #5a5a5a;
-  border-right: 1px solid #fff;
-  border-bottom: 1px solid #fff;
 }
 
 .kpi-grid {
@@ -258,7 +235,7 @@ select:focus {
 
 .table-wrapper {
   overflow: auto;
-  max-height: 560px;
+  max-height: 600px;
   background: #fff;
 }
 
@@ -306,9 +283,9 @@ select:focus {
 }
 
 .priority-badge,
-.status-badge {
+.status-badge,
+.impact-badge {
   display: inline-block;
-  min-width: 74px;
   text-align: center;
   padding: 3px 6px;
   font-size: 11px;
@@ -317,29 +294,43 @@ select:focus {
   border-left: 1px solid #fff;
   border-right: 1px solid #666;
   border-bottom: 1px solid #666;
+  min-width: 72px;
 }
 
 .priority-high,
-.status-open {
+.status-open,
+.impact-high {
   background: #dff0d8;
   color: var(--xp-green);
 }
 
 .priority-medium,
-.status-upcoming {
+.status-upcoming,
+.impact-medium {
   background: #fff4cf;
   color: var(--xp-amber);
 }
 
 .priority-low,
-.status-closed {
+.status-closed,
+.impact-low {
   background: #f5d8d8;
   color: var(--xp-red);
 }
 
+.status-new {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.status-final {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
 .detail-panel {
   padding: 12px;
-  min-height: 220px;
+  min-height: 260px;
   background: #f7f4ea;
 }
 
@@ -355,7 +346,7 @@ select:focus {
 
 .detail-meta-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -380,9 +371,8 @@ select:focus {
   font-weight: bold;
 }
 
-.detail-summary,
-.detail-rationale {
-  margin-top: 10px;
+.detail-block {
+  margin-top: 12px;
   line-height: 1.5;
 }
 
@@ -399,7 +389,12 @@ select:focus {
   color: #666;
 }
 
-@media (max-width: 1100px) {
+.small {
+  font-size: 11px;
+  color: #666;
+}
+
+@media (max-width: 1200px) {
   .layout {
     grid-template-columns: 1fr;
   }
