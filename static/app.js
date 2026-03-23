@@ -31,22 +31,31 @@ const els = {
   topOwnersList: document.getElementById("topOwnersList")
 };
 
+document.addEventListener("DOMContentLoaded", () => {
+  init().catch(err => {
+    console.error(err);
+    if (els.uploadStatus) {
+      els.uploadStatus.textContent = "Front-end initialisation failed. Check /health and browser console.";
+    }
+  });
+});
+
 async function init() {
   bindEvents();
   await loadUploads();
 }
 
 function bindEvents() {
-  els.uploadBtn.addEventListener("click", uploadFile);
-  els.uploadSelect.addEventListener("change", onUploadChange);
-  els.reloadBtn.addEventListener("click", reloadCurrent);
-  els.searchInput.addEventListener("input", applyFilters);
-  els.sectionFilter.addEventListener("change", applyFilters);
-  els.themeFilter.addEventListener("change", applyFilters);
-  els.ownerFilter.addEventListener("change", applyFilters);
-  els.impactFilter.addEventListener("change", applyFilters);
-  els.relevanceFilter.addEventListener("change", applyFilters);
-  els.fmrukOnlyFilter.addEventListener("change", applyFilters);
+  els.uploadBtn?.addEventListener("click", uploadFile);
+  els.uploadSelect?.addEventListener("change", onUploadChange);
+  els.reloadBtn?.addEventListener("click", reloadCurrent);
+  els.searchInput?.addEventListener("input", applyFilters);
+  els.sectionFilter?.addEventListener("change", applyFilters);
+  els.themeFilter?.addEventListener("change", applyFilters);
+  els.ownerFilter?.addEventListener("change", applyFilters);
+  els.impactFilter?.addEventListener("change", applyFilters);
+  els.relevanceFilter?.addEventListener("change", applyFilters);
+  els.fmrukOnlyFilter?.addEventListener("change", applyFilters);
 }
 
 async function uploadFile() {
@@ -83,7 +92,7 @@ async function uploadFile() {
 }
 
 async function loadUploads(preferredUploadId = null) {
-  const res = await fetch("/api/uploads");
+  const res = await fetch("/api/uploads", { cache: "no-store" });
   const uploads = await res.json();
 
   state.uploads = uploads;
@@ -100,6 +109,7 @@ async function loadUploads(preferredUploadId = null) {
     await loadInitiatives(state.selectedUploadId);
   } else {
     els.headerMeta.textContent = "No upload loaded";
+    clearTableAndSummary();
   }
 }
 
@@ -130,8 +140,8 @@ async function reloadCurrent() {
 
 async function loadInitiatives(uploadId) {
   const [itemsRes, summaryRes] = await Promise.all([
-    fetch(`/api/initiatives?upload_id=${uploadId}`),
-    fetch(`/api/summary?upload_id=${uploadId}`)
+    fetch(`/api/initiatives?upload_id=${uploadId}`, { cache: "no-store" }),
+    fetch(`/api/summary?upload_id=${uploadId}`, { cache: "no-store" })
   ]);
 
   state.initiatives = await itemsRes.json();
@@ -143,7 +153,7 @@ async function loadInitiatives(uploadId) {
     : "Upload loaded";
 
   els.uploadInfo.textContent = upload
-    ? `File type: ${upload.file_type.toUpperCase()} | Stored upload ID: ${upload.id}`
+    ? `File type: ${String(upload.file_type || "").toUpperCase()} | Stored upload ID: ${upload.id}`
     : "Choose a stored upload to inspect.";
 
   renderSummary(summary);
@@ -380,6 +390,17 @@ function impactBadge(level) {
   return `<span class="badge ${map[level] || "badge-low"}">${escapeHtml(level)}</span>`;
 }
 
+function clearTableAndSummary() {
+  els.tableBody.innerHTML = `<tr><td colspan="6">No uploads available.</td></tr>`;
+  els.detailPanel.innerHTML = `Upload a file or choose a saved upload, then select an initiative.`;
+  els.kpiTotal.textContent = "0";
+  els.kpiHighRelevance.textContent = "0";
+  els.kpiHighImpact.textContent = "0";
+  els.kpiRelevant.textContent = "0";
+  els.topThemesList.innerHTML = "<li>None</li>";
+  els.topOwnersList.innerHTML = "<li>None</li>";
+}
+
 function formatDate(value) {
   if (!value) return "Unknown";
   const d = new Date(value);
@@ -395,5 +416,3 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-
-init();
