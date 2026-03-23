@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FMRUK Regulatory Initiatives Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  <link rel="stylesheet" href="/static/styles.css?v=3" />
 </head>
 <body>
   <div class="app-shell">
@@ -19,7 +19,7 @@
           <div class="brand-line-2">UK Entity Regulatory Intake & Analysis</div>
         </div>
         <div class="toolbar-actions">
-          <button class="xp-btn" id="reloadBtn">Reload</button>
+          <button class="xp-btn" id="reloadBtn" type="button">Reload</button>
         </div>
       </div>
     </header>
@@ -31,7 +31,7 @@
           <div class="panel-body">
             <div class="upload-box">
               <input type="file" id="fileInput" accept=".pdf,.xlsx,.xls" />
-              <button class="xp-btn" id="uploadBtn">Upload & Analyse</button>
+              <button class="xp-btn" id="uploadBtn" type="button">Upload & Analyse</button>
             </div>
             <div class="small-note">
               Best results come from the FCA Grid XLSX. PDF parsing is supported and stored, but is more heuristic.
@@ -172,6 +172,6 @@
     </main>
   </div>
 
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script src="/static/app.js?v=3"></script>
 </body>
 </html>
