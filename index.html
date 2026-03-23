@@ -3,28 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FMRUK Regulatory Change Monitor</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>FMRUK Regulatory Initiatives Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar window">
       <div class="titlebar">
-        <div class="titlebar-text">FMRUK Regulatory Change Monitor</div>
-        <div class="titlebar-meta" id="lastUpdatedLabel">Last refresh: loading...</div>
+        <div class="titlebar-text">FMRUK Regulatory Initiatives Dashboard</div>
+        <div class="titlebar-meta" id="headerMeta">No upload loaded</div>
       </div>
-
       <div class="toolbar">
-        <div class="toolbar-left">
-          <div class="brand-block">
-            <div class="brand-line-1">Fidelity Investments</div>
-            <div class="brand-line-2">UK Entity Regulatory Intelligence Dashboard</div>
-          </div>
+        <div class="brand-block">
+          <div class="brand-line-1">Fidelity Investments</div>
+          <div class="brand-line-2">UK Entity Regulatory Intake & Analysis</div>
         </div>
-
-        <div class="toolbar-right">
-          <button class="xp-btn" id="refreshViewBtn">Refresh View</button>
-          <button class="xp-btn" id="downloadJsonBtn">Download JSON</button>
+        <div class="toolbar-actions">
+          <button class="xp-btn" id="reloadBtn">Reload</button>
         </div>
       </div>
     </header>
@@ -32,24 +27,40 @@
     <main class="layout">
       <section class="left-column">
         <div class="window panel">
-          <div class="panel-title">Control Panel</div>
+          <div class="panel-title">Upload Source Document</div>
+          <div class="panel-body">
+            <div class="upload-box">
+              <input type="file" id="fileInput" accept=".pdf,.xlsx,.xls" />
+              <button class="xp-btn" id="uploadBtn">Upload & Analyse</button>
+            </div>
+            <div class="small-note">
+              Best results come from the FCA Grid XLSX. PDF parsing is supported and stored, but is more heuristic.
+            </div>
+            <div id="uploadStatus" class="status-text">No upload in progress.</div>
+          </div>
+        </div>
 
-          <div class="form-grid">
+        <div class="window panel">
+          <div class="panel-title">Saved Uploads</div>
+          <div class="panel-body">
+            <select id="uploadSelect">
+              <option value="">Select upload</option>
+            </select>
+            <div class="small-note" id="uploadInfo">Choose a stored upload to inspect.</div>
+          </div>
+        </div>
+
+        <div class="window panel">
+          <div class="panel-title">Filters</div>
+          <div class="panel-body form-grid">
             <label>
               <span>Search</span>
-              <input id="searchInput" type="text" placeholder="Search title, impact, summary, theme..." />
+              <input type="text" id="searchInput" placeholder="Search title, impact, rationale..." />
             </label>
 
             <label>
-              <span>Authority</span>
-              <select id="authorityFilter">
-                <option value="">All</option>
-              </select>
-            </label>
-
-            <label>
-              <span>Source</span>
-              <select id="sourceFilter">
+              <span>Section</span>
+              <select id="sectionFilter">
                 <option value="">All</option>
               </select>
             </label>
@@ -62,91 +73,70 @@
             </label>
 
             <label>
-              <span>Sub-theme</span>
-              <select id="subThemeFilter">
-                <option value="">All</option>
-              </select>
-            </label>
-
-            <label>
-              <span>Primary owner</span>
+              <span>Primary Owner</span>
               <select id="ownerFilter">
                 <option value="">All</option>
               </select>
             </label>
 
             <label>
-              <span>Status</span>
-              <select id="statusFilter">
+              <span>Impact Level</span>
+              <select id="impactFilter">
                 <option value="">All</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
               </select>
             </label>
 
             <label>
-              <span>Minimum relevance</span>
+              <span>Minimum Relevance</span>
               <select id="relevanceFilter">
                 <option value="0">0+</option>
                 <option value="40">40+</option>
                 <option value="60" selected>60+</option>
-                <option value="75">75+</option>
-                <option value="85">85+</option>
+                <option value="80">80+</option>
               </select>
             </label>
 
             <label class="checkbox-row">
-              <input id="openOnlyFilter" type="checkbox" checked />
-              <span>Open / upcoming / new only</span>
+              <input type="checkbox" id="fmrukOnlyFilter" checked />
+              <span>Only FMRUK-relevant items</span>
             </label>
-
-            <label class="checkbox-row">
-              <input id="fmrukOnlyFilter" type="checkbox" checked />
-              <span>Only likely FMRUK-relevant items</span>
-            </label>
-
-            <label class="checkbox-row">
-              <input id="highImpactOnlyFilter" type="checkbox" />
-              <span>High impact only</span>
-            </label>
-          </div>
-
-          <div class="button-row">
-            <button class="xp-btn" id="clearFiltersBtn">Clear Filters</button>
-            <button class="xp-btn" id="sortByRelevanceBtn">Sort by Relevance</button>
-            <button class="xp-btn" id="sortByDateBtn">Sort by Date</button>
           </div>
         </div>
 
         <div class="window panel">
-          <div class="panel-title">Dashboard Summary</div>
-
-          <div class="kpi-grid">
-            <div class="kpi-card">
-              <div class="kpi-label">Items in View</div>
-              <div class="kpi-value" id="kpiTotal">0</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">High Relevance</div>
-              <div class="kpi-value" id="kpiHigh">0</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">High Impact</div>
-              <div class="kpi-value" id="kpiHighImpact">0</div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Authorities</div>
-              <div class="kpi-value" id="kpiAuthorities">0</div>
-            </div>
-          </div>
-
-          <div class="mini-summary">
-            <div class="mini-summary-block">
-              <div class="mini-summary-title">Top Themes</div>
-              <ul id="topThemesList"></ul>
+          <div class="panel-title">Summary</div>
+          <div class="panel-body">
+            <div class="kpi-grid">
+              <div class="kpi-card">
+                <div class="kpi-label">Total Items</div>
+                <div class="kpi-value" id="kpiTotal">0</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">High Relevance</div>
+                <div class="kpi-value" id="kpiHighRelevance">0</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">High Impact</div>
+                <div class="kpi-value" id="kpiHighImpact">0</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">FMRUK Relevant</div>
+                <div class="kpi-value" id="kpiRelevant">0</div>
+              </div>
             </div>
 
-            <div class="mini-summary-block">
-              <div class="mini-summary-title">Top Owners</div>
-              <ul id="topOwnersList"></ul>
+            <div class="mini-summary">
+              <div class="mini-summary-block">
+                <div class="mini-summary-title">Top Themes</div>
+                <ul id="topThemesList"></ul>
+              </div>
+              <div class="mini-summary-block">
+                <div class="mini-summary-title">Top Owners</div>
+                <ul id="topOwnersList"></ul>
+              </div>
             </div>
           </div>
         </div>
@@ -154,20 +144,17 @@
 
       <section class="right-column">
         <div class="window panel">
-          <div class="panel-title">Regulatory Items</div>
-
+          <div class="panel-title">Parsed Initiatives</div>
           <div class="table-wrapper">
             <table class="xp-table">
               <thead>
                 <tr>
                   <th>Priority</th>
-                  <th>Date</th>
-                  <th>Authority</th>
+                  <th>Section</th>
                   <th>Theme</th>
                   <th>Impact</th>
                   <th>Primary Owner</th>
-                  <th>Title</th>
-                  <th>Status</th>
+                  <th>Initiative</th>
                 </tr>
               </thead>
               <tbody id="tableBody"></tbody>
@@ -176,15 +163,15 @@
         </div>
 
         <div class="window panel">
-          <div class="panel-title">Selected Item Detail</div>
+          <div class="panel-title">Detail</div>
           <div id="detailPanel" class="detail-panel empty-state">
-            Select a row to inspect the item.
+            Upload a file or choose a saved upload, then select an initiative.
           </div>
         </div>
       </section>
     </main>
   </div>
 
-  <script src="app.js"></script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
