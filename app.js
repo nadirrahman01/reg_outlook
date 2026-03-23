@@ -1,4 +1,4 @@
-const STORAGE_KEY = "fmruk_reg_grid_v1";
+const STORAGE_KEY = "fmruk_reg_grid_v2";
 
 const state = {
   raw: [],
@@ -6,6 +6,31 @@ const state = {
   selectedItemId: null,
   datasetMeta: null,
 };
+
+const KNOWN_SECTIONS = [
+  "Multi-sector",
+  "Banking, credit and lending",
+  "Payments and cryptoassets",
+  "Insurance and reinsurance",
+  "Investment management",
+  "Pensions and retirement income",
+  "Retail investments",
+  "Wholesale financial markets",
+  "Annex: initiatives completed/stopped"
+];
+
+const KNOWN_SUBCATEGORIES = [
+  "Competition, innovation and other",
+  "Conduct",
+  "Cross-cutting/omnibus",
+  "Sustainable finance",
+  "Financial resilience",
+  "Operational resilience",
+  "Other single-sector initiatives",
+  "Repeal and replacement of assimilated law under FSMA 2023"
+];
+
+const LEAD_REGEX = /^(FCA|PRA|BoE|HMT|ICO|TPR|FRC|PSR|CMA|FOS|FSCS)(\/[A-Za-z]{2,10})*$/;
 
 const THEME_RULES = [
   {
@@ -142,6 +167,10 @@ const els = {
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js";
+  }
+
   bindEvents();
   loadFromStorage();
   renderAll();
@@ -174,11 +203,10 @@ function loadFromStorage() {
 }
 
 function saveToStorage() {
-  const payload = {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
     meta: state.datasetMeta,
     items: state.raw
-  };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  }));
 }
 
 function clearSavedData() {
@@ -194,33 +222,44 @@ function clearSavedData() {
 async function handleUpload() {
   const file = els.fileInput.files[0];
   if (!file) {
-    els.uploadStatus.textContent = "Please select an XLSX file first.";
+    els.uploadStatus.textContent = "Please select an XLSX or PDF file first.";
     return;
   }
 
-  els.uploadStatus.textContent = "Reading workbook...";
+  const ext = file.name.split(".").pop().toLowerCase();
 
   try {
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
+    els.uploadStatus.textContent = `Reading ${ext.toUpperCase()} file...`;
 
-    const parsedRows = workbook.SheetNames.flatMap(sheetName => {
-      const ws = workbook.Sheets[sheetName];
-      return XLSX.utils.sheet_to_json(ws, { defval: "" }).map(row => ({
-        __sheet: sheetName,
-        ...row
-      }));
-    });
+    let normalised = [];
 
-    const normalised = normaliseRows(parsedRows, file.name);
+    if (ext === "xlsx" || ext === "xls") {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const parsedRows = workbook.SheetNames.flatMap(sheetName => {
+        const ws = workbook.Sheets[sheetName];
+        return XLSX.utils.sheet_to_json(ws, { defval: "" }).map(row => ({
+          __sheet: sheetName,
+          ...row
+        }));
+      });
+      normalised = normaliseSpreadsheetRows(parsedRows, file.name);
+    } else if (ext === "pdf") {
+      const buffer = await file.arrayBuffer();
+      normalised = await parsePdfFile(buffer, file.name);
+    } else {
+      els.uploadStatus.textContent = "Unsupported file type.";
+      return;
+    }
+
     const analysed = analyseRows(normalised);
 
     state.raw = analysed;
     state.datasetMeta = {
       fileName: file.name,
       uploadedAt: new Date().toISOString(),
-      sheetCount: workbook.SheetNames.length,
-      rowCount: analysed.length
+      rowCount: analysed.length,
+      fileType: ext.toUpperCase()
     };
     state.selectedItemId = analysed[0]?.id || null;
 
@@ -229,11 +268,11 @@ async function handleUpload() {
     renderAll();
   } catch (err) {
     console.error(err);
-    els.uploadStatus.textContent = "Upload failed. Check that the file is a valid FCA Grid XLSX.";
+    els.uploadStatus.textContent = "Upload failed. The file could not be parsed.";
   }
 }
 
-function normaliseRows(rows, fileName) {
+function normaliseSpreadsheetRows(rows, fileName) {
   return rows
     .map((row, index) => {
       const mapped = mapWorkbookRow(row);
@@ -261,32 +300,155 @@ function mapWorkbookRow(row) {
     return "";
   };
 
-  const sectionName = get("sector", "section") || String(row.__sheet || "").trim();
-  const subcategory = get("subcategory", "sub-category", "category");
-  const leadRegulator = get("lead");
-  const initiativeTitle = get("initiative", "title", "name");
-  const initiativeDescription = get("description", "details", "detail", "summary");
-  const expectedKeyMilestones = get("expected key milestones", "milestone");
-  const indicativeImpactOnFirms = get("impact on firms", "indicative impact", "impact");
-  const consumerInterest = get("consumer interest");
-  const timingUpdated = get("timing updated", "change in timing");
-  const isNew = get("new");
-  const rawText = JSON.stringify(row);
+  return {
+    sectionName: get("sector", "section") || String(row.__sheet || "").trim(),
+    subcategory: get("subcategory", "sub-category", "category"),
+    leadRegulator: get("lead"),
+    initiativeTitle: get("initiative", "title", "name"),
+    initiativeDescription: get("description", "details", "detail", "summary"),
+    expectedKeyMilestones: get("expected key milestones", "milestone"),
+    indicativeImpactOnFirms: get("impact on firms", "indicative impact", "impact"),
+    consumerInterest: get("consumer interest"),
+    timingUpdated: get("timing updated", "change in timing"),
+    isNew: get("new"),
+    timingBucket: inferTimingBucket(`${get("expected key milestones", "milestone")} ${get("description", "details", "detail", "summary")}`),
+    rawText: JSON.stringify(row)
+  };
+}
+
+async function parsePdfFile(buffer, fileName) {
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  const pages = [];
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const textContent = await page.getTextContent();
+    const strings = textContent.items.map(item => item.str.trim()).filter(Boolean);
+    pages.push(strings.join("\n"));
+  }
+
+  const fullText = pages.join("\n");
+  const lines = fullText
+    .split("\n")
+    .map(x => normaliseWs(x))
+    .filter(Boolean)
+    .filter(x => !x.startsWith("Regulatory Initiatives Grid |"))
+    .filter(x => x !== "Lead Initiative Expected key milestones")
+    .filter(x => x !== "Indicative impact on firms")
+    .filter(x => x !== "Consumer interest")
+    .filter(x => x !== "Timing updated")
+    .filter(x => x !== "New");
+
+  return extractPdfInitiatives(lines, fileName);
+}
+
+function extractPdfInitiatives(lines, fileName) {
+  const initiatives = [];
+  let currentSection = "";
+  let currentSubcategory = "";
+  let current = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (KNOWN_SECTIONS.includes(line)) {
+      currentSection = line;
+      currentSubcategory = "";
+      continue;
+    }
+
+    if (KNOWN_SUBCATEGORIES.includes(line)) {
+      currentSubcategory = line;
+      continue;
+    }
+
+    if (looksLikeLead(line)) {
+      const nextLine = lines[i + 1] || "";
+
+      if (nextLine && !KNOWN_SECTIONS.includes(nextLine) && !KNOWN_SUBCATEGORIES.includes(nextLine)) {
+        if (current) {
+          initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
+        }
+
+        current = {
+          sectionName: currentSection,
+          subcategory: currentSubcategory,
+          leadRegulator: line,
+          initiativeTitle: nextLine,
+          initiativeDescription: "",
+          expectedKeyMilestones: "",
+          indicativeImpactOnFirms: "",
+          consumerInterest: "",
+          timingUpdated: "",
+          isNew: "",
+          timingBucket: "",
+          rawText: `${line}\n${nextLine}\n`
+        };
+
+        i += 1;
+        continue;
+      }
+    }
+
+    if (current) {
+      current.rawText += line + "\n";
+    }
+  }
+
+  if (current) {
+    initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
+  }
+
+  return initiatives.filter(x => x.initiativeTitle);
+}
+
+function finalisePdfInitiative(item, index, fileName) {
+  const raw = normaliseWs(item.rawText);
+
+  const impactMatch = raw.match(/\b(H|L|U)\b/);
+  const milestones = extractMilestones(raw);
 
   return {
-    sectionName,
-    subcategory,
-    leadRegulator,
-    initiativeTitle,
-    initiativeDescription,
-    expectedKeyMilestones,
-    indicativeImpactOnFirms,
-    consumerInterest,
-    timingUpdated,
-    isNew,
-    timingBucket: inferTimingBucket(`${expectedKeyMilestones} ${initiativeDescription}`),
-    rawText
+    id: `${slugify(item.initiativeTitle || "item")}-${index}`,
+    sourceFile: fileName,
+    sectionName: item.sectionName || "",
+    subcategory: item.subcategory || "",
+    leadRegulator: item.leadRegulator || "",
+    initiativeTitle: item.initiativeTitle || "",
+    initiativeDescription: raw
+      .replace(item.leadRegulator || "", "")
+      .replace(item.initiativeTitle || "", "")
+      .trim(),
+    expectedKeyMilestones: milestones,
+    indicativeImpactOnFirms: impactMatch ? impactMatch[1] : "",
+    consumerInterest: "",
+    timingUpdated: /timing/i.test(raw) ? "Possible" : "",
+    isNew: /\bnew\b/i.test(raw) ? "Yes" : "No",
+    timingBucket: inferTimingBucket(raw),
+    rawText: raw
   };
+}
+
+function extractMilestones(text) {
+  const matches = [];
+  const patterns = [
+    /(Q[1-4]\s+\d{4}:[^.]+(?:\.)?)/gi,
+    /((?:January|February|March|April|May|June|July|August|September|October|November|December)[^.]+(?:\.)?)/gi,
+    /(\d{1,2}\s+[A-Z][a-z]+\s+\d{4}[^.]*\.)/g
+  ];
+
+  for (const pattern of patterns) {
+    const found = text.match(pattern);
+    if (found) matches.push(...found);
+  }
+
+  const deduped = [...new Set(matches.map(x => normaliseWs(x)).filter(x => x.length > 8))];
+  return deduped.slice(0, 5).join(" | ");
+}
+
+function looksLikeLead(line) {
+  const cleaned = normaliseWs(line);
+  return cleaned.length <= 40 && LEAD_REGEX.test(cleaned);
 }
 
 function analyseRows(items) {
@@ -425,15 +587,9 @@ function buildSuggestedAction(impactLevel, classification, timingBucket) {
 
 function inferTimingBucket(text) {
   const blob = String(text || "").toLowerCase();
-  if (blob.includes("q1 2026") || blob.includes("q2 2026") || blob.includes("january") || blob.includes("april")) {
-    return "Near Term";
-  }
-  if (blob.includes("q3 2026") || blob.includes("q4 2026") || blob.includes("2026")) {
-    return "Medium Term";
-  }
-  if (blob.includes("2027") || blob.includes("post july 2027")) {
-    return "Longer Term";
-  }
+  if (blob.includes("q1 2026") || blob.includes("q2 2026") || blob.includes("january") || blob.includes("april")) return "Near Term";
+  if (blob.includes("q3 2026") || blob.includes("q4 2026") || blob.includes("2026")) return "Medium Term";
+  if (blob.includes("2027") || blob.includes("post july 2027")) return "Longer Term";
   return "To Be Confirmed";
 }
 
@@ -451,7 +607,7 @@ function updateMeta() {
   }
 
   els.headerMeta.textContent = `${state.datasetMeta.fileName} | ${state.datasetMeta.rowCount} initiatives | uploaded ${formatDate(state.datasetMeta.uploadedAt)}`;
-  els.datasetInfo.textContent = `Stored in this browser only. Sheets: ${state.datasetMeta.sheetCount}. Source file: ${state.datasetMeta.fileName}`;
+  els.datasetInfo.textContent = `Stored in this browser only. File type: ${state.datasetMeta.fileType}. Source file: ${state.datasetMeta.fileName}`;
 }
 
 function populateFilters() {
@@ -533,9 +689,7 @@ function renderFrequencyList(target, values) {
   const counts = {};
   values.filter(Boolean).forEach(v => counts[v] = (counts[v] || 0) + 1);
 
-  const sorted = Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   if (!sorted.length) {
     target.innerHTML = "<li>None</li>";
@@ -582,7 +736,7 @@ function renderTable(items) {
 
 function renderDetail(item) {
   if (!item) {
-    els.detailPanel.innerHTML = "Upload the FCA Grid XLSX, then select an initiative.";
+    els.detailPanel.innerHTML = "Upload the FCA Grid XLSX or PDF, then select an initiative.";
     return;
   }
 
@@ -590,80 +744,25 @@ function renderDetail(item) {
     <h2 class="detail-title">${escapeHtml(item.initiativeTitle || "")}</h2>
 
     <div class="detail-grid">
-      <div class="detail-box">
-        <div class="detail-label">Section</div>
-        <div class="detail-value">${escapeHtml(item.sectionName || "N/A")}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">Subcategory</div>
-        <div class="detail-value">${escapeHtml(item.subcategory || "N/A")}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">Lead</div>
-        <div class="detail-value">${escapeHtml(item.leadRegulator || "N/A")}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">Indicative Impact</div>
-        <div class="detail-value">${escapeHtml(item.indicativeImpactOnFirms || "N/A")}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">Theme</div>
-        <div class="detail-value">${escapeHtml(item.theme || "N/A")}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">Sub-theme</div>
-        <div class="detail-value">${escapeHtml(item.internalSubTheme || "N/A")}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">Primary Owner</div>
-        <div class="detail-value">${escapeHtml(item.primaryOwner || "N/A")}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">Secondary Owner</div>
-        <div class="detail-value">${escapeHtml(item.secondaryOwner || "N/A")}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">Relevance</div>
-        <div class="detail-value">${escapeHtml(String(item.relevanceScore || 0))}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">Impact Level</div>
-        <div class="detail-value">${escapeHtml(item.impactLevel || "N/A")}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">Timing Bucket</div>
-        <div class="detail-value">${escapeHtml(item.timingBucket || "N/A")}</div>
-      </div>
-      <div class="detail-box">
-        <div class="detail-label">New</div>
-        <div class="detail-value">${escapeHtml(item.isNew || "N/A")}</div>
-      </div>
+      <div class="detail-box"><div class="detail-label">Section</div><div class="detail-value">${escapeHtml(item.sectionName || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Subcategory</div><div class="detail-value">${escapeHtml(item.subcategory || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Lead</div><div class="detail-value">${escapeHtml(item.leadRegulator || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Indicative Impact</div><div class="detail-value">${escapeHtml(item.indicativeImpactOnFirms || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Theme</div><div class="detail-value">${escapeHtml(item.theme || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Sub-theme</div><div class="detail-value">${escapeHtml(item.internalSubTheme || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Primary Owner</div><div class="detail-value">${escapeHtml(item.primaryOwner || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Secondary Owner</div><div class="detail-value">${escapeHtml(item.secondaryOwner || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Relevance</div><div class="detail-value">${escapeHtml(String(item.relevanceScore || 0))}</div></div>
+      <div class="detail-box"><div class="detail-label">Impact Level</div><div class="detail-value">${escapeHtml(item.impactLevel || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Timing Bucket</div><div class="detail-value">${escapeHtml(item.timingBucket || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">New</div><div class="detail-value">${escapeHtml(item.isNew || "N/A")}</div></div>
     </div>
 
-    <div class="detail-block">
-      <strong>Potential Business Impact:</strong><br />
-      ${escapeHtml(item.potentialBusinessImpact || "N/A")}
-    </div>
-
-    <div class="detail-block">
-      <strong>Expected Key Milestones:</strong><br />
-      ${escapeHtml(item.expectedKeyMilestones || "N/A")}
-    </div>
-
-    <div class="detail-block">
-      <strong>Initiative Description:</strong><br />
-      ${escapeHtml(item.initiativeDescription || "N/A")}
-    </div>
-
-    <div class="detail-block">
-      <strong>Why it matters to FMRUK:</strong><br />
-      ${escapeHtml(item.rationale || "N/A")}
-    </div>
-
-    <div class="detail-block">
-      <strong>Suggested Action:</strong><br />
-      ${escapeHtml(item.suggestedAction || "N/A")}
-    </div>
+    <div class="detail-block"><strong>Potential Business Impact:</strong><br />${escapeHtml(item.potentialBusinessImpact || "N/A")}</div>
+    <div class="detail-block"><strong>Expected Key Milestones:</strong><br />${escapeHtml(item.expectedKeyMilestones || "N/A")}</div>
+    <div class="detail-block"><strong>Initiative Description:</strong><br />${escapeHtml(item.initiativeDescription || "N/A")}</div>
+    <div class="detail-block"><strong>Why it matters to FMRUK:</strong><br />${escapeHtml(item.rationale || "N/A")}</div>
+    <div class="detail-block"><strong>Suggested Action:</strong><br />${escapeHtml(item.suggestedAction || "N/A")}</div>
   `;
 }
 
@@ -674,11 +773,7 @@ function priorityBadge(score) {
 }
 
 function impactBadge(level) {
-  const map = {
-    High: "badge-high",
-    Medium: "badge-medium",
-    Low: "badge-low"
-  };
+  const map = { High: "badge-high", Medium: "badge-medium", Low: "badge-low" };
   return `<span class="badge ${map[level] || "badge-low"}">${escapeHtml(level)}</span>`;
 }
 
@@ -687,11 +782,11 @@ function unique(arr) {
 }
 
 function slugify(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+}
+
+function normaliseWs(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
 }
 
 function formatDate(value) {
