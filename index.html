@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FMRUK Regulatory Initiatives Dashboard</title>
-  <link rel="stylesheet" href="./styles.css?v=2" />
+  <link rel="stylesheet" href="./styles.css?v=3" />
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.js"></script>
 </head>
@@ -37,7 +37,7 @@
               <button class="xp-btn" id="uploadBtn" type="button">Upload &amp; Analyse</button>
             </div>
             <div class="small-note">
-              XLSX is the cleanest source. PDF is supported with heuristic parsing.
+              XLSX is the cleanest source. PDF is supported with structure-aware parsing.
             </div>
             <div id="uploadStatus" class="status-text">No upload in progress.</div>
           </div>
@@ -102,6 +102,11 @@
             <label class="checkbox-row">
               <input type="checkbox" id="fmrukOnlyFilter" checked />
               <span>Only FMRUK-relevant items</span>
+            </label>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="excludeAnnexFilter" checked />
+              <span>Exclude completed/stopped annex</span>
             </label>
           </div>
         </div>
@@ -172,6 +177,6 @@
     </main>
   </div>
 
-  <script src="./app.js?v=2"></script>
+  <script src="./app.js?v=3"></script>
 </body>
 </html>
