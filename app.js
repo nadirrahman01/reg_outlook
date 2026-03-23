@@ -11,18 +11,21 @@ const els = {
   authorityFilter: document.getElementById("authorityFilter"),
   sourceFilter: document.getElementById("sourceFilter"),
   themeFilter: document.getElementById("themeFilter"),
+  subThemeFilter: document.getElementById("subThemeFilter"),
+  ownerFilter: document.getElementById("ownerFilter"),
   statusFilter: document.getElementById("statusFilter"),
   relevanceFilter: document.getElementById("relevanceFilter"),
-  upcomingOnlyFilter: document.getElementById("upcomingOnlyFilter"),
+  openOnlyFilter: document.getElementById("openOnlyFilter"),
   fmrukOnlyFilter: document.getElementById("fmrukOnlyFilter"),
+  highImpactOnlyFilter: document.getElementById("highImpactOnlyFilter"),
   tableBody: document.getElementById("tableBody"),
   detailPanel: document.getElementById("detailPanel"),
   kpiTotal: document.getElementById("kpiTotal"),
   kpiHigh: document.getElementById("kpiHigh"),
-  kpiUpcoming: document.getElementById("kpiUpcoming"),
+  kpiHighImpact: document.getElementById("kpiHighImpact"),
   kpiAuthorities: document.getElementById("kpiAuthorities"),
   topThemesList: document.getElementById("topThemesList"),
-  topSourcesList: document.getElementById("topSourcesList"),
+  topOwnersList: document.getElementById("topOwnersList"),
   clearFiltersBtn: document.getElementById("clearFiltersBtn"),
   sortByRelevanceBtn: document.getElementById("sortByRelevanceBtn"),
   sortByDateBtn: document.getElementById("sortByDateBtn"),
@@ -57,10 +60,13 @@ function bindEvents() {
     els.authorityFilter,
     els.sourceFilter,
     els.themeFilter,
+    els.subThemeFilter,
+    els.ownerFilter,
     els.statusFilter,
     els.relevanceFilter,
-    els.upcomingOnlyFilter,
-    els.fmrukOnlyFilter
+    els.openOnlyFilter,
+    els.fmrukOnlyFilter,
+    els.highImpactOnlyFilter
   ].forEach(el => {
     el.addEventListener("input", applyFilters);
     el.addEventListener("change", applyFilters);
@@ -71,10 +77,13 @@ function bindEvents() {
     els.authorityFilter.value = "";
     els.sourceFilter.value = "";
     els.themeFilter.value = "";
+    els.subThemeFilter.value = "";
+    els.ownerFilter.value = "";
     els.statusFilter.value = "";
     els.relevanceFilter.value = "60";
-    els.upcomingOnlyFilter.checked = true;
+    els.openOnlyFilter.checked = true;
     els.fmrukOnlyFilter.checked = true;
+    els.highImpactOnlyFilter.checked = false;
     state.sortMode = "relevance";
     applyFilters();
   });
@@ -89,9 +98,7 @@ function bindEvents() {
     applyFilters();
   });
 
-  els.refreshViewBtn.addEventListener("click", () => {
-    applyFilters();
-  });
+  els.refreshViewBtn.addEventListener("click", applyFilters);
 
   els.downloadJsonBtn.addEventListener("click", () => {
     window.open("./data/regulatory_updates.json", "_blank");
@@ -102,6 +109,8 @@ function populateFilters(items) {
   populateSelect(els.authorityFilter, uniqueSorted(items.map(x => x.authority)));
   populateSelect(els.sourceFilter, uniqueSorted(items.map(x => x.source)));
   populateSelect(els.themeFilter, uniqueSorted(items.map(x => x.theme)));
+  populateSelect(els.subThemeFilter, uniqueSorted(items.map(x => x.sub_theme)));
+  populateSelect(els.ownerFilter, uniqueSorted(items.map(x => x.primary_owner)));
   populateSelect(els.statusFilter, uniqueSorted(items.map(x => x.status)));
 }
 
@@ -124,41 +133,53 @@ function applyFilters() {
   const authority = els.authorityFilter.value;
   const source = els.sourceFilter.value;
   const theme = els.themeFilter.value;
+  const subTheme = els.subThemeFilter.value;
+  const owner = els.ownerFilter.value;
   const status = els.statusFilter.value;
   const minRelevance = Number(els.relevanceFilter.value || 0);
-  const upcomingOnly = els.upcomingOnlyFilter.checked;
+  const openOnly = els.openOnlyFilter.checked;
   const fmrukOnly = els.fmrukOnlyFilter.checked;
+  const highImpactOnly = els.highImpactOnlyFilter.checked;
 
   let items = [...state.raw].filter(item => {
     const haystack = [
       item.title,
       item.summary,
       item.theme,
+      item.sub_theme,
       item.authority,
       item.type,
-      item.rationale
-    ]
-      .join(" ")
-      .toLowerCase();
+      item.rationale,
+      item.potential_business_impact,
+      item.primary_owner,
+      item.secondary_owner
+    ].join(" ").toLowerCase();
 
     const matchesQuery = !query || haystack.includes(query);
     const matchesAuthority = !authority || item.authority === authority;
     const matchesSource = !source || item.source === source;
     const matchesTheme = !theme || item.theme === theme;
+    const matchesSubTheme = !subTheme || item.sub_theme === subTheme;
+    const matchesOwner = !owner || item.primary_owner === owner;
     const matchesStatus = !status || item.status === status;
     const matchesRelevance = (item.relevance_score || 0) >= minRelevance;
-    const matchesUpcoming = !upcomingOnly || ["Open", "Upcoming", "Pipeline"].includes(item.status);
+    const matchesOpen =
+      !openOnly || ["New", "Open Consultation", "Upcoming Implementation", "Supervisory Attention", "Final Rules / Policy"].includes(item.status);
     const matchesFmruk = !fmrukOnly || item.is_fmruk_relevant === true;
+    const matchesHighImpact = !highImpactOnly || (item.impact_level || "") === "High";
 
     return (
       matchesQuery &&
       matchesAuthority &&
       matchesSource &&
       matchesTheme &&
+      matchesSubTheme &&
+      matchesOwner &&
       matchesStatus &&
       matchesRelevance &&
-      matchesUpcoming &&
-      matchesFmruk
+      matchesOpen &&
+      matchesFmruk &&
+      matchesHighImpact
     );
   });
 
@@ -181,8 +202,7 @@ function applyFilters() {
 }
 
 function getSortDate(item) {
-  const d = item.due_date || item.published_date || item.generated_date;
-  if (!d) return 0;
+  const d = item.due_date || item.published_date || "";
   const t = new Date(d).getTime();
   return Number.isNaN(t) ? 0 : t;
 }
@@ -192,7 +212,7 @@ function renderTable(items) {
 
   if (!items.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="7" class="muted">No items match the current filters.</td>`;
+    tr.innerHTML = `<td colspan="8" class="muted">No items match the current filters.</td>`;
     els.tableBody.appendChild(tr);
     return;
   }
@@ -206,7 +226,8 @@ function renderTable(items) {
       <td>${escapeHtml(formatDate(item.due_date || item.published_date || ""))}</td>
       <td>${escapeHtml(item.authority || "")}</td>
       <td>${escapeHtml(item.theme || "")}</td>
-      <td>${escapeHtml(item.type || "")}</td>
+      <td>${impactBadge(item.impact_level || "Low")}</td>
+      <td>${escapeHtml(item.primary_owner || "")}</td>
       <td>${escapeHtml(item.title || "")}</td>
       <td>${statusBadge(item.status || "")}</td>
     `;
@@ -224,25 +245,19 @@ function renderTable(items) {
 function renderKPIs(items) {
   els.kpiTotal.textContent = items.length;
   els.kpiHigh.textContent = items.filter(x => (x.relevance_score || 0) >= 80).length;
-  els.kpiUpcoming.textContent = items.filter(x => ["Open", "Upcoming", "Pipeline"].includes(x.status)).length;
+  els.kpiHighImpact.textContent = items.filter(x => x.impact_level === "High").length;
   els.kpiAuthorities.textContent = new Set(items.map(x => x.authority).filter(Boolean)).size;
 
-  renderFrequencyList(
-    els.topThemesList,
-    items.map(x => x.theme).filter(Boolean)
-  );
-
-  renderFrequencyList(
-    els.topSourcesList,
-    items.map(x => x.source).filter(Boolean)
-  );
+  renderFrequencyList(els.topThemesList, items.map(x => x.theme).filter(Boolean));
+  renderFrequencyList(els.topOwnersList, items.map(x => x.primary_owner).filter(Boolean));
 }
 
 function renderFrequencyList(target, values) {
   const counts = {};
-  values.forEach(v => (counts[v] = (counts[v] || 0) + 1));
+  values.forEach(v => counts[v] = (counts[v] || 0) + 1);
 
   target.innerHTML = "";
+
   Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5)
@@ -261,9 +276,7 @@ function renderFrequencyList(target, values) {
 
 function renderDetail(item) {
   if (!item) {
-    els.detailPanel.innerHTML = `
-      <div class="empty-state">No item selected.</div>
-    `;
+    els.detailPanel.innerHTML = `<div class="empty-state">No item selected.</div>`;
     return;
   }
 
@@ -280,36 +293,49 @@ function renderDetail(item) {
         <div class="detail-meta-value">${escapeHtml(item.theme || "N/A")}</div>
       </div>
       <div class="detail-meta">
-        <div class="detail-meta-label">Relevance Score</div>
+        <div class="detail-meta-label">Sub-theme</div>
+        <div class="detail-meta-value">${escapeHtml(item.sub_theme || "N/A")}</div>
+      </div>
+      <div class="detail-meta">
+        <div class="detail-meta-label">Relevance</div>
         <div class="detail-meta-value">${escapeHtml(String(item.relevance_score || 0))}</div>
+      </div>
+      <div class="detail-meta">
+        <div class="detail-meta-label">Impact</div>
+        <div class="detail-meta-value">${escapeHtml(item.impact_level || "N/A")}</div>
+      </div>
+      <div class="detail-meta">
+        <div class="detail-meta-label">Primary owner</div>
+        <div class="detail-meta-value">${escapeHtml(item.primary_owner || "N/A")}</div>
+      </div>
+      <div class="detail-meta">
+        <div class="detail-meta-label">Secondary owner</div>
+        <div class="detail-meta-value">${escapeHtml(item.secondary_owner || "N/A")}</div>
       </div>
       <div class="detail-meta">
         <div class="detail-meta-label">Status</div>
         <div class="detail-meta-value">${escapeHtml(item.status || "N/A")}</div>
       </div>
-      <div class="detail-meta">
-        <div class="detail-meta-label">Type</div>
-        <div class="detail-meta-value">${escapeHtml(item.type || "N/A")}</div>
-      </div>
-      <div class="detail-meta">
-        <div class="detail-meta-label">Date</div>
-        <div class="detail-meta-value">${escapeHtml(formatDate(item.due_date || item.published_date || ""))}</div>
-      </div>
     </div>
 
-    <div class="detail-summary">
+    <div class="detail-block">
+      <strong>Potential business impact:</strong><br />
+      ${escapeHtml(item.potential_business_impact || "No business impact generated.")}
+    </div>
+
+    <div class="detail-block">
       <strong>Summary:</strong><br />
       ${escapeHtml(item.summary || "No summary available.")}
     </div>
 
-    <div class="detail-rationale">
+    <div class="detail-block">
       <strong>Why it matters to FMRUK:</strong><br />
       ${escapeHtml(item.rationale || "No rationale generated.")}
     </div>
 
-    <div class="detail-rationale">
-      <strong>Internal owner suggestion:</strong><br />
-      ${escapeHtml(item.suggested_owner || "Compliance / Risk / Legal review")}
+    <div class="detail-block">
+      <strong>Suggested internal response:</strong><br />
+      ${escapeHtml(item.suggested_action || "Review and assess applicability.")}
     </div>
 
     <div class="detail-links">
@@ -338,16 +364,26 @@ function priorityBadge(score) {
   return `<span class="priority-badge ${className}">${label}</span>`;
 }
 
+function impactBadge(level) {
+  const mapping = {
+    High: "impact-high",
+    Medium: "impact-medium",
+    Low: "impact-low"
+  };
+  return `<span class="impact-badge ${mapping[level] || "impact-low"}">${escapeHtml(level)}</span>`;
+}
+
 function statusBadge(status) {
-  const map = {
-    Open: "status-open",
-    Upcoming: "status-upcoming",
-    Pipeline: "status-upcoming",
-    Closed: "status-closed"
+  const mapping = {
+    "New": "status-new",
+    "Open Consultation": "status-open",
+    "Upcoming Implementation": "status-upcoming",
+    "Supervisory Attention": "status-upcoming",
+    "Final Rules / Policy": "status-final",
+    "Closed / Historic": "status-closed"
   };
 
-  const className = map[status] || "status-upcoming";
-  return `<span class="status-badge ${className}">${escapeHtml(status || "N/A")}</span>`;
+  return `<span class="status-badge ${mapping[status] || "status-upcoming"}">${escapeHtml(status || "N/A")}</span>`;
 }
 
 function formatDate(value) {
