@@ -6,7 +6,6 @@ from hashlib import md5
 
 import feedparser
 import pandas as pd
-import requests
 from bs4 import BeautifulSoup
 
 
@@ -18,57 +17,149 @@ FCA_RSS = "https://www.fca.org.uk/news/rss.xml"
 PRA_RSS = "https://www.bankofengland.co.uk/rss/prudential-regulation-publications"
 GRID_XLSX = "https://www.fca.org.uk/publication/corporate/regulatory-initiatives-grid-dec-2025.xlsx"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; FMRUK-Regulatory-Tracker/1.0; +https://github.com/)"
-}
+
+THEME_RULES = [
+    {
+        "theme": "Market Conduct / Trading",
+        "sub_theme": "Transaction Reporting",
+        "keywords": [
+            "transaction reporting", "mifir reporting", "reporting obligation", "reporting fields",
+            "arm", "approved reporting mechanism", "regulatory reporting"
+        ],
+        "impact": "May require review of transaction reporting controls, reconciliations, exception monitoring and governance.",
+        "primary_owner": "Compliance",
+        "secondary_owner": "Operations"
+    },
+    {
+        "theme": "Market Conduct / Trading",
+        "sub_theme": "Best Execution",
+        "keywords": [
+            "best execution", "execution quality", "execution policy", "rts 28", "venue analysis"
+        ],
+        "impact": "Could affect best execution governance, monitoring, policy wording and oversight of execution arrangements.",
+        "primary_owner": "Compliance",
+        "secondary_owner": "Legal"
+    },
+    {
+        "theme": "Market Conduct / Trading",
+        "sub_theme": "Market Abuse / Surveillance",
+        "keywords": [
+            "market abuse", "mar", "surveillance", "inside information", "personal account dealing"
+        ],
+        "impact": "May require updates to surveillance controls, market abuse risk assessments, training and internal escalation processes.",
+        "primary_owner": "Compliance",
+        "secondary_owner": "Legal"
+    },
+    {
+        "theme": "Operational Resilience",
+        "sub_theme": "Operational Resilience",
+        "keywords": [
+            "operational resilience", "important business service", "impact tolerance", "resilience"
+        ],
+        "impact": "May require review of resilience mapping, testing, scenario analysis and governance over important business services.",
+        "primary_owner": "Risk",
+        "secondary_owner": "Compliance"
+    },
+    {
+        "theme": "Operational Resilience",
+        "sub_theme": "Outsourcing / Third Party Risk",
+        "keywords": [
+            "outsourcing", "third party", "critical third party", "service provider", "vendor risk"
+        ],
+        "impact": "Could require updates to outsourcing registers, due diligence, contractual controls and oversight of service providers.",
+        "primary_owner": "Risk",
+        "secondary_owner": "Technology"
+    },
+    {
+        "theme": "Prudential / MIFIDPRU",
+        "sub_theme": "Capital / Liquidity",
+        "keywords": [
+            "mifidpru", "capital", "liquidity", "own funds", "icara", "prudential", "concentration risk"
+        ],
+        "impact": "May affect prudential assessments, capital planning, ICARA assumptions, monitoring and governance.",
+        "primary_owner": "Finance",
+        "secondary_owner": "Risk"
+    },
+    {
+        "theme": "Prudential / MIFIDPRU",
+        "sub_theme": "Remuneration",
+        "keywords": [
+            "remuneration", "bonus", "pay", "incentive", "compensation", "malus", "clawback"
+        ],
+        "impact": "Could require updates to remuneration frameworks, governance, documentation and control testing.",
+        "primary_owner": "HR",
+        "secondary_owner": "Compliance"
+    },
+    {
+        "theme": "Consumer / Conduct",
+        "sub_theme": "Consumer Duty",
+        "keywords": [
+            "consumer duty", "fair value", "good outcomes", "vulnerable customers", "consumer"
+        ],
+        "impact": "May require review of product governance, distribution oversight, client communications and conduct monitoring.",
+        "primary_owner": "Compliance",
+        "secondary_owner": "Product"
+    },
+    {
+        "theme": "Consumer / Conduct",
+        "sub_theme": "Complaints / Client Treatment",
+        "keywords": [
+            "complaints", "redress", "disclosure", "client communication", "retail investors"
+        ],
+        "impact": "Could affect complaints handling, customer disclosures, oversight controls and record keeping.",
+        "primary_owner": "Compliance",
+        "secondary_owner": "Operations"
+    },
+    {
+        "theme": "AML / Sanctions / Financial Crime",
+        "sub_theme": "AML / KYC / Sanctions",
+        "keywords": [
+            "aml", "anti-money laundering", "sanctions", "kyc", "financial crime", "fraud", "bribery"
+        ],
+        "impact": "May require review of AML controls, KYC processes, sanctions screening, escalation and training.",
+        "primary_owner": "Compliance",
+        "secondary_owner": "Legal"
+    },
+    {
+        "theme": "Governance / SMCR",
+        "sub_theme": "SMCR / Governance",
+        "keywords": [
+            "smcr", "senior managers", "certification regime", "governance", "board", "committee", "dear ceo"
+        ],
+        "impact": "Could affect governance frameworks, accountabilities, committee reporting and senior management oversight.",
+        "primary_owner": "Compliance",
+        "secondary_owner": "Company Secretariat"
+    },
+    {
+        "theme": "ESG / Sustainability",
+        "sub_theme": "Sustainability / SDR",
+        "keywords": [
+            "sustainability", "sdr", "greenwashing", "climate", "esg", "transition plan", "tnfd"
+        ],
+        "impact": "May require updates to sustainability disclosures, product communications, governance and control evidence.",
+        "primary_owner": "Legal",
+        "secondary_owner": "Compliance"
+    },
+    {
+        "theme": "Data / AI / Technology",
+        "sub_theme": "AI / Data / Cyber",
+        "keywords": [
+            "artificial intelligence", "ai", "machine learning", "cyber", "data", "model risk", "technology"
+        ],
+        "impact": "Could affect governance over AI use cases, data controls, cyber oversight and internal policy requirements.",
+        "primary_owner": "Technology",
+        "secondary_owner": "Compliance"
+    }
+]
 
 
-THEME_RULES = {
-    "Operational Resilience": [
-        "operational resilience", "third party", "critical third party",
-        "outsourcing", "resilience", "business continuity"
-    ],
-    "Consumer / Conduct": [
-        "consumer duty", "consumer", "retail", "complaints", "redress",
-        "fair value", "vulnerable customers"
-    ],
-    "Prudential / MIFIDPRU": [
-        "mifidpru", "prudential", "capital", "liquidity", "icara",
-        "remuneration", "concentration risk"
-    ],
-    "Market Conduct / Trading": [
-        "market abuse", "best execution", "transaction reporting",
-        "mifid", "short selling", "uk emir", "sftr", "securitisation"
-    ],
-    "AML / Sanctions / Financial Crime": [
-        "financial crime", "aml", "anti-money laundering", "sanctions",
-        "fraud", "crime", "kyc"
-    ],
-    "ESG / Sustainability": [
-        "sustainability", "sdr", "esg", "climate", "transition plan",
-        "tnfd", "greenwashing"
-    ],
-    "Data / AI / Technology": [
-        "artificial intelligence", "ai", "machine learning", "cyber",
-        "data", "model risk", "technology"
-    ],
-    "Governance / SMCR": [
-        "smcr", "senior managers", "certification regime", "governance",
-        "board", "dear ceo"
-    ]
-}
-
-
-OWNER_RULES = {
-    "Operational Resilience": "Operational Risk / UK Compliance / Technology Risk",
-    "Consumer / Conduct": "UK Compliance / Legal / Product Governance",
-    "Prudential / MIFIDPRU": "Finance / Prudential Compliance / Risk",
-    "Market Conduct / Trading": "Market Compliance / Trading Oversight",
-    "AML / Sanctions / Financial Crime": "Financial Crime Compliance",
-    "ESG / Sustainability": "Sustainability / Product / Compliance",
-    "Data / AI / Technology": "Technology Risk / Data Governance / Compliance",
-    "Governance / SMCR": "Company Secretariat / Compliance / HR"
-}
+FMRUK_KEYWORDS = [
+    "uk", "fca", "pra", "investment firm", "asset management", "asset manager",
+    "mifid", "mifidpru", "consumer duty", "transaction reporting", "market abuse",
+    "best execution", "outsourcing", "operational resilience", "financial crime",
+    "sanctions", "governance", "remuneration", "sustainability", "disclosure",
+    "regulatory reporting", "firm", "firms"
+]
 
 
 def clean_html(raw: str) -> str:
@@ -82,108 +173,13 @@ def clean_html(raw: str) -> str:
 def parse_date(date_str: str):
     if not date_str:
         return None
-    for fmt in [
-        "%a, %d %b %Y %H:%M:%S %Z",
-        "%Y-%m-%d",
-        "%d %B %Y",
-        "%d %b %Y",
-        "%Y/%m/%d"
-    ]:
-        try:
-            return datetime.strptime(date_str, fmt).date().isoformat()
-        except Exception:
-            continue
     try:
-        return pd.to_datetime(date_str, errors="coerce").date().isoformat()
+        dt = pd.to_datetime(date_str, errors="coerce", utc=True)
+        if pd.isna(dt):
+            return None
+        return dt.date().isoformat()
     except Exception:
         return None
-
-
-def score_theme(text: str) -> str:
-    blob = text.lower()
-    for theme, keywords in THEME_RULES.items():
-        for keyword in keywords:
-            if keyword in blob:
-                return theme
-    return "General UK Regulatory Change"
-
-
-def relevance_score(text: str, authority: str, source: str) -> int:
-    blob = text.lower()
-    score = 30
-
-    if authority in {"FCA", "PRA", "Bank of England"}:
-        score += 20
-
-    high_value_terms = [
-        "consultation", "policy statement", "final rules", "supervisory statement",
-        "dear ceo", "handbook", "mifidpru", "consumer duty", "operational resilience",
-        "financial crime", "sanctions", "market abuse", "outsourcing", "capital",
-        "liquidity", "remuneration", "transaction reporting", "best execution"
-    ]
-    for term in high_value_terms:
-        if term in blob:
-            score += 6
-
-    if "grid" in source.lower():
-        score += 10
-
-    if "asset management" in blob or "investment firm" in blob or "firms" in blob:
-        score += 8
-
-    return min(score, 100)
-
-
-def build_rationale(title: str, summary: str, theme: str, authority: str) -> str:
-    base = f"{authority} item tagged to {theme}. "
-    if theme in OWNER_RULES:
-        return (
-            base
-            + "This is likely relevant where it could change FMRUK policy, controls, disclosures, monitoring, governance or implementation planning."
-        )
-    return (
-        base
-        + "This may still matter if it changes UK regulatory expectations, timing, operational workload or assurance requirements."
-    )
-
-
-def is_fmruk_relevant(title: str, summary: str, authority: str, theme: str) -> bool:
-    blob = f"{title} {summary}".lower()
-
-    if authority not in {"FCA", "PRA", "Bank of England"}:
-        return False
-
-    likely_relevant = [
-        "firm", "investment", "asset", "consumer", "conduct", "operational resilience",
-        "outsourcing", "financial crime", "sanctions", "market abuse", "transaction reporting",
-        "mifid", "capital", "liquidity", "governance", "remuneration", "dear ceo",
-        "sustainability", "ai", "data"
-    ]
-    if any(term in blob for term in likely_relevant):
-        return True
-
-    return theme != "General UK Regulatory Change"
-
-
-def status_from_dates(published_date: str, due_date: str = None) -> str:
-    today = datetime.now(timezone.utc).date()
-
-    if due_date:
-        try:
-            due = pd.to_datetime(due_date).date()
-            return "Open" if due >= today else "Closed"
-        except Exception:
-            pass
-
-    if published_date:
-        try:
-            published = pd.to_datetime(published_date).date()
-            delta_days = (today - published).days
-            return "Upcoming" if delta_days <= 30 else "Pipeline"
-        except Exception:
-            pass
-
-    return "Pipeline"
 
 
 def stable_id(*parts: str) -> str:
@@ -191,65 +187,254 @@ def stable_id(*parts: str) -> str:
     return md5(joined.encode("utf-8")).hexdigest()[:12]
 
 
-def get_feed_items(feed_url: str, authority_label: str, source_label: str):
-    feed = feedparser.parse(feed_url)
-    items = []
-
-    for entry in feed.entries[:80]:
-        title = clean_html(entry.get("title", ""))
-        summary = clean_html(entry.get("summary", "") or entry.get("description", ""))
-        url = entry.get("link", "")
-        published = parse_date(entry.get("published", "") or entry.get("updated", ""))
-        text_blob = f"{title} {summary}"
-        theme = score_theme(text_blob)
-        score = relevance_score(text_blob, authority_label, source_label)
-
-        record = {
-            "id": stable_id(source_label, title, url),
-            "source": source_label,
-            "authority": authority_label,
-            "type": infer_type(title, summary),
-            "title": title,
-            "summary": summary[:600],
-            "url": url,
-            "published_date": published,
-            "due_date": None,
-            "status": status_from_dates(published),
-            "theme": theme,
-            "relevance_score": score,
-            "is_fmruk_relevant": is_fmruk_relevant(title, summary, authority_label, theme),
-            "rationale": build_rationale(title, summary, theme, authority_label),
-            "suggested_owner": OWNER_RULES.get(theme, "UK Compliance / Legal")
-        }
-        items.append(record)
-
-    return items
-
-
 def infer_type(title: str, summary: str) -> str:
     blob = f"{title} {summary}".lower()
 
-    mapping = [
+    checks = [
         ("Policy Statement", "policy statement"),
         ("Consultation", "consultation"),
         ("Supervisory Statement", "supervisory statement"),
         ("Dear CEO", "dear ceo"),
         ("Handbook Notice", "handbook notice"),
-        ("Statement", " statement"),
         ("Speech", "speech"),
-        ("News", "news")
+        ("Discussion Paper", "discussion paper"),
+        ("Final Rules / Policy", "final rules")
     ]
-    for label, term in mapping:
+
+    for label, term in checks:
         if term in blob:
             return label
+
     return "Publication"
+
+
+def classify_item(title: str, summary: str):
+    blob = f"{title} {summary}".lower()
+
+    for rule in THEME_RULES:
+      if any(keyword in blob for keyword in rule["keywords"]):
+        return {
+            "theme": rule["theme"],
+            "sub_theme": rule["sub_theme"],
+            "potential_business_impact": rule["impact"],
+            "primary_owner": rule["primary_owner"],
+            "secondary_owner": rule["secondary_owner"]
+        }
+
+    return {
+        "theme": "General UK Regulatory Change",
+        "sub_theme": "General",
+        "potential_business_impact": "May require initial triage to determine whether any policy, control, governance or implementation response is needed.",
+        "primary_owner": "Compliance",
+        "secondary_owner": "Legal"
+    }
+
+
+def determine_impact_level(title: str, summary: str, item_type: str, theme: str) -> str:
+    blob = f"{title} {summary} {item_type} {theme}".lower()
+
+    high_terms = [
+        "final rules", "policy statement", "consultation", "mifidpru",
+        "transaction reporting", "consumer duty", "operational resilience",
+        "outsourcing", "sanctions", "market abuse", "capital", "liquidity"
+    ]
+    medium_terms = [
+        "speech", "discussion paper", "dear ceo", "governance",
+        "sustainability", "cyber", "data", "ai"
+    ]
+
+    if any(term in blob for term in high_terms):
+        return "High"
+    if any(term in blob for term in medium_terms):
+        return "Medium"
+    return "Low"
+
+
+def determine_status(item_type: str, published_date: str = None, due_date: str = None) -> str:
+    today = datetime.now(timezone.utc).date()
+
+    if item_type == "Consultation":
+        if due_date:
+            due = pd.to_datetime(due_date, errors="coerce")
+            if pd.notna(due):
+                return "Open Consultation" if due.date() >= today else "Closed / Historic"
+        return "Open Consultation"
+
+    if item_type in {"Policy Statement", "Final Rules / Policy", "Supervisory Statement", "Handbook Notice"}:
+        return "Final Rules / Policy"
+
+    if item_type == "Dear CEO":
+        return "Supervisory Attention"
+
+    if published_date:
+        published = pd.to_datetime(published_date, errors="coerce")
+        if pd.notna(published):
+            delta_days = (today - published.date()).days
+            if delta_days <= 14:
+                return "New"
+            if delta_days <= 90:
+                return "Upcoming Implementation"
+
+    return "Closed / Historic"
+
+
+def score_relevance(title: str, summary: str, authority: str, item_type: str, theme: str, sub_theme: str, source: str) -> int:
+    blob = f"{title} {summary} {theme} {sub_theme}".lower()
+    score = 20
+
+    if authority in {"FCA", "PRA", "Bank of England"}:
+        score += 20
+
+    if source == "Regulatory Initiatives Grid":
+        score += 10
+
+    if item_type in {"Consultation", "Policy Statement", "Final Rules / Policy", "Supervisory Statement", "Dear CEO"}:
+        score += 15
+
+    for keyword in FMRUK_KEYWORDS:
+        if keyword in blob:
+            score += 4
+
+    if sub_theme in {
+        "Transaction Reporting",
+        "Best Execution",
+        "Market Abuse / Surveillance",
+        "Operational Resilience",
+        "Outsourcing / Third Party Risk",
+        "Capital / Liquidity",
+        "Consumer Duty",
+        "AML / KYC / Sanctions"
+    }:
+        score += 12
+
+    return min(score, 100)
+
+
+def is_fmruk_relevant(title: str, summary: str, authority: str, theme: str, sub_theme: str) -> bool:
+    if authority not in {"FCA", "PRA", "Bank of England"}:
+        return False
+
+    blob = f"{title} {summary} {theme} {sub_theme}".lower()
+    return any(keyword in blob for keyword in FMRUK_KEYWORDS) or theme != "General UK Regulatory Change"
+
+
+def build_rationale(authority: str, theme: str, sub_theme: str, impact: str) -> str:
+    return (
+        f"{authority} item classified under {theme} / {sub_theme}. "
+        f"This is likely relevant where it could affect UK entity policy, controls, governance, oversight, reporting or implementation planning. "
+        f"Potential operational implication: {impact}"
+    )
+
+
+def build_suggested_action(item_type: str, impact_level: str, primary_owner: str, secondary_owner: str) -> str:
+    if impact_level == "High":
+        return f"Immediate triage by {primary_owner}; engage {secondary_owner} and assess whether policy, procedure, control or governance updates are required."
+    if item_type == "Consultation":
+        return f"Triage by {primary_owner}; consider whether {secondary_owner} should support an applicability assessment or consultation response."
+    return f"Review by {primary_owner}; determine whether monitoring, interpretation or follow-up with {secondary_owner} is needed."
+
+
+def parse_due_date_from_summary(summary: str):
+    patterns = [
+        r"responses?\s+by\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})",
+        r"deadline\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})",
+        r"closes?\s+on\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})"
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, summary, flags=re.IGNORECASE)
+        if match:
+            parsed = parse_date(match.group(1))
+            if parsed:
+                return parsed
+    return None
+
+
+def get_feed_items(feed_url: str, authority_label: str, source_label: str):
+    feed = feedparser.parse(feed_url)
+    items = []
+
+    for entry in feed.entries[:100]:
+        title = clean_html(entry.get("title", ""))
+        summary = clean_html(entry.get("summary", "") or entry.get("description", ""))
+        url = entry.get("link", "")
+        published_date = parse_date(entry.get("published", "") or entry.get("updated", ""))
+        due_date = parse_due_date_from_summary(summary)
+        item_type = infer_type(title, summary)
+        classification = classify_item(title, summary)
+        impact_level = determine_impact_level(title, summary, item_type, classification["theme"])
+        status = determine_status(item_type, published_date, due_date)
+        relevance = score_relevance(
+            title=title,
+            summary=summary,
+            authority=authority_label,
+            item_type=item_type,
+            theme=classification["theme"],
+            sub_theme=classification["sub_theme"],
+            source=source_label
+        )
+
+        impact = classification["potential_business_impact"]
+
+        record = {
+            "id": stable_id(source_label, title, url),
+            "source": source_label,
+            "authority": authority_label,
+            "type": item_type,
+            "title": title,
+            "summary": summary[:700],
+            "url": url,
+            "published_date": published_date,
+            "due_date": due_date,
+            "status": status,
+            "theme": classification["theme"],
+            "sub_theme": classification["sub_theme"],
+            "impact_level": impact_level,
+            "potential_business_impact": impact,
+            "primary_owner": classification["primary_owner"],
+            "secondary_owner": classification["secondary_owner"],
+            "relevance_score": relevance,
+            "is_fmruk_relevant": is_fmruk_relevant(
+                title, summary, authority_label, classification["theme"], classification["sub_theme"]
+            ),
+            "rationale": build_rationale(authority_label, classification["theme"], classification["sub_theme"], impact),
+            "suggested_action": build_suggested_action(
+                item_type, impact_level, classification["primary_owner"], classification["secondary_owner"]
+            )
+        }
+
+        items.append(record)
+
+    return items
+
+
+def normalise_col(value) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
+
+
+def pick_col(columns, options):
+    for option in options:
+        for col in columns:
+            if option in col:
+                return col
+    return None
+
+
+def normalise_authority(value: str) -> str:
+    v = str(value).lower()
+    if "fca" in v:
+        return "FCA"
+    if "pra" in v:
+        return "PRA"
+    if "bank" in v:
+        return "Bank of England"
+    return str(value).strip() or "Regulator"
 
 
 def fetch_grid_items():
     items = []
 
     try:
-        # Read all sheets and merge what we can.
         excel = pd.ExcelFile(GRID_XLSX)
         frames = []
 
@@ -267,13 +452,12 @@ def fetch_grid_items():
         grid_df = pd.concat(frames, ignore_index=True)
         grid_df.columns = [normalise_col(c) for c in grid_df.columns]
 
-        title_col = pick_col(grid_df.columns, ["initiative", "name", "title"])
+        title_col = pick_col(grid_df.columns, ["initiative", "title", "name"])
         authority_col = pick_col(grid_df.columns, ["authority", "regulator"])
-        summary_col = pick_col(grid_df.columns, ["description", "detail", "summary"])
+        summary_col = pick_col(grid_df.columns, ["description", "summary", "detail"])
+        timing_col = pick_col(grid_df.columns, ["timing", "planned_timing", "milestone", "date"])
         sector_col = pick_col(grid_df.columns, ["sector"])
-        impact_col = pick_col(grid_df.columns, ["impact", "expected_impact"])
-        timing_col = pick_col(grid_df.columns, ["timing", "planned_timing", "date", "milestone"])
-        consumer_col = pick_col(grid_df.columns, ["consumer"])
+        impact_col = pick_col(grid_df.columns, ["impact"])
 
         if not title_col:
             return items
@@ -285,65 +469,66 @@ def fetch_grid_items():
             if not title or title.lower() == "nan":
                 continue
 
-            authority = str(row.get(authority_col, "Regulatory Initiatives Forum")).strip()
-            summary_parts = []
+            authority = normalise_authority(row.get(authority_col, "Regulatory Initiatives Forum"))
 
-            for col in [summary_col, sector_col, impact_col, timing_col, consumer_col]:
+            summary_parts = []
+            for col in [summary_col, timing_col, sector_col, impact_col]:
                 if col and pd.notna(row.get(col)):
                     summary_parts.append(f"{col.replace('_', ' ').title()}: {str(row.get(col)).strip()}")
 
             summary = " | ".join(summary_parts)[:700]
-            theme = score_theme(f"{title} {summary}")
-            score = relevance_score(f"{title} {summary}", authority, "Regulatory Initiatives Grid")
+            item_type = "Pipeline Initiative"
+            classification = classify_item(title, summary)
+            impact_level = "High" if classification["sub_theme"] in {
+                "Transaction Reporting", "Operational Resilience", "Outsourcing / Third Party Risk",
+                "Capital / Liquidity", "Consumer Duty"
+            } else "Medium"
+
+            relevance = score_relevance(
+                title=title,
+                summary=summary,
+                authority=authority,
+                item_type=item_type,
+                theme=classification["theme"],
+                sub_theme=classification["sub_theme"],
+                source="Regulatory Initiatives Grid"
+            )
 
             items.append({
                 "id": stable_id("grid", title, authority, summary),
                 "source": "Regulatory Initiatives Grid",
-                "authority": normalise_authority(authority),
-                "type": "Pipeline Initiative",
+                "authority": authority,
+                "type": item_type,
                 "title": title,
-                "summary": summary or "Pipeline item from the Regulatory Initiatives Grid.",
+                "summary": summary or "Forward-looking pipeline item from the Regulatory Initiatives Grid.",
                 "url": "https://www.fca.org.uk/publications/corporate-documents/regulatory-initiatives-grid/dashboard",
                 "published_date": "2025-12-11",
                 "due_date": None,
-                "status": "Pipeline",
-                "theme": theme,
-                "relevance_score": min(score + 5, 100),
-                "is_fmruk_relevant": is_fmruk_relevant(title, summary, normalise_authority(authority), theme),
-                "rationale": (
-                    "Forward-looking pipeline item from the Regulatory Initiatives Grid. "
-                    "Useful for implementation planning, sequencing and assessing future compliance demand on FMRUK."
+                "status": "Upcoming Implementation",
+                "theme": classification["theme"],
+                "sub_theme": classification["sub_theme"],
+                "impact_level": impact_level,
+                "potential_business_impact": classification["potential_business_impact"],
+                "primary_owner": classification["primary_owner"],
+                "secondary_owner": classification["secondary_owner"],
+                "relevance_score": min(relevance + 5, 100),
+                "is_fmruk_relevant": is_fmruk_relevant(
+                    title, summary, authority, classification["theme"], classification["sub_theme"]
                 ),
-                "suggested_owner": OWNER_RULES.get(theme, "UK Compliance / Legal")
+                "rationale": (
+                    f"Forward-looking pipeline item from the Regulatory Initiatives Grid under "
+                    f"{classification['theme']} / {classification['sub_theme']}. "
+                    f"Useful for implementation planning, sequencing and resource allocation for FMRUK."
+                ),
+                "suggested_action": build_suggested_action(
+                    item_type, impact_level, classification["primary_owner"], classification["secondary_owner"]
+                )
             })
 
     except Exception as exc:
         print(f"Grid fetch failed: {exc}")
 
     return items
-
-
-def normalise_col(value) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower()).strip("_")
-
-
-def pick_col(columns, keyword_options):
-    for option in keyword_options:
-        for col in columns:
-            if option in col:
-                return col
-    return None
-
-
-def normalise_authority(value: str) -> str:
-    v = value.lower()
-    if "fca" in v:
-        return "FCA"
-    if "pra" in v:
-        return "PRA"
-    if "bank" in v:
-        return "Bank of England"
-    return value or "Regulator"
 
 
 def dedupe_items(items):
@@ -363,8 +548,8 @@ def dedupe_items(items):
 def sort_items(items):
     def sort_key(item):
         relevance = item.get("relevance_score", 0)
-        due = item.get("due_date") or item.get("published_date") or ""
-        return (-relevance, due)
+        date_value = item.get("due_date") or item.get("published_date") or "1900-01-01"
+        return (-relevance, str(date_value))
 
     return sorted(items, key=sort_key)
 
