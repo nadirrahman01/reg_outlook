@@ -1,4 +1,4 @@
-const STORAGE_KEY = "fmruk_reg_grid_v2";
+const STORAGE_KEY = "fmruk_reg_grid_v3";
 
 const state = {
   raw: [],
@@ -11,6 +11,7 @@ const KNOWN_SECTIONS = [
   "Multi-sector",
   "Banking, credit and lending",
   "Payments and cryptoassets",
+  "Payment services and cryptoassets",
   "Insurance and reinsurance",
   "Investment management",
   "Pensions and retirement income",
@@ -31,6 +32,27 @@ const KNOWN_SUBCATEGORIES = [
 ];
 
 const LEAD_REGEX = /^(FCA|PRA|BoE|HMT|ICO|TPR|FRC|PSR|CMA|FOS|FSCS)(\/[A-Za-z]{2,10})*$/;
+
+const HEADER_NOISE = new Set([
+  "Key",
+  "Lead",
+  "Initiative",
+  "Expected key milestones",
+  "Lead Initiative Expected key milestones",
+  "Indicative impact on firms",
+  "Indicative impact on firms: H - high L - low U - unknown E Formal engagement planned Key milestone E Engagement and key milestone",
+  "Consumer interest",
+  "Timing updated",
+  "New",
+  "Indicative impact on firms: H - high L - low U - unknown",
+  "Oct-Dec 2025",
+  "Jan-Mar 2026",
+  "Apr-Jun 2026",
+  "Jul-Sept 2026",
+  "Oct-Dec 2026",
+  "Jan-Jun 2027",
+  "Post July 2027"
+]);
 
 const THEME_RULES = [
   {
@@ -68,7 +90,7 @@ const THEME_RULES = [
   {
     theme: "Operational Resilience",
     subTheme: "Outsourcing / Third Party Risk",
-    keywords: ["outsourcing", "third party", "critical third party", "service provider", "vendor risk"],
+    keywords: ["outsourcing", "third party", "critical third party", "service provider", "vendor risk", "third-party reporting"],
     impact: "Could require updates to outsourcing registers, due diligence, contractual controls and oversight of service providers.",
     primaryOwner: "Risk",
     secondaryOwner: "Technology"
@@ -116,7 +138,7 @@ const THEME_RULES = [
   {
     theme: "ESG / Sustainability",
     subTheme: "Sustainability / SDR",
-    keywords: ["sustainability", "sdr", "greenwashing", "climate", "esg", "transition plan", "tnfd", "tcfd", "srs"],
+    keywords: ["sustainability", "sdr", "greenwashing", "climate", "esg", "transition plan", "tnfd", "tcfd", "srs", "esg ratings"],
     impact: "May require updates to sustainability disclosures, product communications, governance and control evidence.",
     primaryOwner: "Legal",
     secondaryOwner: "Compliance"
@@ -154,6 +176,7 @@ const els = {
   impactFilter: document.getElementById("impactFilter"),
   relevanceFilter: document.getElementById("relevanceFilter"),
   fmrukOnlyFilter: document.getElementById("fmrukOnlyFilter"),
+  excludeAnnexFilter: document.getElementById("excludeAnnexFilter"),
   tableBody: document.getElementById("tableBody"),
   detailPanel: document.getElementById("detailPanel"),
   kpiTotal: document.getElementById("kpiTotal"),
@@ -168,9 +191,9 @@ document.addEventListener("DOMContentLoaded", init);
 
 function init() {
   if (window.pdfjsLib) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js";
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js";
   }
-
   bindEvents();
   loadFromStorage();
   renderAll();
@@ -187,12 +210,12 @@ function bindEvents() {
   els.impactFilter.addEventListener("change", applyFilters);
   els.relevanceFilter.addEventListener("change", applyFilters);
   els.fmrukOnlyFilter.addEventListener("change", applyFilters);
+  els.excludeAnnexFilter.addEventListener("change", applyFilters);
 }
 
 function loadFromStorage() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return;
-
   try {
     const payload = JSON.parse(raw);
     state.raw = Array.isArray(payload.items) ? payload.items : [];
@@ -252,8 +275,12 @@ async function handleUpload() {
       return;
     }
 
-    const analysed = analyseRows(normalised);
+    if (!normalised.length) {
+      els.uploadStatus.textContent = "No initiatives were detected. Use the FCA Grid XLSX where possible, or try this PDF parser update again after replacing app.js.";
+      return;
+    }
 
+    const analysed = analyseRows(normalised);
     state.raw = analysed;
     state.datasetMeta = {
       fileName: file.name,
@@ -268,7 +295,7 @@ async function handleUpload() {
     renderAll();
   } catch (err) {
     console.error(err);
-    els.uploadStatus.textContent = "Upload failed. The file could not be parsed.";
+    els.uploadStatus.textContent = `Upload failed. ${err.message || "The file could not be parsed."}`;
   }
 }
 
@@ -317,29 +344,55 @@ function mapWorkbookRow(row) {
 }
 
 async function parsePdfFile(buffer, fileName) {
+  if (!window.pdfjsLib) {
+    throw new Error("pdf.js failed to load.");
+  }
+
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-  const pages = [];
+  const lines = [];
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const textContent = await page.getTextContent();
-    const strings = textContent.items.map(item => item.str.trim()).filter(Boolean);
-    pages.push(strings.join("\n"));
+    const pageLines = rebuildLinesFromPdfItems(textContent.items);
+
+    for (const line of pageLines) {
+      const clean = normaliseWs(line);
+      if (!clean) continue;
+      if (clean.startsWith("Regulatory Initiatives Grid |")) continue;
+      if (HEADER_NOISE.has(clean)) continue;
+      if (/^Page \d+ of \d+$/i.test(clean)) continue;
+      lines.push(clean);
+    }
   }
 
-  const fullText = pages.join("\n");
-  const lines = fullText
-    .split("\n")
-    .map(x => normaliseWs(x))
-    .filter(Boolean)
-    .filter(x => !x.startsWith("Regulatory Initiatives Grid |"))
-    .filter(x => x !== "Lead Initiative Expected key milestones")
-    .filter(x => x !== "Indicative impact on firms")
-    .filter(x => x !== "Consumer interest")
-    .filter(x => x !== "Timing updated")
-    .filter(x => x !== "New");
-
   return extractPdfInitiatives(lines, fileName);
+}
+
+function rebuildLinesFromPdfItems(items) {
+  const rows = new Map();
+
+  for (const item of items) {
+    const y = Math.round(item.transform[5]);
+    const text = String(item.str || "").trim();
+    if (!text) continue;
+    if (!rows.has(y)) rows.set(y, []);
+    rows.get(y).push({
+      x: item.transform[4],
+      text
+    });
+  }
+
+  return [...rows.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([, parts]) =>
+      parts
+        .sort((a, b) => a.x - b.x)
+        .map(p => p.text)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim()
+    );
 }
 
 function extractPdfInitiatives(lines, fileName) {
@@ -349,7 +402,8 @@ function extractPdfInitiatives(lines, fileName) {
   let current = null;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = normaliseWs(lines[i]);
+    if (!line) continue;
 
     if (KNOWN_SECTIONS.includes(line)) {
       currentSection = line;
@@ -362,11 +416,16 @@ function extractPdfInitiatives(lines, fileName) {
       continue;
     }
 
-    if (looksLikeLead(line)) {
-      const nextLine = lines[i + 1] || "";
+    if (line === "Annex: initiatives completed/stopped") {
+      currentSection = line;
+      currentSubcategory = "";
+      continue;
+    }
 
-      if (nextLine && !KNOWN_SECTIONS.includes(nextLine) && !KNOWN_SUBCATEGORIES.includes(nextLine)) {
-        if (current) {
+    if (looksLikeLead(line)) {
+      const nextLine = normaliseWs(lines[i + 1] || "");
+      if (nextLine && !KNOWN_SECTIONS.includes(nextLine) && !KNOWN_SUBCATEGORIES.includes(nextLine) && !looksLikeLead(nextLine)) {
+        if (current && current.initiativeTitle) {
           initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
         }
 
@@ -395,18 +454,20 @@ function extractPdfInitiatives(lines, fileName) {
     }
   }
 
-  if (current) {
+  if (current && current.initiativeTitle) {
     initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
   }
 
-  return initiatives.filter(x => x.initiativeTitle);
+  return initiatives.filter(x => x.initiativeTitle && x.initiativeTitle.length > 3);
 }
 
 function finalisePdfInitiative(item, index, fileName) {
   const raw = normaliseWs(item.rawText);
-
   const impactMatch = raw.match(/\b(H|L|U)\b/);
-  const milestones = extractMilestones(raw);
+  const cleanedDescription = raw
+    .replace(item.leadRegulator || "", "")
+    .replace(item.initiativeTitle || "", "")
+    .trim();
 
   return {
     id: `${slugify(item.initiativeTitle || "item")}-${index}`,
@@ -415,13 +476,10 @@ function finalisePdfInitiative(item, index, fileName) {
     subcategory: item.subcategory || "",
     leadRegulator: item.leadRegulator || "",
     initiativeTitle: item.initiativeTitle || "",
-    initiativeDescription: raw
-      .replace(item.leadRegulator || "", "")
-      .replace(item.initiativeTitle || "", "")
-      .trim(),
-    expectedKeyMilestones: milestones,
+    initiativeDescription: cleanedDescription,
+    expectedKeyMilestones: extractMilestones(raw),
     indicativeImpactOnFirms: impactMatch ? impactMatch[1] : "",
-    consumerInterest: "",
+    consumerInterest: /\bl\b/.test(raw.toLowerCase()) ? "" : "",
     timingUpdated: /timing/i.test(raw) ? "Possible" : "",
     isNew: /\bnew\b/i.test(raw) ? "Yes" : "No",
     timingBucket: inferTimingBucket(raw),
@@ -442,8 +500,7 @@ function extractMilestones(text) {
     if (found) matches.push(...found);
   }
 
-  const deduped = [...new Set(matches.map(x => normaliseWs(x)).filter(x => x.length > 8))];
-  return deduped.slice(0, 5).join(" | ");
+  return [...new Set(matches.map(x => normaliseWs(x)).filter(x => x.length > 8))].slice(0, 5).join(" | ");
 }
 
 function looksLikeLead(line) {
@@ -480,9 +537,7 @@ function classifyItem(item) {
   const blob = `${item.initiativeTitle} ${item.initiativeDescription} ${item.sectionName} ${item.subcategory}`.toLowerCase();
 
   for (const rule of THEME_RULES) {
-    if (rule.keywords.some(keyword => blob.includes(keyword))) {
-      return rule;
-    }
+    if (rule.keywords.some(keyword => blob.includes(keyword))) return rule;
   }
 
   const sectionBlob = `${item.sectionName} ${item.subcategory}`.toLowerCase();
@@ -636,6 +691,7 @@ function applyFilters() {
   const impact = els.impactFilter.value;
   const minRelevance = Number(els.relevanceFilter.value || 0);
   const fmrukOnly = els.fmrukOnlyFilter.checked;
+  const excludeAnnex = els.excludeAnnexFilter.checked;
 
   let items = state.raw.filter(item => {
     const haystack = [
@@ -658,7 +714,8 @@ function applyFilters() {
       (!owner || item.primaryOwner === owner) &&
       (!impact || item.impactLevel === impact) &&
       ((item.relevanceScore || 0) >= minRelevance) &&
-      (!fmrukOnly || item.isFmrukRelevant === true)
+      (!fmrukOnly || item.isFmrukRelevant === true) &&
+      (!excludeAnnex || item.sectionName !== "Annex: initiatives completed/stopped")
     );
   });
 
@@ -688,7 +745,6 @@ function renderFrequencyList(target, values) {
   target.innerHTML = "";
   const counts = {};
   values.filter(Boolean).forEach(v => counts[v] = (counts[v] || 0) + 1);
-
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
   if (!sorted.length) {
