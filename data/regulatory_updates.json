@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-03-23T09:00:00Z",
+  "items": [
+    {
+      "id": "seed-1",
+      "source": "Seed Data",
+      "authority": "FCA",
+      "type": "Consultation",
+      "title": "Example FCA consultation placeholder",
+      "summary": "This is starter data. The GitHub Action will replace this file with live items from official sources.",
+      "url": "https://www.fca.org.uk/",
+      "published_date": "2026-03-20",
+      "due_date": "2026-04-30",
+      "status": "Open",
+      "theme": "Conduct / Consumer",
+      "relevance_score": 82,
+      "is_fmruk_relevant": true,
+      "rationale": "Likely relevant to an FCA-regulated UK entity and should be triaged by UK Compliance.",
+      "suggested_owner": "UK Compliance"
+    }
+  ]
+}
