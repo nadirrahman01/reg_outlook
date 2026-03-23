@@ -11,17 +11,17 @@
     <header class="topbar window">
       <div class="titlebar">
         <div class="titlebar-text">FMRUK Regulatory Change Monitor</div>
-        <div class="titlebar-meta">
-          <span id="lastUpdatedLabel">Last refresh: loading...</span>
-        </div>
+        <div class="titlebar-meta" id="lastUpdatedLabel">Last refresh: loading...</div>
       </div>
+
       <div class="toolbar">
         <div class="toolbar-left">
           <div class="brand-block">
             <div class="brand-line-1">Fidelity Investments</div>
-            <div class="brand-line-2">UK Entity Change Intelligence</div>
+            <div class="brand-line-2">UK Entity Regulatory Intelligence Dashboard</div>
           </div>
         </div>
+
         <div class="toolbar-right">
           <button class="xp-btn" id="refreshViewBtn">Refresh View</button>
           <button class="xp-btn" id="downloadJsonBtn">Download JSON</button>
@@ -37,7 +37,7 @@
           <div class="form-grid">
             <label>
               <span>Search</span>
-              <input id="searchInput" type="text" placeholder="Search title, theme, summary..." />
+              <input id="searchInput" type="text" placeholder="Search title, impact, summary, theme..." />
             </label>
 
             <label>
@@ -62,6 +62,20 @@
             </label>
 
             <label>
+              <span>Sub-theme</span>
+              <select id="subThemeFilter">
+                <option value="">All</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Primary owner</span>
+              <select id="ownerFilter">
+                <option value="">All</option>
+              </select>
+            </label>
+
+            <label>
               <span>Status</span>
               <select id="statusFilter">
                 <option value="">All</option>
@@ -80,13 +94,18 @@
             </label>
 
             <label class="checkbox-row">
-              <input id="upcomingOnlyFilter" type="checkbox" checked />
-              <span>Upcoming / open items only</span>
+              <input id="openOnlyFilter" type="checkbox" checked />
+              <span>Open / upcoming / new only</span>
             </label>
 
             <label class="checkbox-row">
               <input id="fmrukOnlyFilter" type="checkbox" checked />
               <span>Only likely FMRUK-relevant items</span>
+            </label>
+
+            <label class="checkbox-row">
+              <input id="highImpactOnlyFilter" type="checkbox" />
+              <span>High impact only</span>
             </label>
           </div>
 
@@ -99,6 +118,7 @@
 
         <div class="window panel">
           <div class="panel-title">Dashboard Summary</div>
+
           <div class="kpi-grid">
             <div class="kpi-card">
               <div class="kpi-label">Items in View</div>
@@ -109,8 +129,8 @@
               <div class="kpi-value" id="kpiHigh">0</div>
             </div>
             <div class="kpi-card">
-              <div class="kpi-label">Open / Upcoming</div>
-              <div class="kpi-value" id="kpiUpcoming">0</div>
+              <div class="kpi-label">High Impact</div>
+              <div class="kpi-value" id="kpiHighImpact">0</div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label">Authorities</div>
@@ -123,9 +143,10 @@
               <div class="mini-summary-title">Top Themes</div>
               <ul id="topThemesList"></ul>
             </div>
+
             <div class="mini-summary-block">
-              <div class="mini-summary-title">By Source</div>
-              <ul id="topSourcesList"></ul>
+              <div class="mini-summary-title">Top Owners</div>
+              <ul id="topOwnersList"></ul>
             </div>
           </div>
         </div>
@@ -143,7 +164,8 @@
                   <th>Date</th>
                   <th>Authority</th>
                   <th>Theme</th>
-                  <th>Type</th>
+                  <th>Impact</th>
+                  <th>Primary Owner</th>
                   <th>Title</th>
                   <th>Status</th>
                 </tr>
@@ -156,7 +178,7 @@
         <div class="window panel">
           <div class="panel-title">Selected Item Detail</div>
           <div id="detailPanel" class="detail-panel empty-state">
-            Select a row to inspect the rationale, source link, summary and FMRUK impact view.
+            Select a row to inspect the item.
           </div>
         </div>
       </section>
