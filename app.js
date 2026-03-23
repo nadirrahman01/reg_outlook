@@ -1,10 +1,14 @@
-const STORAGE_KEY = "fmruk_reg_grid_v3";
+const STORAGE_KEY = "fmruk_reg_grid_v5";
+
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "./libs/pdf.worker.min.js";
+}
 
 const state = {
   raw: [],
   filtered: [],
   selectedItemId: null,
-  datasetMeta: null,
+  datasetMeta: null
 };
 
 const KNOWN_SECTIONS = [
@@ -31,8 +35,6 @@ const KNOWN_SUBCATEGORIES = [
   "Repeal and replacement of assimilated law under FSMA 2023"
 ];
 
-const LEAD_REGEX = /^(FCA|PRA|BoE|HMT|ICO|TPR|FRC|PSR|CMA|FOS|FSCS)(\/[A-Za-z]{2,10})*$/;
-
 const HEADER_NOISE = new Set([
   "Key",
   "Lead",
@@ -40,11 +42,9 @@ const HEADER_NOISE = new Set([
   "Expected key milestones",
   "Lead Initiative Expected key milestones",
   "Indicative impact on firms",
-  "Indicative impact on firms: H - high L - low U - unknown E Formal engagement planned Key milestone E Engagement and key milestone",
   "Consumer interest",
   "Timing updated",
   "New",
-  "Indicative impact on firms: H - high L - low U - unknown",
   "Oct-Dec 2025",
   "Jan-Mar 2026",
   "Apr-Jun 2026",
@@ -53,6 +53,10 @@ const HEADER_NOISE = new Set([
   "Jan-Jun 2027",
   "Post July 2027"
 ]);
+
+const REGULATOR_CODES = [
+  "FCA", "PRA", "BoE", "HMT", "ICO", "TPR", "FRC", "PSR", "CMA", "FOS", "FSCS"
+];
 
 const THEME_RULES = [
   {
@@ -190,10 +194,6 @@ const els = {
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
-  if (window.pdfjsLib) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js";
-  }
   bindEvents();
   loadFromStorage();
   renderAll();
@@ -216,6 +216,7 @@ function bindEvents() {
 function loadFromStorage() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return;
+
   try {
     const payload = JSON.parse(raw);
     state.raw = Array.isArray(payload.items) ? payload.items : [];
@@ -226,10 +227,13 @@ function loadFromStorage() {
 }
 
 function saveToStorage() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    meta: state.datasetMeta,
-    items: state.raw
-  }));
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      meta: state.datasetMeta,
+      items: state.raw
+    })
+  );
 }
 
 function clearSavedData() {
@@ -257,6 +261,9 @@ async function handleUpload() {
     let normalised = [];
 
     if (ext === "xlsx" || ext === "xls") {
+      if (!window.XLSX) {
+        throw new Error("xlsx.full.min.js did not load.");
+      }
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const parsedRows = workbook.SheetNames.flatMap(sheetName => {
@@ -268,19 +275,24 @@ async function handleUpload() {
       });
       normalised = normaliseSpreadsheetRows(parsedRows, file.name);
     } else if (ext === "pdf") {
+      if (!window.pdfjsLib) {
+        throw new Error("pdf.js did not load. Check libs/pdf.min.js and libs/pdf.worker.min.js.");
+      }
       const buffer = await file.arrayBuffer();
       normalised = await parsePdfFile(buffer, file.name);
     } else {
-      els.uploadStatus.textContent = "Unsupported file type.";
-      return;
+      throw new Error("Unsupported file type.");
     }
 
+    normalised = dedupeItems(normalised);
+
     if (!normalised.length) {
-      els.uploadStatus.textContent = "No initiatives were detected. Use the FCA Grid XLSX where possible, or try this PDF parser update again after replacing app.js.";
+      els.uploadStatus.textContent = "No initiatives were detected. XLSX is more reliable, but this PDF parser is also supported.";
       return;
     }
 
     const analysed = analyseRows(normalised);
+
     state.raw = analysed;
     state.datasetMeta = {
       fileName: file.name,
@@ -327,28 +339,29 @@ function mapWorkbookRow(row) {
     return "";
   };
 
+  const title = get("initiative", "title", "name");
+
   return {
     sectionName: get("sector", "section") || String(row.__sheet || "").trim(),
     subcategory: get("subcategory", "sub-category", "category"),
     leadRegulator: get("lead"),
-    initiativeTitle: get("initiative", "title", "name"),
+    initiativeTitle: title,
     initiativeDescription: get("description", "details", "detail", "summary"),
     expectedKeyMilestones: get("expected key milestones", "milestone"),
     indicativeImpactOnFirms: get("impact on firms", "indicative impact", "impact"),
     consumerInterest: get("consumer interest"),
     timingUpdated: get("timing updated", "change in timing"),
     isNew: get("new"),
-    timingBucket: inferTimingBucket(`${get("expected key milestones", "milestone")} ${get("description", "details", "detail", "summary")}`),
+    timingBucket: inferTimingBucket(
+      `${get("expected key milestones", "milestone")} ${get("description", "details", "detail", "summary")}`
+    ),
     rawText: JSON.stringify(row)
   };
 }
 
 async function parsePdfFile(buffer, fileName) {
-  if (!window.pdfjsLib) {
-    throw new Error("pdf.js failed to load.");
-  }
-
-  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  const loadingTask = pdfjsLib.getDocument({ data: buffer });
+  const pdf = await loadingTask.promise;
   const lines = [];
 
   for (let p = 1; p <= pdf.numPages; p++) {
@@ -362,6 +375,8 @@ async function parsePdfFile(buffer, fileName) {
       if (clean.startsWith("Regulatory Initiatives Grid |")) continue;
       if (HEADER_NOISE.has(clean)) continue;
       if (/^Page \d+ of \d+$/i.test(clean)) continue;
+      if (/^E\s*Formal engagement planned/i.test(clean)) continue;
+      if (/^Engagement and key milestone/i.test(clean)) continue;
       lines.push(clean);
     }
   }
@@ -376,6 +391,7 @@ function rebuildLinesFromPdfItems(items) {
     const y = Math.round(item.transform[5]);
     const text = String(item.str || "").trim();
     if (!text) continue;
+
     if (!rows.has(y)) rows.set(y, []);
     rows.get(y).push({
       x: item.transform[4],
@@ -416,15 +432,33 @@ function extractPdfInitiatives(lines, fileName) {
       continue;
     }
 
-    if (line === "Annex: initiatives completed/stopped") {
-      currentSection = line;
-      currentSubcategory = "";
+    const sameLineLead = splitLeadAndTitle(line);
+
+    if (sameLineLead) {
+      if (current && current.initiativeTitle) {
+        initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
+      }
+
+      current = {
+        sectionName: currentSection,
+        subcategory: currentSubcategory,
+        leadRegulator: sameLineLead.lead,
+        initiativeTitle: sameLineLead.title,
+        initiativeDescription: "",
+        expectedKeyMilestones: "",
+        indicativeImpactOnFirms: "",
+        consumerInterest: "",
+        timingUpdated: "",
+        isNew: "",
+        timingBucket: "",
+        rawText: `${sameLineLead.lead}\n${sameLineLead.title}\n`
+      };
       continue;
     }
 
-    if (looksLikeLead(line)) {
+    if (looksLikeLeadOnly(line)) {
       const nextLine = normaliseWs(lines[i + 1] || "");
-      if (nextLine && !KNOWN_SECTIONS.includes(nextLine) && !KNOWN_SUBCATEGORIES.includes(nextLine) && !looksLikeLead(nextLine)) {
+      if (nextLine && !KNOWN_SECTIONS.includes(nextLine) && !KNOWN_SUBCATEGORIES.includes(nextLine) && !looksLikeLeadOnly(nextLine)) {
         if (current && current.initiativeTitle) {
           initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
         }
@@ -443,7 +477,6 @@ function extractPdfInitiatives(lines, fileName) {
           timingBucket: "",
           rawText: `${line}\n${nextLine}\n`
         };
-
         i += 1;
         continue;
       }
@@ -461,13 +494,37 @@ function extractPdfInitiatives(lines, fileName) {
   return initiatives.filter(x => x.initiativeTitle && x.initiativeTitle.length > 3);
 }
 
+function splitLeadAndTitle(line) {
+  const parts = line.split(" ");
+  const first = parts[0] || "";
+  if (!isLeadToken(first)) return null;
+
+  const rest = parts.slice(1).join(" ").trim();
+  if (!rest) return null;
+
+  return { lead: first, title: rest };
+}
+
+function looksLikeLeadOnly(line) {
+  return isLeadToken(line);
+}
+
+function isLeadToken(value) {
+  const clean = normaliseWs(value);
+  if (!clean || clean.length > 40) return false;
+
+  const parts = clean.split("/");
+  return parts.every(p => REGULATOR_CODES.includes(p));
+}
+
 function finalisePdfInitiative(item, index, fileName) {
   const raw = normaliseWs(item.rawText);
   const impactMatch = raw.match(/\b(H|L|U)\b/);
-  const cleanedDescription = raw
-    .replace(item.leadRegulator || "", "")
-    .replace(item.initiativeTitle || "", "")
-    .trim();
+  const desc = normaliseWs(
+    raw
+      .replace(item.leadRegulator || "", "")
+      .replace(item.initiativeTitle || "", "")
+  );
 
   return {
     id: `${slugify(item.initiativeTitle || "item")}-${index}`,
@@ -476,10 +533,10 @@ function finalisePdfInitiative(item, index, fileName) {
     subcategory: item.subcategory || "",
     leadRegulator: item.leadRegulator || "",
     initiativeTitle: item.initiativeTitle || "",
-    initiativeDescription: cleanedDescription,
+    initiativeDescription: desc,
     expectedKeyMilestones: extractMilestones(raw),
     indicativeImpactOnFirms: impactMatch ? impactMatch[1] : "",
-    consumerInterest: /\bl\b/.test(raw.toLowerCase()) ? "" : "",
+    consumerInterest: "",
     timingUpdated: /timing/i.test(raw) ? "Possible" : "",
     isNew: /\bnew\b/i.test(raw) ? "Yes" : "No",
     timingBucket: inferTimingBucket(raw),
@@ -500,12 +557,28 @@ function extractMilestones(text) {
     if (found) matches.push(...found);
   }
 
-  return [...new Set(matches.map(x => normaliseWs(x)).filter(x => x.length > 8))].slice(0, 5).join(" | ");
+  return [...new Set(matches.map(x => normaliseWs(x)).filter(x => x.length > 8))]
+    .slice(0, 5)
+    .join(" | ");
 }
 
-function looksLikeLead(line) {
-  const cleaned = normaliseWs(line);
-  return cleaned.length <= 40 && LEAD_REGEX.test(cleaned);
+function dedupeItems(items) {
+  const seen = new Set();
+  const output = [];
+
+  for (const item of items) {
+    const key = [
+      normaliseWs(item.sectionName).toLowerCase(),
+      normaliseWs(item.leadRegulator).toLowerCase(),
+      normaliseWs(item.initiativeTitle).toLowerCase()
+    ].join("|");
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(item);
+  }
+
+  return output;
 }
 
 function analyseRows(items) {
@@ -537,7 +610,9 @@ function classifyItem(item) {
   const blob = `${item.initiativeTitle} ${item.initiativeDescription} ${item.sectionName} ${item.subcategory}`.toLowerCase();
 
   for (const rule of THEME_RULES) {
-    if (rule.keywords.some(keyword => blob.includes(keyword))) return rule;
+    if (rule.keywords.some(keyword => blob.includes(keyword))) {
+      return rule;
+    }
   }
 
   const sectionBlob = `${item.sectionName} ${item.subcategory}`.toLowerCase();
@@ -579,10 +654,25 @@ function determineImpactLevel(item) {
   if (impactFlag === "L") return "Low";
 
   const highTerms = [
-    "consumer duty", "transaction reporting", "operational resilience", "outsourcing",
-    "mifidpru", "capital", "liquidity", "market abuse", "sanctions", "data collections"
+    "consumer duty",
+    "transaction reporting",
+    "operational resilience",
+    "outsourcing",
+    "mifidpru",
+    "capital",
+    "liquidity",
+    "market abuse",
+    "sanctions",
+    "data collections"
   ];
-  const mediumTerms = ["consultation", "disclosure", "governance", "cyber", "ict", "sustainability"];
+  const mediumTerms = [
+    "consultation",
+    "disclosure",
+    "governance",
+    "cyber",
+    "ict",
+    "sustainability"
+  ];
 
   if (highTerms.some(term => blob.includes(term))) return "High";
   if (mediumTerms.some(term => blob.includes(term))) return "Medium";
@@ -642,9 +732,15 @@ function buildSuggestedAction(impactLevel, classification, timingBucket) {
 
 function inferTimingBucket(text) {
   const blob = String(text || "").toLowerCase();
-  if (blob.includes("q1 2026") || blob.includes("q2 2026") || blob.includes("january") || blob.includes("april")) return "Near Term";
-  if (blob.includes("q3 2026") || blob.includes("q4 2026") || blob.includes("2026")) return "Medium Term";
-  if (blob.includes("2027") || blob.includes("post july 2027")) return "Longer Term";
+  if (blob.includes("q1 2026") || blob.includes("q2 2026") || blob.includes("january") || blob.includes("april")) {
+    return "Near Term";
+  }
+  if (blob.includes("q3 2026") || blob.includes("q4 2026") || blob.includes("2026")) {
+    return "Medium Term";
+  }
+  if (blob.includes("2027") || blob.includes("post july 2027")) {
+    return "Longer Term";
+  }
   return "To Be Confirmed";
 }
 
@@ -744,8 +840,13 @@ function renderSummary(items) {
 function renderFrequencyList(target, values) {
   target.innerHTML = "";
   const counts = {};
-  values.filter(Boolean).forEach(v => counts[v] = (counts[v] || 0) + 1);
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  values.filter(Boolean).forEach(v => {
+    counts[v] = (counts[v] || 0) + 1;
+  });
+
+  const sorted = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
 
   if (!sorted.length) {
     target.innerHTML = "<li>None</li>";
@@ -829,7 +930,11 @@ function priorityBadge(score) {
 }
 
 function impactBadge(level) {
-  const map = { High: "badge-high", Medium: "badge-medium", Low: "badge-low" };
+  const map = {
+    High: "badge-high",
+    Medium: "badge-medium",
+    Low: "badge-low"
+  };
   return `<span class="badge ${map[level] || "badge-low"}">${escapeHtml(level)}</span>`;
 }
 
@@ -838,11 +943,17 @@ function unique(arr) {
 }
 
 function slugify(value) {
-  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
 }
 
 function normaliseWs(text) {
-  return String(text || "").replace(/\s+/g, " ").trim();
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function formatDate(value) {
