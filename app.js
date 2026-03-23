@@ -1,7 +1,8 @@
-const STORAGE_KEY = "fmruk_reg_grid_v5";
+const STORAGE_KEY = "fmruk_reg_grid_v6";
 
 if (window.pdfjsLib) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "./libs/pdf.worker.min.js";
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
 const state = {
@@ -262,8 +263,9 @@ async function handleUpload() {
 
     if (ext === "xlsx" || ext === "xls") {
       if (!window.XLSX) {
-        throw new Error("xlsx.full.min.js did not load.");
+        throw new Error("SheetJS failed to load.");
       }
+
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const parsedRows = workbook.SheetNames.flatMap(sheetName => {
@@ -273,11 +275,13 @@ async function handleUpload() {
           ...row
         }));
       });
+
       normalised = normaliseSpreadsheetRows(parsedRows, file.name);
     } else if (ext === "pdf") {
       if (!window.pdfjsLib) {
-        throw new Error("pdf.js did not load. Check libs/pdf.min.js and libs/pdf.worker.min.js.");
+        throw new Error("PDF.js failed to load.");
       }
+
       const buffer = await file.arrayBuffer();
       normalised = await parsePdfFile(buffer, file.name);
     } else {
@@ -287,7 +291,8 @@ async function handleUpload() {
     normalised = dedupeItems(normalised);
 
     if (!normalised.length) {
-      els.uploadStatus.textContent = "No initiatives were detected. XLSX is more reliable, but this PDF parser is also supported.";
+      els.uploadStatus.textContent =
+        "No initiatives were detected. XLSX is more reliable, but this PDF parser is also supported.";
       return;
     }
 
@@ -339,13 +344,11 @@ function mapWorkbookRow(row) {
     return "";
   };
 
-  const title = get("initiative", "title", "name");
-
   return {
     sectionName: get("sector", "section") || String(row.__sheet || "").trim(),
     subcategory: get("subcategory", "sub-category", "category"),
     leadRegulator: get("lead"),
-    initiativeTitle: title,
+    initiativeTitle: get("initiative", "title", "name"),
     initiativeDescription: get("description", "details", "detail", "summary"),
     expectedKeyMilestones: get("expected key milestones", "milestone"),
     indicativeImpactOnFirms: get("impact on firms", "indicative impact", "impact"),
@@ -458,7 +461,12 @@ function extractPdfInitiatives(lines, fileName) {
 
     if (looksLikeLeadOnly(line)) {
       const nextLine = normaliseWs(lines[i + 1] || "");
-      if (nextLine && !KNOWN_SECTIONS.includes(nextLine) && !KNOWN_SUBCATEGORIES.includes(nextLine) && !looksLikeLeadOnly(nextLine)) {
+      if (
+        nextLine &&
+        !KNOWN_SECTIONS.includes(nextLine) &&
+        !KNOWN_SUBCATEGORIES.includes(nextLine) &&
+        !looksLikeLeadOnly(nextLine)
+      ) {
         if (current && current.initiativeTitle) {
           initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
         }
@@ -520,6 +528,7 @@ function isLeadToken(value) {
 function finalisePdfInitiative(item, index, fileName) {
   const raw = normaliseWs(item.rawText);
   const impactMatch = raw.match(/\b(H|L|U)\b/);
+
   const desc = normaliseWs(
     raw
       .replace(item.leadRegulator || "", "")
@@ -600,7 +609,11 @@ function analyseRows(items) {
         relevanceScore,
         isFmrukRelevant,
         rationale: buildRationale(item, classification),
-        suggestedAction: buildSuggestedAction(impactLevel, classification, item.timingBucket)
+        suggestedAction: buildSuggestedAction(
+          impactLevel,
+          classification,
+          item.timingBucket
+        )
       };
     })
     .sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
@@ -665,6 +678,7 @@ function determineImpactLevel(item) {
     "sanctions",
     "data collections"
   ];
+
   const mediumTerms = [
     "consultation",
     "disclosure",
@@ -687,19 +701,25 @@ function scoreRelevance(item, classification) {
     if (blob.includes(keyword)) score += 4;
   }
 
-  if (["Investment management", "Multi-sector", "Wholesale financial markets"].includes(item.sectionName)) {
+  if (
+    ["Investment management", "Multi-sector", "Wholesale financial markets"].includes(
+      item.sectionName
+    )
+  ) {
     score += 10;
   }
 
-  if ([
-    "Transaction Reporting",
-    "Operational Resilience",
-    "Outsourcing / Third Party Risk",
-    "Capital / Liquidity",
-    "Consumer Duty",
-    "AML / KYC / Sanctions",
-    "AI / Data / Cyber"
-  ].includes(classification.subTheme)) {
+  if (
+    [
+      "Transaction Reporting",
+      "Operational Resilience",
+      "Outsourcing / Third Party Risk",
+      "Capital / Liquidity",
+      "Consumer Duty",
+      "AML / KYC / Sanctions",
+      "AI / Data / Cyber"
+    ].includes(classification.subTheme)
+  ) {
     score += 12;
   }
 
@@ -709,7 +729,11 @@ function scoreRelevance(item, classification) {
 function determineFmrukRelevance(item, classification) {
   const blob = `${item.initiativeTitle} ${item.initiativeDescription} ${item.sectionName} ${classification.theme}`.toLowerCase();
 
-  if (["Investment management", "Multi-sector", "Wholesale financial markets"].includes(item.sectionName)) {
+  if (
+    ["Investment management", "Multi-sector", "Wholesale financial markets"].includes(
+      item.sectionName
+    )
+  ) {
     return true;
   }
 
@@ -732,10 +756,19 @@ function buildSuggestedAction(impactLevel, classification, timingBucket) {
 
 function inferTimingBucket(text) {
   const blob = String(text || "").toLowerCase();
-  if (blob.includes("q1 2026") || blob.includes("q2 2026") || blob.includes("january") || blob.includes("april")) {
+  if (
+    blob.includes("q1 2026") ||
+    blob.includes("q2 2026") ||
+    blob.includes("january") ||
+    blob.includes("april")
+  ) {
     return "Near Term";
   }
-  if (blob.includes("q3 2026") || blob.includes("q4 2026") || blob.includes("2026")) {
+  if (
+    blob.includes("q3 2026") ||
+    blob.includes("q4 2026") ||
+    blob.includes("2026")
+  ) {
     return "Medium Term";
   }
   if (blob.includes("2027") || blob.includes("post july 2027")) {
@@ -840,9 +873,11 @@ function renderSummary(items) {
 function renderFrequencyList(target, values) {
   target.innerHTML = "";
   const counts = {};
-  values.filter(Boolean).forEach(v => {
-    counts[v] = (counts[v] || 0) + 1;
-  });
+  values
+    .filter(Boolean)
+    .forEach(v => {
+      counts[v] = (counts[v] || 0) + 1;
+    });
 
   const sorted = Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
