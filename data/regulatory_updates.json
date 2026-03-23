@@ -1,5 +1,6 @@
 {
   "generated_at": "2026-03-23T09:00:00Z",
+  "item_count": 1,
   "items": [
     {
       "id": "seed-1",
@@ -7,16 +8,21 @@
       "authority": "FCA",
       "type": "Consultation",
       "title": "Example FCA consultation placeholder",
-      "summary": "This is starter data. The GitHub Action will replace this file with live items from official sources.",
+      "summary": "Starter record. The GitHub Action will replace this file with refreshed data.",
       "url": "https://www.fca.org.uk/",
       "published_date": "2026-03-20",
       "due_date": "2026-04-30",
-      "status": "Open",
-      "theme": "Conduct / Consumer",
-      "relevance_score": 82,
+      "status": "Open Consultation",
+      "theme": "Market Conduct / Trading",
+      "sub_theme": "Transaction Reporting",
+      "impact_level": "High",
+      "potential_business_impact": "May require review of transaction reporting controls, reconciliations, exception monitoring and governance.",
+      "primary_owner": "Compliance",
+      "secondary_owner": "Operations",
+      "relevance_score": 88,
       "is_fmruk_relevant": true,
-      "rationale": "Likely relevant to an FCA-regulated UK entity and should be triaged by UK Compliance.",
-      "suggested_owner": "UK Compliance"
+      "rationale": "Likely relevant to a UK-regulated entity where reporting obligations, control effectiveness and regulatory oversight may be affected.",
+      "suggested_action": "Assess applicability, identify impacted reporting controls, and confirm whether policy or procedure updates are needed."
     }
   ]
 }
