@@ -1,4 +1,4 @@
-const STORAGE_KEY = "fmruk_reg_grid_v6";
+const STORAGE_KEY = "fmruk_reg_grid_v7_pdf_only";
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -36,160 +36,783 @@ const KNOWN_SUBCATEGORIES = [
   "Repeal and replacement of assimilated law under FSMA 2023"
 ];
 
-const HEADER_NOISE = new Set([
-  "Key",
-  "Lead",
-  "Initiative",
-  "Expected key milestones",
-  "Lead Initiative Expected key milestones",
-  "Indicative impact on firms",
-  "Consumer interest",
-  "Timing updated",
-  "New",
-  "Oct-Dec 2025",
-  "Jan-Mar 2026",
-  "Apr-Jun 2026",
-  "Jul-Sept 2026",
-  "Oct-Dec 2026",
-  "Jan-Jun 2027",
-  "Post July 2027"
-]);
+const SECTION_LOOKUP = new Map(
+  KNOWN_SECTIONS.map(value => [value.toLowerCase(), value])
+);
 
-const REGULATOR_CODES = [
-  "FCA", "PRA", "BoE", "HMT", "ICO", "TPR", "FRC", "PSR", "CMA", "FOS", "FSCS"
+const SUBCATEGORY_LOOKUP = new Map(
+  KNOWN_SUBCATEGORIES.map(value => [value.toLowerCase(), value])
+);
+
+const HEADER_TEXT_PATTERNS = [
+  /regulatory initiatives grid/i,
+  /^lead$/i,
+  /^initiative$/i,
+  /expected key milestones/i,
+  /engagement and key milestone/i,
+  /indicative impact on firms/i,
+  /consumer interest/i,
+  /timing updated/i,
+  /^new$/i
 ];
 
-const THEME_RULES = [
+const ROW_NOISE_PATTERNS = [
+  /^page \d+ of \d+$/i,
+  /^oct-dec \d{4}$/i,
+  /^jan-mar \d{4}$/i,
+  /^apr-jun \d{4}$/i,
+  /^jul-sept \d{4}$/i,
+  /^jan-jun \d{4}$/i,
+  /^post july \d{4}$/i,
+  /^e\s*formal engagement planned/i
+];
+
+const REGULATOR_CODES = [
+  "FCA",
+  "PRA",
+  "BOE",
+  "HMT",
+  "ICO",
+  "TPR",
+  "FRC",
+  "PSR",
+  "CMA",
+  "FOS",
+  "FSCS"
+];
+
+const DEFAULT_COLUMN_START_RATIOS = {
+  lead: 0.02,
+  initiative: 0.12,
+  milestones: 0.45,
+  impact: 0.77,
+  consumer: 0.83,
+  timing: 0.89,
+  isNew: 0.95
+};
+
+const FMRUK_PROFILE = {
+  summary:
+    "UK entity with strongest exposure to investment management, MiFID / wholesale markets, governance, resilience, reporting and cross-cutting FCA change.",
+  coreAreas: [
+    "Investment management / funds",
+    "MiFID / wholesale markets / market conduct",
+    "Operational resilience / outsourcing / third parties",
+    "Regulatory reporting / prudential / governance",
+    "Financial crime, sanctions, data and sustainability change"
+  ]
+};
+
+const GENERIC_STAGE_ACTIONS = {
+  consultation: [
+    "Review the consultation scope, identify impacted business lines and decide whether FMRUK should respond or feed into a group response.",
+    "Capture policy interpretation points and implementation risks early so they can shape the eventual delivery plan."
+  ],
+  final_rules: [
+    "Run a rule-to-control gap assessment against the final position and assign a delivery owner with dates.",
+    "Confirm whether policy documents, procedures, governance packs, training or MI need to be updated before go-live."
+  ],
+  supervisory: [
+    "Benchmark current controls against the supervisory expectation and gather evidence before any thematic or multi-firm engagement.",
+    "Prepare management reporting on current-state compliance, open gaps and remediation ownership."
+  ],
+  reporting: [
+    "Confirm the reporting perimeter, data lineage, control owners and sign-off model for any new or amended submission.",
+    "Plan test cycles for data completeness, exceptions and reconciliations before the first live return or attestation."
+  ],
+  legislation: [
+    "Assess whether the legislative or perimeter change affects permissions, legal entity scope or delegated arrangements.",
+    "Coordinate legal interpretation, implementation planning and downstream policy updates before rules crystallise."
+  ],
+  monitoring: [
+    "Retain the item on the regulatory watchlist and refresh the assessment when scope, timing or FCA messaging changes.",
+    "Keep a light owner assigned so the business is not surprised if the initiative accelerates."
+  ]
+};
+
+const CLASSIFICATION_RULES = [
   {
+    id: "transaction-reporting",
     theme: "Market Conduct / Trading",
     subTheme: "Transaction Reporting",
-    keywords: ["transaction reporting", "mifir", "regulatory reporting", "reporting fields", "approved reporting mechanism", "arm"],
-    impact: "May require review of transaction reporting controls, reconciliations, exception monitoring and governance.",
     primaryOwner: "Compliance",
-    secondaryOwner: "Operations"
+    secondaryOwner: "Operations",
+    impactBias: 28,
+    impactStatement:
+      "Could affect transaction reporting scope, field mapping, reconciliations, exception handling, ARM oversight and governance.",
+    signals: [
+      {
+        weight: 26,
+        reason: "Touches transaction reporting obligations.",
+        terms: ["transaction reporting", "rts 22", "order record keeping"]
+      },
+      {
+        weight: 18,
+        reason: "References MiFIR wholesale reporting mechanics.",
+        terms: ["mifir", "arm", "approved reporting mechanism", "reporting fields"]
+      }
+    ],
+    sectionBoosts: {
+      "Wholesale financial markets": 8,
+      "Investment management": 3
+    },
+    coreActions: [
+      "Confirm whether the proposal affects in-scope instruments, desks, venues or reporting entities.",
+      "Review field mapping, reconciliations, exception MI and any ARM or vendor dependency."
+    ]
   },
   {
+    id: "best-execution",
     theme: "Market Conduct / Trading",
     subTheme: "Best Execution",
-    keywords: ["best execution", "rts 28", "execution quality", "venue analysis", "execution policy"],
-    impact: "Could affect best execution governance, monitoring, policy wording and oversight of execution arrangements.",
     primaryOwner: "Compliance",
-    secondaryOwner: "Legal"
+    secondaryOwner: "Legal",
+    impactBias: 18,
+    impactStatement:
+      "Could require updates to execution governance, venue analysis, monitoring, policy wording and oversight of execution arrangements.",
+    signals: [
+      {
+        weight: 26,
+        reason: "Directly references best execution.",
+        terms: ["best execution", "execution policy", "execution quality"]
+      },
+      {
+        weight: 16,
+        reason: "References RTS 28 or execution venue analysis.",
+        terms: ["rts 28", "venue analysis"]
+      }
+    ],
+    sectionBoosts: {
+      "Wholesale financial markets": 7,
+      "Investment management": 4
+    },
+    coreActions: [
+      "Assess whether execution policy wording, venue oversight or client disclosures would need to change.",
+      "Check whether execution monitoring MI, committee reporting or broker oversight need to be refreshed."
+    ]
   },
   {
+    id: "market-abuse",
     theme: "Market Conduct / Trading",
     subTheme: "Market Abuse / Surveillance",
-    keywords: ["market abuse", "mar", "surveillance", "inside information", "personal account dealing"],
-    impact: "May require updates to surveillance controls, market abuse risk assessments, training and escalation processes.",
     primaryOwner: "Compliance",
-    secondaryOwner: "Legal"
+    secondaryOwner: "Legal",
+    impactBias: 24,
+    impactStatement:
+      "May require updates to surveillance controls, market abuse risk assessments, PDMR or personal account dealing frameworks, training and escalation.",
+    signals: [
+      {
+        weight: 24,
+        reason: "Touches market abuse or MAR controls.",
+        terms: ["market abuse", "mar", "inside information"]
+      },
+      {
+        weight: 18,
+        reason: "References surveillance or employee dealing controls.",
+        terms: ["surveillance", "personal account dealing", "stors", "suspicious transaction"]
+      }
+    ],
+    sectionBoosts: {
+      "Wholesale financial markets": 8,
+      "Investment management": 3
+    },
+    coreActions: [
+      "Check surveillance scenarios, alert governance and escalation processes against the proposed change.",
+      "Reconfirm training, insider list or employee dealing controls if the change broadens scope."
+    ]
   },
   {
-    theme: "Operational Resilience",
-    subTheme: "Operational Resilience",
-    keywords: ["operational resilience", "important business service", "impact tolerance", "resilience"],
-    impact: "May require review of resilience mapping, testing, scenario analysis and governance over important business services.",
-    primaryOwner: "Risk",
-    secondaryOwner: "Compliance"
-  },
-  {
-    theme: "Operational Resilience",
-    subTheme: "Outsourcing / Third Party Risk",
-    keywords: ["outsourcing", "third party", "critical third party", "service provider", "vendor risk", "third-party reporting"],
-    impact: "Could require updates to outsourcing registers, due diligence, contractual controls and oversight of service providers.",
-    primaryOwner: "Risk",
-    secondaryOwner: "Technology"
-  },
-  {
+    id: "prudential-capital",
     theme: "Prudential / MIFIDPRU",
     subTheme: "Capital / Liquidity",
-    keywords: ["mifidpru", "capital", "liquidity", "own funds", "icara", "prudential", "concentration risk"],
-    impact: "May affect prudential assessments, capital planning, ICARA assumptions, monitoring and governance.",
     primaryOwner: "Finance",
-    secondaryOwner: "Risk"
+    secondaryOwner: "Risk",
+    impactBias: 30,
+    impactStatement:
+      "May affect prudential assessments, capital planning, ICARA assumptions, liquidity monitoring and board governance.",
+    signals: [
+      {
+        weight: 26,
+        reason: "Directly references MIFIDPRU or prudential capital topics.",
+        terms: ["mifidpru", "icara", "own funds", "prudential", "concentration risk"]
+      },
+      {
+        weight: 18,
+        reason: "Touches capital or liquidity framework requirements.",
+        terms: ["capital", "liquidity", "k-factor", "fixed overhead"]
+      }
+    ],
+    sectionBoosts: {
+      "Investment management": 8,
+      "Multi-sector": 3
+    },
+    coreActions: [
+      "Assess ICARA assumptions, thresholds, governance and monitoring changes that may be required.",
+      "Confirm whether prudential reporting, capital modelling or board packs need to be updated."
+    ]
   },
   {
+    id: "prudential-remuneration",
     theme: "Prudential / MIFIDPRU",
     subTheme: "Remuneration",
-    keywords: ["remuneration", "bonus", "pay", "compensation", "malus", "clawback", "incentive"],
-    impact: "Could require updates to remuneration frameworks, governance, documentation and control testing.",
     primaryOwner: "HR",
-    secondaryOwner: "Compliance"
+    secondaryOwner: "Compliance",
+    impactBias: 18,
+    impactStatement:
+      "Could require updates to remuneration frameworks, governance, documentation, MRT population, deferral and control testing.",
+    signals: [
+      {
+        weight: 26,
+        reason: "Directly references remuneration requirements.",
+        terms: ["remuneration", "bonus", "compensation", "malus", "clawback", "mrt"]
+      }
+    ],
+    sectionBoosts: {
+      "Investment management": 5,
+      "Multi-sector": 3
+    },
+    coreActions: [
+      "Check whether remuneration policy wording, governance approvals or identified staff population need to change.",
+      "Assess any impact on pay design, deferral mechanics or attestations."
+    ]
   },
   {
+    id: "operational-resilience",
+    theme: "Operational Resilience",
+    subTheme: "Operational Resilience",
+    primaryOwner: "Risk",
+    secondaryOwner: "Compliance",
+    impactBias: 28,
+    impactStatement:
+      "May require review of resilience mapping, scenario testing, impact tolerances, important business services and governance over remediation.",
+    signals: [
+      {
+        weight: 28,
+        reason: "Directly references operational resilience.",
+        terms: ["operational resilience", "impact tolerance", "important business service"]
+      },
+      {
+        weight: 16,
+        reason: "Touches resilience testing or service mapping.",
+        terms: ["mapping", "scenario testing", "resilience"]
+      }
+    ],
+    sectionBoosts: {
+      "Multi-sector": 8,
+      "Investment management": 4
+    },
+    coreActions: [
+      "Review impacted business services, dependency mapping and scenario testing requirements.",
+      "Check whether board reporting, self-assessment content or remediation governance would need updating."
+    ]
+  },
+  {
+    id: "outsourcing",
+    theme: "Operational Resilience",
+    subTheme: "Outsourcing / Third Party Risk",
+    primaryOwner: "Risk",
+    secondaryOwner: "Technology",
+    impactBias: 26,
+    impactStatement:
+      "Could require updates to outsourcing registers, due diligence, contractual controls, concentration assessments and oversight of service providers.",
+    signals: [
+      {
+        weight: 28,
+        reason: "Directly references outsourcing or third-party risk.",
+        terms: ["outsourcing", "third party", "third-party", "service provider", "vendor risk"]
+      },
+      {
+        weight: 18,
+        reason: "Touches critical third-party or supplier oversight.",
+        terms: ["critical third party", "ctp", "supplier oversight"]
+      }
+    ],
+    sectionBoosts: {
+      "Multi-sector": 8,
+      "Investment management": 4
+    },
+    coreActions: [
+      "Confirm whether any critical or material outsourcing arrangement falls into scope.",
+      "Review contracts, registers, due diligence and exit or concentration controls against the change."
+    ]
+  },
+  {
+    id: "consumer-duty",
     theme: "Consumer / Conduct",
     subTheme: "Consumer Duty",
-    keywords: ["consumer duty", "fair value", "good outcomes", "vulnerable customers", "consumer"],
-    impact: "May require review of product governance, distribution oversight, client communications and conduct monitoring.",
     primaryOwner: "Compliance",
-    secondaryOwner: "Product"
+    secondaryOwner: "Product",
+    impactBias: 20,
+    impactStatement:
+      "May require review of product governance, distribution oversight, fair value assessments, customer communications and conduct monitoring.",
+    signals: [
+      {
+        weight: 26,
+        reason: "Directly references Consumer Duty.",
+        terms: ["consumer duty", "good outcomes", "fair value", "vulnerable customers"]
+      },
+      {
+        weight: 14,
+        reason: "Touches retail customer outcomes or product governance.",
+        terms: ["consumer", "retail customer", "outcomes monitoring"]
+      }
+    ],
+    sectionBoosts: {
+      "Retail investments": 6,
+      "Multi-sector": 3
+    },
+    coreActions: [
+      "Check whether any FMRUK products, disclosures or distribution arrangements are in scope.",
+      "Review fair value, target market, communications and monitoring evidence if retail exposure exists."
+    ]
   },
   {
+    id: "aml-sanctions",
     theme: "AML / Sanctions / Financial Crime",
     subTheme: "AML / KYC / Sanctions",
-    keywords: ["aml", "anti-money laundering", "sanctions", "kyc", "financial crime", "fraud", "bribery"],
-    impact: "May require review of AML controls, KYC processes, sanctions screening, escalation and training.",
     primaryOwner: "Compliance",
-    secondaryOwner: "Legal"
+    secondaryOwner: "Legal",
+    impactBias: 24,
+    impactStatement:
+      "May require review of AML controls, client onboarding, KYC refresh, sanctions screening, investigations and training.",
+    signals: [
+      {
+        weight: 26,
+        reason: "Directly references AML, sanctions or financial crime controls.",
+        terms: ["anti-money laundering", "aml", "sanctions", "financial crime", "kyc"]
+      },
+      {
+        weight: 16,
+        reason: "Touches fraud, screening or customer due diligence.",
+        terms: ["screening", "fraud", "customer due diligence", "cdd", "edd"]
+      }
+    ],
+    sectionBoosts: {
+      "Multi-sector": 6,
+      "Investment management": 3
+    },
+    coreActions: [
+      "Assess whether onboarding, screening, investigations or monitoring scenarios need to change.",
+      "Check whether policy documents, training or legal escalation paths require an update."
+    ]
   },
   {
+    id: "governance-smcr",
     theme: "Governance / SMCR",
     subTheme: "SMCR / Governance",
-    keywords: ["smcr", "senior managers", "certification regime", "governance", "board", "committee", "dear ceo"],
-    impact: "Could affect governance frameworks, accountabilities, committee reporting and senior management oversight.",
     primaryOwner: "Compliance",
-    secondaryOwner: "HR"
+    secondaryOwner: "HR",
+    impactBias: 22,
+    impactStatement:
+      "Could affect governance frameworks, committee reporting, responsibilities maps, senior management accountability and certification processes.",
+    signals: [
+      {
+        weight: 26,
+        reason: "Directly references SMCR or governance change.",
+        terms: ["smcr", "senior manager", "certification regime", "responsibilities map"]
+      },
+      {
+        weight: 16,
+        reason: "Touches board or committee governance expectations.",
+        terms: ["governance", "board", "committee", "dear ceo"]
+      }
+    ],
+    sectionBoosts: {
+      "Multi-sector": 8,
+      "Investment management": 3
+    },
+    coreActions: [
+      "Check whether accountabilities, terms of reference, committee packs or certification processes need to change.",
+      "Assess whether senior manager statements of responsibility or attestations are affected."
+    ]
   },
   {
+    id: "sustainability",
     theme: "ESG / Sustainability",
     subTheme: "Sustainability / SDR",
-    keywords: ["sustainability", "sdr", "greenwashing", "climate", "esg", "transition plan", "tnfd", "tcfd", "srs", "esg ratings"],
-    impact: "May require updates to sustainability disclosures, product communications, governance and control evidence.",
     primaryOwner: "Legal",
-    secondaryOwner: "Compliance"
+    secondaryOwner: "Compliance",
+    impactBias: 20,
+    impactStatement:
+      "May require updates to sustainability disclosures, product communications, naming or labelling controls, governance and evidence of anti-greenwashing review.",
+    signals: [
+      {
+        weight: 28,
+        reason: "Directly references sustainability disclosures or anti-greenwashing.",
+        terms: ["sustainability", "sdr", "greenwashing", "climate", "transition plan"]
+      },
+      {
+        weight: 16,
+        reason: "Touches ESG frameworks or sustainability ratings.",
+        terms: ["esg", "tcfd", "tnfd", "esg ratings", "srs"]
+      }
+    ],
+    sectionBoosts: {
+      "Investment management": 7,
+      "Multi-sector": 4
+    },
+    coreActions: [
+      "Review product disclosures, marketing materials and approval controls for any sustainability claims in scope.",
+      "Confirm whether governance, evidence packs or label eligibility assessments need to be refreshed."
+    ]
   },
   {
+    id: "data-ai-cyber",
     theme: "Data / AI / Technology",
     subTheme: "AI / Data / Cyber",
-    keywords: ["artificial intelligence", "ai", "machine learning", "cyber", "data", "ict", "technology", "data collections"],
-    impact: "Could affect governance over AI use cases, data controls, cyber oversight and internal policy requirements.",
     primaryOwner: "Technology",
-    secondaryOwner: "Compliance"
+    secondaryOwner: "Compliance",
+    impactBias: 20,
+    impactStatement:
+      "Could affect governance over AI use cases, cyber oversight, technology controls, data quality, inventories and policy requirements.",
+    signals: [
+      {
+        weight: 26,
+        reason: "Directly references AI, cyber or technology controls.",
+        terms: ["artificial intelligence", "ai", "machine learning", "cyber", "ict"]
+      },
+      {
+        weight: 16,
+        reason: "Touches data quality, collections or technology governance.",
+        terms: ["data", "data collection", "data collections", "technology", "digital"]
+      }
+    ],
+    sectionBoosts: {
+      "Multi-sector": 8,
+      "Investment management": 3
+    },
+    coreActions: [
+      "Assess whether internal AI, cyber or data governance frameworks need to change.",
+      "Check whether inventories, controls, model governance, cyber testing or technology oversight are affected."
+    ]
+  },
+  {
+    id: "funds-investment-management",
+    theme: "Investment Management / Product",
+    subTheme: "Investment Management",
+    primaryOwner: "Compliance",
+    secondaryOwner: "Legal",
+    impactBias: 20,
+    impactStatement:
+      "May require review of fund disclosures, product governance, delegated oversight, distribution arrangements or implementation planning for investment products.",
+    signals: [
+      {
+        weight: 22,
+        reason: "Directly references investment management or asset management.",
+        terms: ["investment management", "asset management", "portfolio management", "fund"]
+      },
+      {
+        weight: 16,
+        reason: "Touches UCITS, AIFMD or fund distribution.",
+        terms: ["ucits", "aifmd", "fund manager", "authorised fund"]
+      }
+    ],
+    sectionBoosts: {
+      "Investment management": 12,
+      "Retail investments": 3
+    },
+    coreActions: [
+      "Confirm which products, mandates or fund structures are in scope for FMRUK.",
+      "Assess changes to disclosures, delegated oversight, product governance or fund operating model."
+    ]
+  },
+  {
+    id: "client-assets",
+    theme: "Operations / Client Assets",
+    subTheme: "CASS / Custody",
+    primaryOwner: "Operations",
+    secondaryOwner: "Compliance",
+    impactBias: 24,
+    impactStatement:
+      "Could affect CASS controls, custody oversight, recordkeeping, reconciliations, acknowledgements and governance.",
+    signals: [
+      {
+        weight: 26,
+        reason: "Directly references client assets or custody controls.",
+        terms: ["cass", "client assets", "custody", "safeguarding"]
+      },
+      {
+        weight: 16,
+        reason: "Touches reconciliations or asset recordkeeping.",
+        terms: ["reconciliation", "acknowledgement letter", "client money", "asset record"]
+      }
+    ],
+    sectionBoosts: {
+      "Investment management": 5,
+      "Multi-sector": 3
+    },
+    coreActions: [
+      "Check whether custody model, CASS oversight, reconciliations or recordkeeping controls are impacted.",
+      "Assess whether governance forums, attestations or third-party oversight need to be updated."
+    ]
+  },
+  {
+    id: "regulatory-reporting",
+    theme: "Reporting / Disclosure",
+    subTheme: "Regulatory Reporting / Data Collection",
+    primaryOwner: "Operations",
+    secondaryOwner: "Compliance",
+    impactBias: 24,
+    impactStatement:
+      "May require review of reporting perimeter, data sourcing, control framework, sign-off and regulatory submission readiness.",
+    signals: [
+      {
+        weight: 24,
+        reason: "Directly references regulatory reporting or data collections.",
+        terms: ["regulatory reporting", "data collection", "data collections", "return", "submission"]
+      },
+      {
+        weight: 18,
+        reason: "Touches templates, forms, returns or attestations.",
+        terms: ["template", "reporting", "attestation", "notification"]
+      }
+    ],
+    sectionBoosts: {
+      "Multi-sector": 6,
+      "Investment management": 3
+    },
+    coreActions: [
+      "Confirm ownership for data, reconciliations, controls and submission sign-off.",
+      "Assess whether system changes, data sourcing or testing are needed before live reporting."
+    ]
+  },
+  {
+    id: "payments-crypto",
+    theme: "Payments / Cryptoassets",
+    subTheme: "Payments / Crypto",
+    primaryOwner: "Compliance",
+    secondaryOwner: "Legal",
+    impactBias: 10,
+    impactStatement:
+      "May affect perimeter analysis, client proposition assessment and watchlist monitoring if FMRUK activity expands into payments or crypto-related services.",
+    signals: [
+      {
+        weight: 24,
+        reason: "Directly references payments or cryptoassets.",
+        terms: ["payment services", "payments", "cryptoasset", "stablecoin", "wallet"]
+      }
+    ],
+    sectionBoosts: {
+      "Payments and cryptoassets": 10,
+      "Payment services and cryptoassets": 10
+    },
+    coreActions: [
+      "Confirm whether the topic is genuinely in scope for FMRUK or should remain a watchlist item only.",
+      "If relevant, assess perimeter, client proposition and outsourced provider impacts before deeper mobilisation."
+    ]
   }
 ];
 
-const FMRUK_KEYWORDS = [
-  "uk", "fca", "pra", "investment firm", "asset management", "investment management",
-  "mifid", "mifidpru", "consumer duty", "transaction reporting", "market abuse",
-  "best execution", "outsourcing", "operational resilience", "financial crime",
-  "sanctions", "governance", "remuneration", "sustainability", "disclosure",
-  "regulatory reporting", "firm", "firms", "data collections"
+const SECTION_FALLBACKS = {
+  "Investment management": {
+    theme: "Investment Management / Product",
+    subTheme: "Investment Management",
+    primaryOwner: "Compliance",
+    secondaryOwner: "Legal",
+    impactBias: 16,
+    impactStatement:
+      "Likely to affect investment management products, disclosures, delegated oversight or implementation planning.",
+    coreActions: [
+      "Confirm which products or mandates are in scope.",
+      "Assess whether disclosures, governance or operating model controls need an update."
+    ]
+  },
+  "Wholesale financial markets": {
+    theme: "Market Structure / Wholesale",
+    subTheme: "Wholesale Markets",
+    primaryOwner: "Compliance",
+    secondaryOwner: "Legal",
+    impactBias: 16,
+    impactStatement:
+      "Could affect wholesale market controls, policy interpretation, monitoring or implementation planning.",
+    coreActions: [
+      "Confirm which activities, desks or controls are in scope.",
+      "Assess whether market-facing policies, surveillance or governance need to change."
+    ]
+  },
+  "Multi-sector": {
+    theme: "General UK Regulatory Change",
+    subTheme: "Cross-cutting",
+    primaryOwner: "Compliance",
+    secondaryOwner: "Legal",
+    impactBias: 14,
+    impactStatement:
+      "May require entity-wide triage across governance, controls, policy interpretation or implementation planning.",
+    coreActions: [
+      "Identify impacted control domains and coordinate cross-functional triage.",
+      "Confirm whether the change is group-led, entity-led or shared."
+    ]
+  },
+  default: {
+    theme: "General UK Regulatory Change",
+    subTheme: "General",
+    primaryOwner: "Compliance",
+    secondaryOwner: "Legal",
+    impactBias: 10,
+    impactStatement:
+      "Requires initial triage to determine whether FMRUK policy, controls, governance or monitoring should change.",
+    coreActions: [
+      "Validate whether the topic is in scope for FMRUK.",
+      "Keep it on the watchlist until scope and timing become clearer."
+    ]
+  }
+};
+
+const STAGE_RULES = [
+  {
+    id: "final_rules",
+    label: "Final Rules / Implementation",
+    signals: [
+      { weight: 24, terms: ["policy statement", "final rules", "finalised guidance", "comes into force"] },
+      { weight: 16, terms: ["implementation", "go-live", "effective date", "rules apply"] }
+    ]
+  },
+  {
+    id: "consultation",
+    label: "Consultation / Policy Development",
+    signals: [
+      { weight: 24, terms: ["consultation paper", "consultation", "call for input", "discussion paper"] },
+      { weight: 12, terms: ["feedback statement", "respond by", "consulting on"] }
+    ]
+  },
+  {
+    id: "supervisory",
+    label: "Supervisory / Thematic Review",
+    signals: [
+      { weight: 24, terms: ["dear ceo", "thematic review", "multi-firm work", "supervisory"] },
+      { weight: 14, terms: ["review", "survey", "benchmarking", "supervision"] }
+    ]
+  },
+  {
+    id: "reporting",
+    label: "Reporting / Data Request",
+    signals: [
+      { weight: 24, terms: ["data collection", "data collections", "return", "submission", "attestation"] },
+      { weight: 14, terms: ["reporting", "notification", "template"] }
+    ]
+  },
+  {
+    id: "legislation",
+    label: "Legislative / Perimeter Change",
+    signals: [
+      { weight: 24, terms: ["hm treasury", "legislation", "statutory instrument", "repeal and replacement"] },
+      { weight: 14, terms: ["fsma", "perimeter", "authorisation", "authorization", "regime"] }
+    ]
+  },
+  {
+    id: "monitoring",
+    label: "Monitoring",
+    signals: [
+      { weight: 10, terms: ["roadmap", "work programme", "strategy", "monitoring"] }
+    ]
+  }
 ];
+
+const RELEVANCE_SIGNAL_GROUPS = {
+  positive: [
+    {
+      weight: 22,
+      reason: "Touches investment management, funds or portfolio activity.",
+      terms: ["investment management", "asset management", "fund", "portfolio management", "ucits", "aifmd"]
+    },
+    {
+      weight: 22,
+      reason: "Touches MiFID, prudential or wholesale market obligations.",
+      terms: ["mifid", "mifidpru", "investment firm", "wholesale", "market abuse", "best execution", "transaction reporting"]
+    },
+    {
+      weight: 18,
+      reason: "Touches cross-cutting governance, resilience or outsourcing controls.",
+      terms: ["operational resilience", "outsourcing", "third party", "governance", "smcr", "dear ceo"]
+    },
+    {
+      weight: 16,
+      reason: "Touches regulatory reporting, data or submissions that often land on the UK entity.",
+      terms: ["regulatory reporting", "reporting", "data collection", "return", "attestation", "notification"]
+    },
+    {
+      weight: 14,
+      reason: "Touches financial crime, sanctions or client onboarding controls.",
+      terms: ["aml", "anti-money laundering", "sanctions", "kyc", "financial crime"]
+    },
+    {
+      weight: 12,
+      reason: "Touches sustainability, disclosures or technology change with cross-cutting UK impact.",
+      terms: ["sustainability", "sdr", "greenwashing", "cyber", "ai", "data"]
+    }
+  ],
+  negative: [
+    {
+      weight: 24,
+      reason: "Looks primarily insurance-specific.",
+      terms: ["insurance", "reinsurance", "solvency", "policyholder"]
+    },
+    {
+      weight: 22,
+      reason: "Looks primarily pensions-specific.",
+      terms: ["pensions", "retirement income", "defined benefit", "defined contribution"]
+    },
+    {
+      weight: 18,
+      reason: "Looks primarily retail banking or consumer credit-specific.",
+      terms: ["mortgage", "consumer credit", "banking", "deposit", "current account"]
+    },
+    {
+      weight: 14,
+      reason: "Looks primarily payments or crypto-specific unless FMRUK scope is explicitly stated.",
+      terms: ["payment services", "open banking", "cryptoasset", "stablecoin", "e-money"]
+    }
+  ],
+  sectionAdjustments: {
+    "Investment management": 18,
+    "Wholesale financial markets": 16,
+    "Multi-sector": 10,
+    "Retail investments": 4,
+    "Payments and cryptoassets": -10,
+    "Payment services and cryptoassets": -10,
+    "Insurance and reinsurance": -18,
+    "Pensions and retirement income": -18,
+    "Banking, credit and lending": -12,
+    "Annex: initiatives completed/stopped": -20
+  }
+};
 
 const els = {
   headerMeta: document.getElementById("headerMeta"),
   fileInput: document.getElementById("fileInput"),
   uploadBtn: document.getElementById("uploadBtn"),
   reloadBtn: document.getElementById("reloadBtn"),
+  exportJsonBtn: document.getElementById("exportJsonBtn"),
+  exportCsvBtn: document.getElementById("exportCsvBtn"),
   clearStorageBtn: document.getElementById("clearStorageBtn"),
   uploadStatus: document.getElementById("uploadStatus"),
   datasetInfo: document.getElementById("datasetInfo"),
+  comparisonInfo: document.getElementById("comparisonInfo"),
   searchInput: document.getElementById("searchInput"),
   sectionFilter: document.getElementById("sectionFilter"),
   themeFilter: document.getElementById("themeFilter"),
   ownerFilter: document.getElementById("ownerFilter"),
+  stageFilter: document.getElementById("stageFilter"),
+  changeFilter: document.getElementById("changeFilter"),
   impactFilter: document.getElementById("impactFilter"),
   relevanceFilter: document.getElementById("relevanceFilter"),
+  parseConfidenceFilter: document.getElementById("parseConfidenceFilter"),
   fmrukOnlyFilter: document.getElementById("fmrukOnlyFilter"),
   excludeAnnexFilter: document.getElementById("excludeAnnexFilter"),
+  needsReviewFilter: document.getElementById("needsReviewFilter"),
   tableBody: document.getElementById("tableBody"),
   detailPanel: document.getElementById("detailPanel"),
   kpiTotal: document.getElementById("kpiTotal"),
+  kpiImmediateAction: document.getElementById("kpiImmediateAction"),
   kpiHighRelevance: document.getElementById("kpiHighRelevance"),
   kpiHighImpact: document.getElementById("kpiHighImpact"),
-  kpiRelevant: document.getElementById("kpiRelevant"),
+  kpiNeedsReview: document.getElementById("kpiNeedsReview"),
+  kpiChanges: document.getElementById("kpiChanges"),
   topThemesList: document.getElementById("topThemesList"),
-  topOwnersList: document.getElementById("topOwnersList")
+  topOwnersList: document.getElementById("topOwnersList"),
+  immediateActionsList: document.getElementById("immediateActionsList"),
+  reviewList: document.getElementById("reviewList"),
+  changesList: document.getElementById("changesList")
 };
 
 document.addEventListener("DOMContentLoaded", init);
@@ -203,15 +826,21 @@ function init() {
 function bindEvents() {
   els.uploadBtn.addEventListener("click", handleUpload);
   els.reloadBtn.addEventListener("click", () => renderAll());
+  els.exportJsonBtn.addEventListener("click", exportJson);
+  els.exportCsvBtn.addEventListener("click", exportCsv);
   els.clearStorageBtn.addEventListener("click", clearSavedData);
   els.searchInput.addEventListener("input", applyFilters);
   els.sectionFilter.addEventListener("change", applyFilters);
   els.themeFilter.addEventListener("change", applyFilters);
   els.ownerFilter.addEventListener("change", applyFilters);
+  els.stageFilter.addEventListener("change", applyFilters);
+  els.changeFilter.addEventListener("change", applyFilters);
   els.impactFilter.addEventListener("change", applyFilters);
   els.relevanceFilter.addEventListener("change", applyFilters);
+  els.parseConfidenceFilter.addEventListener("change", applyFilters);
   els.fmrukOnlyFilter.addEventListener("change", applyFilters);
   els.excludeAnnexFilter.addEventListener("change", applyFilters);
+  els.needsReviewFilter.addEventListener("change", applyFilters);
 }
 
 function loadFromStorage() {
@@ -250,325 +879,515 @@ function clearSavedData() {
 async function handleUpload() {
   const file = els.fileInput.files[0];
   if (!file) {
-    els.uploadStatus.textContent = "Please select an XLSX or PDF file first.";
+    els.uploadStatus.textContent = "Please select the FCA initiatives PDF first.";
     return;
   }
 
   const ext = file.name.split(".").pop().toLowerCase();
+  if (ext !== "pdf") {
+    els.uploadStatus.textContent = "PDF-only mode is enabled for now.";
+    return;
+  }
+
+  if (!window.pdfjsLib) {
+    els.uploadStatus.textContent = "PDF.js failed to load.";
+    return;
+  }
+
+  const previousItems = state.raw.slice();
+  const previousMeta = state.datasetMeta;
 
   try {
-    els.uploadStatus.textContent = `Reading ${ext.toUpperCase()} file...`;
+    els.uploadStatus.textContent = `Reading PDF: ${file.name}...`;
+    const buffer = await file.arrayBuffer();
+    const parsed = await parsePdfFile(buffer, file.name);
+    const deduped = dedupeItems(parsed);
 
-    let normalised = [];
-
-    if (ext === "xlsx" || ext === "xls") {
-      if (!window.XLSX) {
-        throw new Error("SheetJS failed to load.");
-      }
-
-      const buffer = await file.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: "array" });
-      const parsedRows = workbook.SheetNames.flatMap(sheetName => {
-        const ws = workbook.Sheets[sheetName];
-        return XLSX.utils.sheet_to_json(ws, { defval: "" }).map(row => ({
-          __sheet: sheetName,
-          ...row
-        }));
-      });
-
-      normalised = normaliseSpreadsheetRows(parsedRows, file.name);
-    } else if (ext === "pdf") {
-      if (!window.pdfjsLib) {
-        throw new Error("PDF.js failed to load.");
-      }
-
-      const buffer = await file.arrayBuffer();
-      normalised = await parsePdfFile(buffer, file.name);
-    } else {
-      throw new Error("Unsupported file type.");
-    }
-
-    normalised = dedupeItems(normalised);
-
-    if (!normalised.length) {
+    if (!deduped.length) {
       els.uploadStatus.textContent =
-        "No initiatives were detected. XLSX is more reliable, but this PDF parser is also supported.";
+        "No initiatives were detected in the PDF. Review the source formatting or parsing assumptions.";
       return;
     }
 
-    const analysed = analyseRows(normalised);
+    els.uploadStatus.textContent = `Analysing ${deduped.length} extracted initiatives...`;
+    const analysed = analyseRows(deduped);
+    const comparison = compareWithPreviousDataset(previousItems, analysed);
 
-    state.raw = analysed;
+    state.raw = comparison.items;
     state.datasetMeta = {
       fileName: file.name,
       uploadedAt: new Date().toISOString(),
-      rowCount: analysed.length,
-      fileType: ext.toUpperCase()
+      rowCount: comparison.items.length,
+      fileType: "PDF",
+      previousFileName: previousMeta?.fileName || "",
+      comparisonSummary: comparison.summary,
+      parserVersion: "v7"
     };
-    state.selectedItemId = analysed[0]?.id || null;
+    state.selectedItemId = comparison.items[0]?.id || null;
 
     saveToStorage();
-    els.uploadStatus.textContent = `Loaded ${analysed.length} initiatives from ${file.name}.`;
+    els.uploadStatus.textContent = `Loaded ${comparison.items.length} initiatives from ${file.name}.`;
     renderAll();
   } catch (err) {
     console.error(err);
-    els.uploadStatus.textContent = `Upload failed. ${err.message || "The file could not be parsed."}`;
+    els.uploadStatus.textContent = `Upload failed. ${err.message || "The PDF could not be parsed."}`;
   }
-}
-
-function normaliseSpreadsheetRows(rows, fileName) {
-  return rows
-    .map((row, index) => {
-      const mapped = mapWorkbookRow(row);
-      return {
-        id: `${slugify(mapped.initiativeTitle || "item")}-${index}`,
-        sourceFile: fileName,
-        ...mapped
-      };
-    })
-    .filter(item => item.initiativeTitle);
-}
-
-function mapWorkbookRow(row) {
-  const entries = Object.entries(row).reduce((acc, [k, v]) => {
-    acc[String(k).trim().toLowerCase()] = typeof v === "string" ? v.trim() : v;
-    return acc;
-  }, {});
-
-  const get = (...patterns) => {
-    for (const [key, value] of Object.entries(entries)) {
-      for (const p of patterns) {
-        if (key.includes(p)) return String(value || "").trim();
-      }
-    }
-    return "";
-  };
-
-  return {
-    sectionName: get("sector", "section") || String(row.__sheet || "").trim(),
-    subcategory: get("subcategory", "sub-category", "category"),
-    leadRegulator: get("lead"),
-    initiativeTitle: get("initiative", "title", "name"),
-    initiativeDescription: get("description", "details", "detail", "summary"),
-    expectedKeyMilestones: get("expected key milestones", "milestone"),
-    indicativeImpactOnFirms: get("impact on firms", "indicative impact", "impact"),
-    consumerInterest: get("consumer interest"),
-    timingUpdated: get("timing updated", "change in timing"),
-    isNew: get("new"),
-    timingBucket: inferTimingBucket(
-      `${get("expected key milestones", "milestone")} ${get("description", "details", "detail", "summary")}`
-    ),
-    rawText: JSON.stringify(row)
-  };
 }
 
 async function parsePdfFile(buffer, fileName) {
   const loadingTask = pdfjsLib.getDocument({ data: buffer });
   const pdf = await loadingTask.promise;
-  const lines = [];
+  const rows = [];
+  let activeTemplate = null;
 
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1 });
     const textContent = await page.getTextContent();
-    const pageLines = rebuildLinesFromPdfItems(textContent.items);
+    const pageRows = buildPdfRows(textContent.items, pageNumber);
+    const headerTemplate = detectColumnTemplate(pageRows, viewport.width);
+    activeTemplate = headerTemplate || activeTemplate || buildFallbackColumnTemplate(viewport.width);
 
-    for (const line of pageLines) {
-      const clean = normaliseWs(line);
-      if (!clean) continue;
-      if (clean.startsWith("Regulatory Initiatives Grid |")) continue;
-      if (HEADER_NOISE.has(clean)) continue;
-      if (/^Page \d+ of \d+$/i.test(clean)) continue;
-      if (/^E\s*Formal engagement planned/i.test(clean)) continue;
-      if (/^Engagement and key milestone/i.test(clean)) continue;
-      lines.push(clean);
-    }
-  }
-
-  return extractPdfInitiatives(lines, fileName);
-}
-
-function rebuildLinesFromPdfItems(items) {
-  const rows = new Map();
-
-  for (const item of items) {
-    const y = Math.round(item.transform[5]);
-    const text = String(item.str || "").trim();
-    if (!text) continue;
-
-    if (!rows.has(y)) rows.set(y, []);
-    rows.get(y).push({
-      x: item.transform[4],
-      text
+    pageRows.forEach(row => {
+      row.cells = assignRowCells(row, activeTemplate);
+      row.pageWidth = viewport.width;
+      rows.push(row);
     });
   }
 
-  return [...rows.entries()]
-    .sort((a, b) => b[0] - a[0])
-    .map(([, parts]) =>
-      parts
-        .sort((a, b) => a.x - b.x)
-        .map(p => p.text)
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim()
-    );
+  return extractPdfInitiatives(rows, fileName);
 }
 
-function extractPdfInitiatives(lines, fileName) {
+function buildPdfRows(items, pageNumber) {
+  const tokens = items
+    .map(item => ({
+      text: normaliseWs(item.str),
+      x: Number(item.transform?.[4] || 0),
+      y: Number(item.transform?.[5] || 0),
+      width: Number(item.width || 0),
+      fontName: String(item.fontName || ""),
+      pageNumber
+    }))
+    .filter(token => token.text);
+
+  tokens.sort((a, b) => b.y - a.y || a.x - b.x);
+
+  const rawRows = [];
+  for (const token of tokens) {
+    const current = rawRows[rawRows.length - 1];
+    if (current && Math.abs(current.y - token.y) <= 3) {
+      current.tokens.push(token);
+      current.y = (current.y + token.y) / 2;
+    } else {
+      rawRows.push({
+        y: token.y,
+        tokens: [token],
+        pageNumber
+      });
+    }
+  }
+
+  return rawRows.map(row => normaliseRow(row));
+}
+
+function normaliseRow(row) {
+  const segments = mergeRowTokens(row.tokens.sort((a, b) => a.x - b.x));
+  const text = normaliseWs(segments.map(segment => segment.text).join(" "));
+
+  return {
+    pageNumber: row.pageNumber,
+    y: row.y,
+    segments,
+    text,
+    hasBold: segments.some(segment => /bold/i.test(segment.fontName || "")),
+    cells: {}
+  };
+}
+
+function mergeRowTokens(tokens) {
+  const segments = [];
+
+  for (const token of tokens) {
+    const previous = segments[segments.length - 1];
+    if (!previous) {
+      segments.push({ ...token });
+      continue;
+    }
+
+    const previousEnd = previous.x + previous.width;
+    const gap = token.x - previousEnd;
+
+    if (gap <= 6) {
+      previous.text = joinInline(previous.text, token.text);
+      previous.width = Math.max(previous.width, token.x + token.width - previous.x);
+      previous.fontName = previous.fontName || token.fontName;
+    } else {
+      segments.push({ ...token });
+    }
+  }
+
+  return segments.map(segment => ({
+    ...segment,
+    text: normaliseWs(segment.text)
+  }));
+}
+
+function joinInline(left, right) {
+  if (!left) return right;
+  if (!right) return left;
+  if (/[-/()]$/.test(left) || /^[,.;:)]/.test(right)) {
+    return `${left}${right}`;
+  }
+  return `${left} ${right}`;
+}
+
+function detectColumnTemplate(rows, pageWidth) {
+  for (const row of rows) {
+    const anchorMap = {};
+    for (const segment of row.segments) {
+      const value = segment.text.toLowerCase();
+      if (!anchorMap.lead && /\blead\b/.test(value)) anchorMap.lead = segment.x;
+      if (!anchorMap.initiative && /\binitiative\b/.test(value)) anchorMap.initiative = segment.x;
+      if (!anchorMap.milestones && /(expected key|milestone)/.test(value)) anchorMap.milestones = segment.x;
+      if (!anchorMap.impact && /\bimpact\b/.test(value)) anchorMap.impact = segment.x;
+      if (!anchorMap.consumer && /\bconsumer\b/.test(value)) anchorMap.consumer = segment.x;
+      if (!anchorMap.timing && /\btiming\b/.test(value)) anchorMap.timing = segment.x;
+      if (!anchorMap.isNew && /^\s*new\s*$/.test(value)) anchorMap.isNew = segment.x;
+    }
+
+    const hits = Object.keys(anchorMap).length;
+    if (hits >= 4 && anchorMap.initiative != null && anchorMap.milestones != null) {
+      return buildColumnTemplate(anchorMap, pageWidth);
+    }
+  }
+
+  return null;
+}
+
+function buildFallbackColumnTemplate(pageWidth) {
+  const anchors = {};
+  for (const [key, ratio] of Object.entries(DEFAULT_COLUMN_START_RATIOS)) {
+    anchors[key] = pageWidth * ratio;
+  }
+  return buildColumnTemplate(anchors, pageWidth);
+}
+
+function buildColumnTemplate(anchorMap, pageWidth) {
+  const keys = ["lead", "initiative", "milestones", "impact", "consumer", "timing", "isNew"];
+  const starts = keys.map(key => ({
+    key,
+    start:
+      anchorMap[key] != null
+        ? anchorMap[key]
+        : pageWidth * DEFAULT_COLUMN_START_RATIOS[key]
+  }));
+
+  const columns = [];
+  for (let index = 0; index < starts.length; index += 1) {
+    const current = starts[index];
+    const previous = starts[index - 1];
+    const next = starts[index + 1];
+    columns.push({
+      key: current.key,
+      start: previous ? (previous.start + current.start) / 2 : -Infinity,
+      end: next ? (current.start + next.start) / 2 : Infinity
+    });
+  }
+
+  return columns;
+}
+
+function assignRowCells(row, template) {
+  const cells = {
+    lead: "",
+    initiative: "",
+    milestones: "",
+    impact: "",
+    consumer: "",
+    timing: "",
+    isNew: "",
+    overflow: ""
+  };
+
+  for (const segment of row.segments) {
+    const centre = segment.x + segment.width / 2;
+    const column = template.find(item => centre >= item.start && centre < item.end);
+    const key = column?.key || "overflow";
+    cells[key] = normaliseWs(`${cells[key]} ${segment.text}`);
+  }
+
+  return cells;
+}
+
+function extractPdfInitiatives(rows, fileName) {
   const initiatives = [];
   let currentSection = "";
   let currentSubcategory = "";
   let current = null;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = normaliseWs(lines[i]);
-    if (!line) continue;
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    const text = normaliseWs(row.text);
+    if (!text || isNoiseRow(row)) continue;
 
-    if (KNOWN_SECTIONS.includes(line)) {
-      currentSection = line;
+    const knownSection = SECTION_LOOKUP.get(text.toLowerCase());
+    if (knownSection) {
+      currentSection = knownSection;
       currentSubcategory = "";
       continue;
     }
 
-    if (KNOWN_SUBCATEGORIES.includes(line)) {
-      currentSubcategory = line;
+    const knownSubcategory = SUBCATEGORY_LOOKUP.get(text.toLowerCase());
+    if (knownSubcategory) {
+      currentSubcategory = knownSubcategory;
       continue;
     }
 
-    const sameLineLead = splitLeadAndTitle(line);
+    const nextRow = rows[index + 1];
+    const start = detectInitiativeStart(row, nextRow);
 
-    if (sameLineLead) {
-      if (current && current.initiativeTitle) {
+    if (start) {
+      if (current?.initiativeTitle) {
         initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
       }
 
-      current = {
-        sectionName: currentSection,
-        subcategory: currentSubcategory,
-        leadRegulator: sameLineLead.lead,
-        initiativeTitle: sameLineLead.title,
-        initiativeDescription: "",
-        expectedKeyMilestones: "",
-        indicativeImpactOnFirms: "",
-        consumerInterest: "",
-        timingUpdated: "",
-        isNew: "",
-        timingBucket: "",
-        rawText: `${sameLineLead.lead}\n${sameLineLead.title}\n`
-      };
+      current = createInitiativeAccumulator(start, currentSection, currentSubcategory, row, fileName);
+      ingestRowIntoAccumulator(current, row, { isStartRow: true });
+
+      if (start.consumeNextRow && nextRow) {
+        ingestRowIntoAccumulator(current, nextRow, {
+          suppressInitiativeCell: true
+        });
+        index += 1;
+      }
+
       continue;
     }
 
-    if (looksLikeLeadOnly(line)) {
-      const nextLine = normaliseWs(lines[i + 1] || "");
-      if (
-        nextLine &&
-        !KNOWN_SECTIONS.includes(nextLine) &&
-        !KNOWN_SUBCATEGORIES.includes(nextLine) &&
-        !looksLikeLeadOnly(nextLine)
-      ) {
-        if (current && current.initiativeTitle) {
-          initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
-        }
-
-        current = {
-          sectionName: currentSection,
-          subcategory: currentSubcategory,
-          leadRegulator: line,
-          initiativeTitle: nextLine,
-          initiativeDescription: "",
-          expectedKeyMilestones: "",
-          indicativeImpactOnFirms: "",
-          consumerInterest: "",
-          timingUpdated: "",
-          isNew: "",
-          timingBucket: "",
-          rawText: `${line}\n${nextLine}\n`
-        };
-        i += 1;
-        continue;
-      }
-    }
-
     if (current) {
-      current.rawText += line + "\n";
+      ingestRowIntoAccumulator(current, row, {});
     }
   }
 
-  if (current && current.initiativeTitle) {
+  if (current?.initiativeTitle) {
     initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
   }
 
-  return initiatives.filter(x => x.initiativeTitle && x.initiativeTitle.length > 3);
+  return initiatives.filter(item => item.initiativeTitle && item.initiativeTitle.length > 4);
 }
 
-function splitLeadAndTitle(line) {
-  const parts = line.split(" ");
-  const first = parts[0] || "";
-  if (!isLeadToken(first)) return null;
+function isNoiseRow(row) {
+  const text = row.text;
+  if (!text) return true;
 
-  const rest = parts.slice(1).join(" ").trim();
-  if (!rest) return null;
+  if (ROW_NOISE_PATTERNS.some(pattern => pattern.test(text))) return true;
 
-  return { lead: first, title: rest };
+  const headerHits = HEADER_TEXT_PATTERNS.reduce((count, pattern) => {
+    return count + (pattern.test(text) ? 1 : 0);
+  }, 0);
+
+  return headerHits >= 3;
 }
 
-function looksLikeLeadOnly(line) {
-  return isLeadToken(line);
+function detectInitiativeStart(row, nextRow) {
+  const direct = extractLeadAndTitle(row);
+  if (direct) return direct;
+
+  const leadOnly = normaliseLeadToken(row.cells.lead || row.text);
+  if (
+    leadOnly &&
+    nextRow &&
+    !isNoiseRow(nextRow) &&
+    !SECTION_LOOKUP.has(nextRow.text.toLowerCase()) &&
+    !SUBCATEGORY_LOOKUP.has(nextRow.text.toLowerCase())
+  ) {
+    const nextTitle = cleanTitleCandidate(nextRow.cells.initiative || nextRow.text);
+    if (isPlausibleTitle(nextTitle) && !extractLeadAndTitle(nextRow)) {
+      return {
+        lead: leadOnly,
+        title: nextTitle,
+        consumeNextRow: true
+      };
+    }
+  }
+
+  return null;
 }
 
-function isLeadToken(value) {
-  const clean = normaliseWs(value);
-  if (!clean || clean.length > 40) return false;
+function extractLeadAndTitle(row) {
+  const directLead = normaliseLeadToken(row.cells.lead);
+  const directTitle = cleanTitleCandidate(row.cells.initiative);
 
-  const parts = clean.split("/");
-  return parts.every(p => REGULATOR_CODES.includes(p));
+  if (directLead && isPlausibleTitle(directTitle)) {
+    return {
+      lead: directLead,
+      title: directTitle,
+      consumeNextRow: false
+    };
+  }
+
+  const split = splitLeadAndTitle(row.text);
+  if (split && isPlausibleTitle(split.title)) {
+    return {
+      lead: split.lead,
+      title: split.title,
+      consumeNextRow: false
+    };
+  }
+
+  if (row.cells.initiative) {
+    const embedded = splitLeadAndTitle(row.cells.initiative);
+    if (embedded && isPlausibleTitle(embedded.title)) {
+      return {
+        lead: embedded.lead,
+        title: embedded.title,
+        consumeNextRow: false
+      };
+    }
+  }
+
+  return null;
 }
 
-function finalisePdfInitiative(item, index, fileName) {
-  const raw = normaliseWs(item.rawText);
-  const impactMatch = raw.match(/\b(H|L|U)\b/);
-
-  const desc = normaliseWs(
-    raw
-      .replace(item.leadRegulator || "", "")
-      .replace(item.initiativeTitle || "", "")
-  );
-
+function createInitiativeAccumulator(start, sectionName, subcategory, row, fileName) {
   return {
-    id: `${slugify(item.initiativeTitle || "item")}-${index}`,
     sourceFile: fileName,
-    sectionName: item.sectionName || "",
-    subcategory: item.subcategory || "",
-    leadRegulator: item.leadRegulator || "",
-    initiativeTitle: item.initiativeTitle || "",
-    initiativeDescription: desc,
-    expectedKeyMilestones: extractMilestones(raw),
-    indicativeImpactOnFirms: impactMatch ? impactMatch[1] : "",
-    consumerInterest: "",
-    timingUpdated: /timing/i.test(raw) ? "Possible" : "",
-    isNew: /\bnew\b/i.test(raw) ? "Yes" : "No",
-    timingBucket: inferTimingBucket(raw),
-    rawText: raw
+    sectionName: sectionName || "",
+    subcategory: subcategory || "",
+    leadRegulator: start.lead || "",
+    initiativeTitle: start.title || "",
+    initiativeDescriptionParts: [],
+    milestoneParts: [],
+    impactParts: [],
+    consumerParts: [],
+    timingParts: [],
+    isNewParts: [],
+    rawParts: [row.text],
+    pageNumbers: [row.pageNumber],
+    parseWarnings: []
   };
 }
 
-function extractMilestones(text) {
-  const matches = [];
-  const patterns = [
-    /(Q[1-4]\s+\d{4}:[^.]+(?:\.)?)/gi,
-    /((?:January|February|March|April|May|June|July|August|September|October|November|December)[^.]+(?:\.)?)/gi,
-    /(\d{1,2}\s+[A-Z][a-z]+\s+\d{4}[^.]*\.)/g
-  ];
+function ingestRowIntoAccumulator(accumulator, row, options) {
+  const opts = options || {};
 
-  for (const pattern of patterns) {
-    const found = text.match(pattern);
-    if (found) matches.push(...found);
+  appendUnique(accumulator.rawParts, row.text);
+  appendUnique(accumulator.pageNumbers, row.pageNumber);
+
+  appendUnique(accumulator.milestoneParts, row.cells.milestones);
+  appendUnique(accumulator.impactParts, row.cells.impact);
+  appendUnique(accumulator.consumerParts, row.cells.consumer);
+  appendUnique(accumulator.timingParts, row.cells.timing);
+  appendUnique(accumulator.isNewParts, row.cells.isNew);
+
+  if (opts.isStartRow) {
+    const extraLeadText = stripLeadPrefix(row.cells.lead, accumulator.leadRegulator);
+    appendUnique(accumulator.initiativeDescriptionParts, extraLeadText);
+
+    const extraTitleText = stripRepeatedTitle(row.cells.initiative, accumulator.initiativeTitle);
+    if (extraTitleText && !shouldTreatAsTitleContinuation(accumulator, extraTitleText, row)) {
+      appendUnique(accumulator.initiativeDescriptionParts, extraTitleText);
+    }
+    return;
   }
 
-  return [...new Set(matches.map(x => normaliseWs(x)).filter(x => x.length > 8))]
-    .slice(0, 5)
-    .join(" | ");
+  if (!opts.suppressInitiativeCell) {
+    const continuation = stripRepeatedTitle(row.cells.initiative, accumulator.initiativeTitle);
+    if (continuation) {
+      if (shouldTreatAsTitleContinuation(accumulator, continuation, row)) {
+        accumulator.initiativeTitle = normaliseWs(`${accumulator.initiativeTitle} ${continuation}`);
+      } else {
+        appendUnique(accumulator.initiativeDescriptionParts, continuation);
+      }
+    }
+  }
+
+  appendUnique(accumulator.initiativeDescriptionParts, row.cells.overflow);
+}
+
+function shouldTreatAsTitleContinuation(accumulator, value, row) {
+  if (!value) return false;
+  if (accumulator.initiativeTitle.length > 110) return false;
+  if (row.cells.milestones || row.cells.impact || row.cells.consumer) return false;
+  if (/[.:;]/.test(value)) return false;
+  if (looksLikeMilestoneText(value)) return false;
+  return value.length <= 90;
+}
+
+function finalisePdfInitiative(accumulator, index, fileName) {
+  const raw = normaliseWs(accumulator.rawParts.join(" "));
+  const milestones = dedupeStrings(
+    [
+      ...accumulator.milestoneParts,
+      extractMilestones(raw)
+    ].filter(Boolean)
+  ).join(" | ");
+
+  const description = dedupeStrings(accumulator.initiativeDescriptionParts).join(" ");
+  const impactFlag = extractImpactFlag(accumulator.impactParts.join(" ") || raw);
+  const consumerInterest = normaliseTrafficLight(accumulator.consumerParts.join(" "));
+  const timingUpdated = normaliseYesNo(accumulator.timingParts.join(" "));
+  const isNew = normaliseYesNo(accumulator.isNewParts.join(" ")) || (/\bnew\b/i.test(raw) ? "Yes" : "No");
+  const parseAssessment = assessParseQuality(accumulator, {
+    milestones,
+    description,
+    impactFlag
+  });
+
+  return {
+    id: `${slugify(accumulator.initiativeTitle || "item")}-${index}`,
+    canonicalKey: buildCanonicalKey(accumulator),
+    sourceFile: fileName,
+    sourcePages: accumulator.pageNumbers.slice().sort((a, b) => a - b),
+    sectionName: accumulator.sectionName || "",
+    subcategory: accumulator.subcategory || "",
+    leadRegulator: accumulator.leadRegulator || "",
+    initiativeTitle: accumulator.initiativeTitle || "",
+    initiativeDescription: description || raw,
+    expectedKeyMilestones: milestones,
+    indicativeImpactOnFirms: impactFlag,
+    consumerInterest,
+    timingUpdated: timingUpdated || "",
+    isNew,
+    timingBucket: inferTimingBucket(`${milestones} ${description} ${raw}`),
+    rawText: raw,
+    parseConfidence: parseAssessment.score,
+    parseConfidenceBand: parseAssessment.band,
+    parseWarnings: parseAssessment.warnings
+  };
+}
+
+function assessParseQuality(accumulator, context) {
+  let score = 42;
+  const warnings = [];
+
+  if (accumulator.sectionName) score += 10;
+  else warnings.push("Section was not cleanly extracted from the PDF.");
+
+  if (accumulator.subcategory) score += 4;
+  if (isLeadToken(accumulator.leadRegulator)) score += 12;
+  else warnings.push("Lead regulator was not cleanly isolated.");
+
+  if (accumulator.initiativeTitle && accumulator.initiativeTitle.length >= 12) score += 16;
+  else warnings.push("Initiative title may be incomplete.");
+
+  if (context.description && context.description.length >= 40) score += 10;
+  else warnings.push("Description is thin and may need manual validation.");
+
+  if (context.milestones) score += 8;
+  else warnings.push("Milestones were not clearly separated from the PDF.");
+
+  if (context.impactFlag) score += 6;
+  if (accumulator.pageNumbers.length) score += 4;
+  if (accumulator.rawParts.length > 1) score += 2;
+
+  score = clamp(score, 0, 100);
+
+  return {
+    score,
+    band: score >= 85 ? "High" : score >= 70 ? "Medium" : "Low",
+    warnings: dedupeStrings(warnings)
+  };
 }
 
 function dedupeItems(items) {
@@ -576,12 +1395,7 @@ function dedupeItems(items) {
   const output = [];
 
   for (const item of items) {
-    const key = [
-      normaliseWs(item.sectionName).toLowerCase(),
-      normaliseWs(item.leadRegulator).toLowerCase(),
-      normaliseWs(item.initiativeTitle).toLowerCase()
-    ].join("|");
-
+    const key = item.canonicalKey || buildCanonicalKey(item);
     if (seen.has(key)) continue;
     seen.add(key);
     output.push(item);
@@ -594,187 +1408,409 @@ function analyseRows(items) {
   return items
     .map(item => {
       const classification = classifyItem(item);
-      const impactLevel = determineImpactLevel(item);
-      const relevanceScore = scoreRelevance(item, classification);
-      const isFmrukRelevant = determineFmrukRelevance(item, classification);
+      const stage = determineStage(item);
+      const impact = determineImpactLevel(item, classification, stage);
+      const relevance = evaluateFmrukRelevance(item, classification, stage);
+      const potentialBusinessImpact = buildPotentialBusinessImpact(classification, stage, item);
+      const suggestedActions = buildSuggestedActions(item, classification, stage, impact, relevance);
+      const review = determineReviewStatus(item, classification, stage, relevance);
+      const rationale = buildRationale(item, classification, stage, relevance);
 
       return {
         ...item,
         theme: classification.theme,
         internalSubTheme: classification.subTheme,
-        potentialBusinessImpact: classification.impact,
+        classificationConfidence: classification.confidence,
+        classificationSignals: classification.signals,
+        classificationAmbiguity: classification.ambiguity,
+        potentialBusinessImpact,
         primaryOwner: classification.primaryOwner,
         secondaryOwner: classification.secondaryOwner,
-        impactLevel,
-        relevanceScore,
-        isFmrukRelevant,
-        rationale: buildRationale(item, classification),
-        suggestedAction: buildSuggestedAction(
-          impactLevel,
-          classification,
-          item.timingBucket
-        )
+        stage: stage.id,
+        stageLabel: stage.label,
+        stageConfidence: stage.confidence,
+        stageSignals: stage.signals,
+        impactLevel: impact.level,
+        impactScore: impact.score,
+        relevanceScore: relevance.score,
+        relevanceBand: relevance.band,
+        relevanceConfidence: relevance.confidence,
+        relevanceSignals: relevance.positiveReasons,
+        relevanceNegativeSignals: relevance.negativeReasons,
+        isFmrukRelevant: relevance.isRelevant,
+        rationale,
+        suggestedActions,
+        suggestedAction: suggestedActions.join(" "),
+        immediateActionRequired: relevance.isRelevant && impact.level === "High" && stage.id !== "monitoring",
+        needsReview: review.needsReview,
+        reviewReasons: review.reasons
       };
     })
-    .sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
+    .sort((a, b) => {
+      if ((b.immediateActionRequired ? 1 : 0) !== (a.immediateActionRequired ? 1 : 0)) {
+        return (b.immediateActionRequired ? 1 : 0) - (a.immediateActionRequired ? 1 : 0);
+      }
+      if ((b.relevanceScore || 0) !== (a.relevanceScore || 0)) {
+        return (b.relevanceScore || 0) - (a.relevanceScore || 0);
+      }
+      return (b.impactScore || 0) - (a.impactScore || 0);
+    });
 }
 
 function classifyItem(item) {
-  const blob = `${item.initiativeTitle} ${item.initiativeDescription} ${item.sectionName} ${item.subcategory}`.toLowerCase();
-
-  for (const rule of THEME_RULES) {
-    if (rule.keywords.some(keyword => blob.includes(keyword))) {
-      return rule;
-    }
-  }
-
-  const sectionBlob = `${item.sectionName} ${item.subcategory}`.toLowerCase();
-
-  if (sectionBlob.includes("investment management")) {
+  const blob = buildBlob(item);
+  const scored = CLASSIFICATION_RULES.map(rule => {
+    const result = scoreSignalGroups(rule.signals, blob);
+    const boost = rule.sectionBoosts?.[item.sectionName] || 0;
     return {
-      theme: "Investment Management / Product",
-      subTheme: "Investment Management",
-      impact: "May require review of product governance, disclosures, oversight or firm implementation planning.",
-      primaryOwner: "Compliance",
-      secondaryOwner: "Legal"
+      rule,
+      score: result.score + boost,
+      signals: result.reasons
+    };
+  }).sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+  const runnerUp = scored[1];
+
+  if (best && best.score >= 18) {
+    return {
+      theme: best.rule.theme,
+      subTheme: best.rule.subTheme,
+      primaryOwner: best.rule.primaryOwner,
+      secondaryOwner: best.rule.secondaryOwner,
+      impactBias: best.rule.impactBias,
+      impactStatement: best.rule.impactStatement,
+      coreActions: best.rule.coreActions,
+      confidence: clamp(45 + best.score, 0, 100),
+      signals: best.signals,
+      ambiguity:
+        runnerUp && best.score - runnerUp.score <= 6
+          ? `Close call against ${runnerUp.rule.theme} / ${runnerUp.rule.subTheme}.`
+          : ""
     };
   }
 
-  if (sectionBlob.includes("wholesale financial markets")) {
+  const fallback = SECTION_FALLBACKS[item.sectionName] || SECTION_FALLBACKS.default;
+  return {
+    ...fallback,
+    confidence: 52,
+    signals: [`Fallback from section: ${item.sectionName || "Unknown section"}.`],
+    ambiguity: ""
+  };
+}
+
+function determineStage(item) {
+  const blob = `${buildBlob(item)} ${item.expectedKeyMilestones}`.toLowerCase();
+  const scored = STAGE_RULES.map(rule => {
+    const result = scoreSignalGroups(rule.signals, blob);
     return {
-      theme: "Market Structure / Wholesale",
-      subTheme: "Wholesale Markets",
-      impact: "Could affect market-facing controls, policy interpretation and implementation planning for wholesale business lines.",
-      primaryOwner: "Compliance",
-      secondaryOwner: "Legal"
+      rule,
+      score: result.score,
+      reasons: result.reasons
+    };
+  }).sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+  if (best && best.score >= 12) {
+    return {
+      id: best.rule.id,
+      label: best.rule.label,
+      confidence: clamp(45 + best.score, 0, 100),
+      signals: best.reasons
     };
   }
 
   return {
-    theme: "General UK Regulatory Change",
-    subTheme: "General",
-    impact: "May require initial triage to determine whether any policy, control, governance or implementation response is needed.",
-    primaryOwner: "Compliance",
-    secondaryOwner: "Legal"
+    id: "monitoring",
+    label: "Monitoring",
+    confidence: 50,
+    signals: ["No strong stage markers were detected, so the item is being treated as watchlist monitoring."]
   };
 }
 
-function determineImpactLevel(item) {
+function determineImpactLevel(item, classification, stage) {
+  let score = 30;
   const impactFlag = String(item.indicativeImpactOnFirms || "").trim().toUpperCase();
-  const blob = `${item.initiativeTitle} ${item.initiativeDescription}`.toLowerCase();
+  if (impactFlag === "H" || impactFlag === "HIGH") score += 40;
+  if (impactFlag === "M" || impactFlag === "MEDIUM" || impactFlag === "U") score += 22;
+  if (impactFlag === "L" || impactFlag === "LOW") score += 8;
 
-  if (impactFlag === "H") return "High";
-  if (impactFlag === "L") return "Low";
+  score += classification.impactBias || 0;
 
-  const highTerms = [
-    "consumer duty",
-    "transaction reporting",
-    "operational resilience",
-    "outsourcing",
-    "mifidpru",
-    "capital",
-    "liquidity",
-    "market abuse",
-    "sanctions",
-    "data collections"
-  ];
+  if (stage.id === "final_rules") score += 12;
+  if (stage.id === "reporting") score += 10;
+  if (stage.id === "supervisory") score += 8;
+  if (item.timingBucket === "Near Term") score += 8;
+  if (item.timingBucket === "Longer Term") score -= 4;
+  if (item.consumerInterest === "H") score += 4;
 
-  const mediumTerms = [
-    "consultation",
-    "disclosure",
-    "governance",
-    "cyber",
-    "ict",
-    "sustainability"
-  ];
+  score = clamp(score, 0, 100);
 
-  if (highTerms.some(term => blob.includes(term))) return "High";
-  if (mediumTerms.some(term => blob.includes(term))) return "Medium";
-  return impactFlag === "U" ? "Medium" : "Low";
+  return {
+    score,
+    level: score >= 78 ? "High" : score >= 55 ? "Medium" : "Low"
+  };
 }
 
-function scoreRelevance(item, classification) {
-  const blob = `${item.initiativeTitle} ${item.initiativeDescription} ${item.sectionName} ${classification.theme} ${classification.subTheme}`.toLowerCase();
-  let score = 25;
+function evaluateFmrukRelevance(item, classification, stage) {
+  const blob = buildBlob(item);
+  let score = 38;
+  const positive = scoreSignalGroups(RELEVANCE_SIGNAL_GROUPS.positive, blob);
+  const negative = scoreSignalGroups(RELEVANCE_SIGNAL_GROUPS.negative, blob);
 
-  for (const keyword of FMRUK_KEYWORDS) {
-    if (blob.includes(keyword)) score += 4;
-  }
+  score += positive.score;
+  score -= negative.score;
+  score += RELEVANCE_SIGNAL_GROUPS.sectionAdjustments[item.sectionName] || 0;
 
   if (
-    ["Investment management", "Multi-sector", "Wholesale financial markets"].includes(
-      item.sectionName
+    ["Transaction Reporting", "Best Execution", "Market Abuse / Surveillance", "Capital / Liquidity", "Operational Resilience", "Outsourcing / Third Party Risk", "SMCR / Governance", "Regulatory Reporting / Data Collection"].includes(
+      classification.subTheme
     )
   ) {
     score += 10;
   }
 
-  if (
-    [
-      "Transaction Reporting",
-      "Operational Resilience",
-      "Outsourcing / Third Party Risk",
-      "Capital / Liquidity",
-      "Consumer Duty",
-      "AML / KYC / Sanctions",
-      "AI / Data / Cyber"
-    ].includes(classification.subTheme)
-  ) {
-    score += 12;
-  }
+  if (stage.id === "reporting" || stage.id === "final_rules") score += 4;
+  if (item.leadRegulator.includes("FCA")) score += 3;
+  if (item.sectionName === "Annex: initiatives completed/stopped") score -= 10;
 
-  return Math.min(score, 100);
+  score = clamp(score, 0, 100);
+
+  const positiveReasons = [...positive.reasons];
+  const negativeReasons = [...negative.reasons];
+  const sectionAdj = RELEVANCE_SIGNAL_GROUPS.sectionAdjustments[item.sectionName] || 0;
+  if (sectionAdj > 0) positiveReasons.push(`Section boost: ${item.sectionName}.`);
+  if (sectionAdj < 0) negativeReasons.push(`Section drag: ${item.sectionName}.`);
+
+  const mixedSignals = positiveReasons.length > 0 && negativeReasons.length > 0;
+  const isRelevant = score >= 58 || (score >= 50 && !negativeReasons.length);
+  const band = score >= 80 ? "High" : score >= 58 ? "Medium" : "Low";
+  const confidence = clamp(55 + Math.abs(score - 58), 0, 100);
+
+  return {
+    score,
+    band,
+    confidence,
+    positiveReasons,
+    negativeReasons,
+    mixedSignals,
+    isRelevant
+  };
 }
 
-function determineFmrukRelevance(item, classification) {
-  const blob = `${item.initiativeTitle} ${item.initiativeDescription} ${item.sectionName} ${classification.theme}`.toLowerCase();
+function determineReviewStatus(item, classification, stage, relevance) {
+  const reasons = [];
 
-  if (
-    ["Investment management", "Multi-sector", "Wholesale financial markets"].includes(
-      item.sectionName
+  if (item.parseConfidence < 70) reasons.push("PDF extraction confidence is low.");
+  if (classification.confidence < 60) reasons.push("Classification confidence is modest.");
+  if (classification.ambiguity) reasons.push(classification.ambiguity);
+  if (stage.confidence < 58) reasons.push("Initiative stage is uncertain.");
+  if (relevance.mixedSignals) reasons.push("Relevance signals are mixed across FMRUK and non-FMRUK scope.");
+  if (relevance.score >= 45 && relevance.score <= 65) reasons.push("Relevance score sits in the judgement zone and should be checked manually.");
+  if (!item.expectedKeyMilestones) reasons.push("Milestones were not clearly extracted.");
+
+  return {
+    needsReview: reasons.length > 0,
+    reasons: dedupeStrings(reasons)
+  };
+}
+
+function buildPotentialBusinessImpact(classification, stage, item) {
+  const timingNote =
+    item.timingBucket && item.timingBucket !== "To Be Confirmed"
+      ? ` Current horizon is ${item.timingBucket.toLowerCase()}.`
+      : "";
+
+  const stageNote = {
+    consultation:
+      " The main near-term need is understanding scope, shaping response and avoiding late delivery surprises.",
+    final_rules:
+      " Because this appears close to implementation, the focus should move quickly from interpretation into change delivery and control readiness.",
+    supervisory:
+      " The main exposure is evidencing current-state compliance and fixing weak controls before supervisory scrutiny increases.",
+    reporting:
+      " The practical risk sits in data quality, ownership, reconciliation and readiness to make accurate submissions.",
+    legislation:
+      " The key question is whether the perimeter or legal interpretation changes the entity obligations that sit underneath implementation.",
+    monitoring:
+      " This currently looks more like a watchlist item than an immediate delivery programme."
+  }[stage.id] || "";
+
+  return `${classification.impactStatement}${stageNote}${timingNote}`;
+}
+
+function buildSuggestedActions(item, classification, stage, impact, relevance) {
+  const actions = [];
+
+  if (relevance.isRelevant) {
+    actions.push(
+      `${classification.primaryOwner} should own initial triage with ${classification.secondaryOwner} support.`
+    );
+  } else {
+    actions.push(
+      `Keep this with ${classification.primaryOwner} as a watchlist item unless FMRUK scope becomes clearer.`
+    );
+  }
+
+  const stageActions = GENERIC_STAGE_ACTIONS[stage.id] || GENERIC_STAGE_ACTIONS.monitoring;
+  actions.push(stageActions[0]);
+  actions.push(classification.coreActions[0]);
+
+  if (impact.level === "High" || stage.id === "final_rules" || stage.id === "reporting") {
+    actions.push(classification.coreActions[1]);
+  }
+
+  if (item.expectedKeyMilestones) {
+    actions.push(`Track milestone text captured from the PDF: ${truncateText(item.expectedKeyMilestones, 150)}.`);
+  }
+
+  if (item.parseConfidence < 70 || relevance.mixedSignals) {
+    actions.push("Validate the extracted row against the source PDF before relying on the detail for delivery planning.");
+  }
+
+  return dedupeStrings(actions).slice(0, 5);
+}
+
+function buildRationale(item, classification, stage, relevance) {
+  const positives = relevance.positiveReasons.length
+    ? `Positive relevance signals: ${relevance.positiveReasons.join(" ")}`
+    : "No strong positive relevance signals were detected.";
+  const negatives = relevance.negativeReasons.length
+    ? ` Counter-signals: ${relevance.negativeReasons.join(" ")}`
+    : "";
+
+  return `Mapped to ${classification.theme} / ${classification.subTheme}. Treated as ${stage.label}. ${positives}${negatives} FMRUK profile assumption: ${FMRUK_PROFILE.summary}`;
+}
+
+function compareWithPreviousDataset(previousItems, newItems) {
+  const previousMap = new Map(previousItems.map(item => [item.canonicalKey, item]));
+  const nextMap = new Map(newItems.map(item => [item.canonicalKey, item]));
+  let newCount = 0;
+  let changedCount = 0;
+  let existingCount = 0;
+
+  const items = newItems.map(item => {
+    const previous = previousMap.get(item.canonicalKey);
+    let changeStatus = "Existing";
+
+    if (!previous) {
+      changeStatus = "New";
+      newCount += 1;
+    } else if (hasMeaningfulChanges(previous, item)) {
+      changeStatus = "Changed";
+      changedCount += 1;
+    } else {
+      existingCount += 1;
+    }
+
+    return {
+      ...item,
+      changeStatus
+    };
+  });
+
+  let removedCount = 0;
+  for (const previousKey of previousMap.keys()) {
+    if (!nextMap.has(previousKey)) removedCount += 1;
+  }
+
+  return {
+    items,
+    summary: {
+      newCount,
+      changedCount,
+      existingCount,
+      removedCount
+    }
+  };
+}
+
+function hasMeaningfulChanges(previous, next) {
+  const fields = [
+    "initiativeDescription",
+    "expectedKeyMilestones",
+    "indicativeImpactOnFirms",
+    "theme",
+    "internalSubTheme",
+    "stage",
+    "impactLevel",
+    "relevanceBand"
+  ];
+
+  return fields.some(field => normaliseWs(previous[field]) !== normaliseWs(next[field]));
+}
+
+function exportJson() {
+  if (!state.filtered.length) {
+    els.uploadStatus.textContent = "There is no filtered dataset to export.";
+    return;
+  }
+
+  downloadTextFile(
+    "fmruk-regulatory-dashboard.json",
+    JSON.stringify(state.filtered, null, 2),
+    "application/json"
+  );
+}
+
+function exportCsv() {
+  if (!state.filtered.length) {
+    els.uploadStatus.textContent = "There is no filtered dataset to export.";
+    return;
+  }
+
+  const csv = buildCsv(state.filtered);
+  downloadTextFile("fmruk-regulatory-dashboard.csv", csv, "text/csv;charset=utf-8;");
+}
+
+function buildCsv(items) {
+  const columns = [
+    "changeStatus",
+    "sectionName",
+    "subcategory",
+    "leadRegulator",
+    "initiativeTitle",
+    "theme",
+    "internalSubTheme",
+    "primaryOwner",
+    "secondaryOwner",
+    "stageLabel",
+    "impactLevel",
+    "relevanceScore",
+    "parseConfidence",
+    "timingBucket",
+    "expectedKeyMilestones",
+    "initiativeDescription",
+    "potentialBusinessImpact",
+    "rationale",
+    "suggestedAction"
+  ];
+
+  const lines = [
+    columns.join(","),
+    ...items.map(item =>
+      columns
+        .map(column => csvEscape(item[column]))
+        .join(",")
     )
-  ) {
-    return true;
-  }
+  ];
 
-  return FMRUK_KEYWORDS.some(keyword => blob.includes(keyword));
+  return lines.join("\n");
 }
 
-function buildRationale(item, classification) {
-  return `Classified from the uploaded Grid under ${item.sectionName || "Unknown section"}. Mapped to ${classification.theme} / ${classification.subTheme}. This is likely relevant to FMRUK where it could affect UK entity policy, controls, governance, reporting or implementation planning. Potential operational implication: ${classification.impact}`;
+function csvEscape(value) {
+  const stringValue = String(value ?? "");
+  return `"${stringValue.replace(/"/g, '""')}"`;
 }
 
-function buildSuggestedAction(impactLevel, classification, timingBucket) {
-  if (impactLevel === "High") {
-    return `Immediate triage by ${classification.primaryOwner}; engage ${classification.secondaryOwner}; assess whether policy, procedure, control or governance updates are required. Horizon: ${timingBucket}.`;
-  }
-  if (impactLevel === "Medium") {
-    return `Review by ${classification.primaryOwner}; confirm applicability with ${classification.secondaryOwner}; track milestones and assign implementation owner if needed. Horizon: ${timingBucket}.`;
-  }
-  return `Monitor through ${classification.primaryOwner}; retain on watchlist and reassess if timing or scope changes. Horizon: ${timingBucket}.`;
-}
-
-function inferTimingBucket(text) {
-  const blob = String(text || "").toLowerCase();
-  if (
-    blob.includes("q1 2026") ||
-    blob.includes("q2 2026") ||
-    blob.includes("january") ||
-    blob.includes("april")
-  ) {
-    return "Near Term";
-  }
-  if (
-    blob.includes("q3 2026") ||
-    blob.includes("q4 2026") ||
-    blob.includes("2026")
-  ) {
-    return "Medium Term";
-  }
-  if (blob.includes("2027") || blob.includes("post july 2027")) {
-    return "Longer Term";
-  }
-  return "To Be Confirmed";
+function downloadTextFile(fileName, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function renderAll() {
@@ -787,27 +1823,40 @@ function updateMeta() {
   if (!state.datasetMeta) {
     els.headerMeta.textContent = "No dataset loaded";
     els.datasetInfo.textContent = "No saved dataset found.";
+    els.comparisonInfo.textContent = "Upload a PDF to compare it with the last saved version.";
     return;
   }
 
   els.headerMeta.textContent = `${state.datasetMeta.fileName} | ${state.datasetMeta.rowCount} initiatives | uploaded ${formatDate(state.datasetMeta.uploadedAt)}`;
-  els.datasetInfo.textContent = `Stored in this browser only. File type: ${state.datasetMeta.fileType}. Source file: ${state.datasetMeta.fileName}`;
+  els.datasetInfo.textContent = `Stored in this browser only. File type: ${state.datasetMeta.fileType}. Parser: ${state.datasetMeta.parserVersion}.`;
+
+  const summary = state.datasetMeta.comparisonSummary;
+  if (summary) {
+    const previousText = state.datasetMeta.previousFileName
+      ? ` vs ${state.datasetMeta.previousFileName}`
+      : "";
+    els.comparisonInfo.textContent =
+      `Comparison${previousText}: ${summary.newCount} new, ${summary.changedCount} changed, ${summary.removedCount} removed.`;
+  } else {
+    els.comparisonInfo.textContent = "No comparison history is available yet.";
+  }
 }
 
 function populateFilters() {
-  fillSelect(els.sectionFilter, unique(state.raw.map(x => x.sectionName)));
-  fillSelect(els.themeFilter, unique(state.raw.map(x => x.theme)));
-  fillSelect(els.ownerFilter, unique(state.raw.map(x => x.primaryOwner)));
+  fillSelect(els.sectionFilter, unique(state.raw.map(item => item.sectionName)));
+  fillSelect(els.themeFilter, unique(state.raw.map(item => item.theme)));
+  fillSelect(els.ownerFilter, unique(state.raw.map(item => item.primaryOwner)));
+  fillSelect(els.stageFilter, unique(state.raw.map(item => item.stageLabel)));
 }
 
 function fillSelect(selectEl, values) {
   const current = selectEl.value;
   selectEl.innerHTML = `<option value="">All</option>`;
-  values.forEach(v => {
+  values.forEach(value => {
     const option = document.createElement("option");
-    option.value = v;
-    option.textContent = v;
-    if (v === current) option.selected = true;
+    option.value = value;
+    option.textContent = value;
+    if (value === current) option.selected = true;
     selectEl.appendChild(option);
   });
 }
@@ -817,67 +1866,104 @@ function applyFilters() {
   const section = els.sectionFilter.value;
   const theme = els.themeFilter.value;
   const owner = els.ownerFilter.value;
+  const stage = els.stageFilter.value;
+  const change = els.changeFilter.value;
   const impact = els.impactFilter.value;
   const minRelevance = Number(els.relevanceFilter.value || 0);
+  const minParseConfidence = Number(els.parseConfidenceFilter.value || 0);
   const fmrukOnly = els.fmrukOnlyFilter.checked;
   const excludeAnnex = els.excludeAnnexFilter.checked;
+  const needsReviewOnly = els.needsReviewFilter.checked;
 
-  let items = state.raw.filter(item => {
-    const haystack = [
-      item.sectionName,
-      item.subcategory,
-      item.initiativeTitle,
-      item.initiativeDescription,
-      item.theme,
-      item.internalSubTheme,
-      item.primaryOwner,
-      item.secondaryOwner,
-      item.potentialBusinessImpact,
-      item.rationale
-    ].join(" ").toLowerCase();
+  const items = state.raw
+    .filter(item => {
+      const haystack = [
+        item.sectionName,
+        item.subcategory,
+        item.leadRegulator,
+        item.initiativeTitle,
+        item.initiativeDescription,
+        item.theme,
+        item.internalSubTheme,
+        item.primaryOwner,
+        item.secondaryOwner,
+        item.stageLabel,
+        item.potentialBusinessImpact,
+        item.rationale,
+        ...(item.classificationSignals || []),
+        ...(item.relevanceSignals || []),
+        ...(item.relevanceNegativeSignals || []),
+        ...(item.reviewReasons || [])
+      ]
+        .join(" ")
+        .toLowerCase();
 
-    return (
-      (!q || haystack.includes(q)) &&
-      (!section || item.sectionName === section) &&
-      (!theme || item.theme === theme) &&
-      (!owner || item.primaryOwner === owner) &&
-      (!impact || item.impactLevel === impact) &&
-      ((item.relevanceScore || 0) >= minRelevance) &&
-      (!fmrukOnly || item.isFmrukRelevant === true) &&
-      (!excludeAnnex || item.sectionName !== "Annex: initiatives completed/stopped")
-    );
-  });
+      return (
+        (!q || haystack.includes(q)) &&
+        (!section || item.sectionName === section) &&
+        (!theme || item.theme === theme) &&
+        (!owner || item.primaryOwner === owner) &&
+        (!stage || item.stageLabel === stage) &&
+        (!change || item.changeStatus === change) &&
+        (!impact || item.impactLevel === impact) &&
+        (item.relevanceScore || 0) >= minRelevance &&
+        (item.parseConfidence || 0) >= minParseConfidence &&
+        (!fmrukOnly || item.isFmrukRelevant === true) &&
+        (!excludeAnnex || item.sectionName !== "Annex: initiatives completed/stopped") &&
+        (!needsReviewOnly || item.needsReview === true)
+      );
+    })
+    .sort((a, b) => {
+      if ((b.immediateActionRequired ? 1 : 0) !== (a.immediateActionRequired ? 1 : 0)) {
+        return (b.immediateActionRequired ? 1 : 0) - (a.immediateActionRequired ? 1 : 0);
+      }
+      return (b.relevanceScore || 0) - (a.relevanceScore || 0);
+    });
 
-  items.sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
   state.filtered = items;
 
-  if (!items.find(x => x.id === state.selectedItemId)) {
+  if (!items.find(item => item.id === state.selectedItemId)) {
     state.selectedItemId = items[0]?.id || null;
   }
 
   renderSummary(items);
   renderTable(items);
-  renderDetail(items.find(x => x.id === state.selectedItemId));
+  renderDetail(items.find(item => item.id === state.selectedItemId));
 }
 
 function renderSummary(items) {
   els.kpiTotal.textContent = items.length;
-  els.kpiHighRelevance.textContent = items.filter(x => (x.relevanceScore || 0) >= 80).length;
-  els.kpiHighImpact.textContent = items.filter(x => x.impactLevel === "High").length;
-  els.kpiRelevant.textContent = items.filter(x => x.isFmrukRelevant === true).length;
+  els.kpiImmediateAction.textContent = items.filter(item => item.immediateActionRequired).length;
+  els.kpiHighRelevance.textContent = items.filter(item => (item.relevanceScore || 0) >= 80).length;
+  els.kpiHighImpact.textContent = items.filter(item => item.impactLevel === "High").length;
+  els.kpiNeedsReview.textContent = items.filter(item => item.needsReview).length;
+  els.kpiChanges.textContent = items.filter(item => item.changeStatus !== "Existing").length;
 
-  renderFrequencyList(els.topThemesList, items.map(x => x.theme));
-  renderFrequencyList(els.topOwnersList, items.map(x => x.primaryOwner));
+  renderFrequencyList(els.topThemesList, items.map(item => item.theme));
+  renderFrequencyList(els.topOwnersList, items.map(item => item.primaryOwner));
+  renderItemList(
+    els.immediateActionsList,
+    items.filter(item => item.immediateActionRequired).slice(0, 5),
+    item => `${item.initiativeTitle} (${item.primaryOwner})`
+  );
+  renderItemList(
+    els.reviewList,
+    items.filter(item => item.needsReview).slice(0, 5),
+    item => `${item.initiativeTitle} (${truncateText(item.reviewReasons.join(" "), 80)})`
+  );
+  renderItemList(
+    els.changesList,
+    items.filter(item => item.changeStatus !== "Existing").slice(0, 5),
+    item => `${item.changeStatus}: ${item.initiativeTitle}`
+  );
 }
 
 function renderFrequencyList(target, values) {
   target.innerHTML = "";
   const counts = {};
-  values
-    .filter(Boolean)
-    .forEach(v => {
-      counts[v] = (counts[v] || 0) + 1;
-    });
+  values.filter(Boolean).forEach(value => {
+    counts[value] = (counts[value] || 0) + 1;
+  });
 
   const sorted = Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
@@ -895,11 +1981,25 @@ function renderFrequencyList(target, values) {
   });
 }
 
+function renderItemList(target, items, formatter) {
+  target.innerHTML = "";
+  if (!items.length) {
+    target.innerHTML = "<li>None</li>";
+    return;
+  }
+
+  items.forEach(item => {
+    const li = document.createElement("li");
+    li.textContent = formatter(item);
+    target.appendChild(li);
+  });
+}
+
 function renderTable(items) {
   els.tableBody.innerHTML = "";
 
   if (!items.length) {
-    els.tableBody.innerHTML = `<tr><td colspan="6">No initiatives match the current filters.</td></tr>`;
+    els.tableBody.innerHTML = `<tr><td colspan="8">No initiatives match the current filters.</td></tr>`;
     return;
   }
 
@@ -909,9 +2009,11 @@ function renderTable(items) {
 
     tr.innerHTML = `
       <td>${priorityBadge(item.relevanceScore || 0)}</td>
+      <td>${parseBadge(item.parseConfidence || 0)}</td>
+      <td>${stageBadge(item.stageLabel || "Monitoring")}</td>
+      <td>${changeBadge(item.changeStatus || "Existing")}</td>
       <td>${escapeHtml(item.sectionName || "")}</td>
       <td>${escapeHtml(item.theme || "")}</td>
-      <td>${impactBadge(item.impactLevel || "Low")}</td>
       <td>${escapeHtml(item.primaryOwner || "")}</td>
       <td>${escapeHtml(item.initiativeTitle || "")}</td>
     `;
@@ -928,53 +2030,360 @@ function renderTable(items) {
 
 function renderDetail(item) {
   if (!item) {
-    els.detailPanel.innerHTML = "Upload the FCA Grid XLSX or PDF, then select an initiative.";
+    els.detailPanel.innerHTML = "Upload the FCA Grid PDF, then select an initiative.";
     return;
   }
 
+  const sourcePages = item.sourcePages?.length ? item.sourcePages.join(", ") : "N/A";
+  const parseWarnings = item.parseWarnings?.length
+    ? renderListHtml(item.parseWarnings)
+    : "<div class=\"detail-copy\">No parser warnings were generated.</div>";
+  const reviewReasons = item.reviewReasons?.length
+    ? renderListHtml(item.reviewReasons)
+    : "<div class=\"detail-copy\">No manual review flags were generated.</div>";
+  const actionList = renderListHtml(item.suggestedActions || []);
+  const positiveSignals = renderSignalChips(item.relevanceSignals || [], "positive");
+  const negativeSignals = renderSignalChips(item.relevanceNegativeSignals || [], "negative");
+  const classificationSignals = renderSignalChips(item.classificationSignals || [], "neutral");
+
   els.detailPanel.innerHTML = `
     <h2 class="detail-title">${escapeHtml(item.initiativeTitle || "")}</h2>
+    <p class="detail-subtitle">Lead: ${escapeHtml(item.leadRegulator || "N/A")} | Source pages: ${escapeHtml(sourcePages)}</p>
 
     <div class="detail-grid">
       <div class="detail-box"><div class="detail-label">Section</div><div class="detail-value">${escapeHtml(item.sectionName || "N/A")}</div></div>
       <div class="detail-box"><div class="detail-label">Subcategory</div><div class="detail-value">${escapeHtml(item.subcategory || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Lead</div><div class="detail-value">${escapeHtml(item.leadRegulator || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Indicative Impact</div><div class="detail-value">${escapeHtml(item.indicativeImpactOnFirms || "N/A")}</div></div>
       <div class="detail-box"><div class="detail-label">Theme</div><div class="detail-value">${escapeHtml(item.theme || "N/A")}</div></div>
       <div class="detail-box"><div class="detail-label">Sub-theme</div><div class="detail-value">${escapeHtml(item.internalSubTheme || "N/A")}</div></div>
       <div class="detail-box"><div class="detail-label">Primary Owner</div><div class="detail-value">${escapeHtml(item.primaryOwner || "N/A")}</div></div>
       <div class="detail-box"><div class="detail-label">Secondary Owner</div><div class="detail-value">${escapeHtml(item.secondaryOwner || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Relevance</div><div class="detail-value">${escapeHtml(String(item.relevanceScore || 0))}</div></div>
+      <div class="detail-box"><div class="detail-label">Stage</div><div class="detail-value">${escapeHtml(item.stageLabel || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Change Status</div><div class="detail-value">${escapeHtml(item.changeStatus || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Relevance Score</div><div class="detail-value">${escapeHtml(String(item.relevanceScore || 0))}</div></div>
       <div class="detail-box"><div class="detail-label">Impact Level</div><div class="detail-value">${escapeHtml(item.impactLevel || "N/A")}</div></div>
       <div class="detail-box"><div class="detail-label">Timing Bucket</div><div class="detail-value">${escapeHtml(item.timingBucket || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">New</div><div class="detail-value">${escapeHtml(item.isNew || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Parse Confidence</div><div class="detail-value">${escapeHtml(`${item.parseConfidence || 0} (${item.parseConfidenceBand || "N/A"})`)}</div></div>
+      <div class="detail-box"><div class="detail-label">Indicative Impact</div><div class="detail-value">${escapeHtml(item.indicativeImpactOnFirms || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Consumer Interest</div><div class="detail-value">${escapeHtml(item.consumerInterest || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">Timing Updated</div><div class="detail-value">${escapeHtml(item.timingUpdated || "N/A")}</div></div>
+      <div class="detail-box"><div class="detail-label">New Flag</div><div class="detail-value">${escapeHtml(item.isNew || "N/A")}</div></div>
     </div>
 
-    <div class="detail-block"><strong>Potential Business Impact:</strong><br />${escapeHtml(item.potentialBusinessImpact || "N/A")}</div>
-    <div class="detail-block"><strong>Expected Key Milestones:</strong><br />${escapeHtml(item.expectedKeyMilestones || "N/A")}</div>
-    <div class="detail-block"><strong>Initiative Description:</strong><br />${escapeHtml(item.initiativeDescription || "N/A")}</div>
-    <div class="detail-block"><strong>Why it matters to FMRUK:</strong><br />${escapeHtml(item.rationale || "N/A")}</div>
-    <div class="detail-block"><strong>Suggested Action:</strong><br />${escapeHtml(item.suggestedAction || "N/A")}</div>
+    <div class="detail-block-panel">
+      <div class="detail-block-title">Potential Business Impact</div>
+      <div class="detail-copy">${escapeHtml(item.potentialBusinessImpact || "N/A")}</div>
+    </div>
+
+    <div class="detail-block-panel">
+      <div class="detail-block-title">Expected Key Milestones</div>
+      <div class="detail-copy">${escapeHtml(item.expectedKeyMilestones || "N/A")}</div>
+    </div>
+
+    <div class="detail-block-panel">
+      <div class="detail-block-title">Initiative Description</div>
+      <div class="detail-copy">${escapeHtml(item.initiativeDescription || "N/A")}</div>
+    </div>
+
+    <div class="detail-block-panel">
+      <div class="detail-block-title">Why It Matters To FMRUK</div>
+      <div class="detail-copy">${escapeHtml(item.rationale || "N/A")}</div>
+    </div>
+
+    <div class="detail-block-panel">
+      <div class="detail-block-title">Suggested Actions</div>
+      ${actionList}
+    </div>
+
+    <div class="detail-block-panel">
+      <div class="detail-block-title">Matched Classification Signals</div>
+      <div class="signal-list">${classificationSignals}</div>
+    </div>
+
+    <div class="detail-block-panel">
+      <div class="detail-block-title">Positive Relevance Signals</div>
+      <div class="signal-list">${positiveSignals}</div>
+    </div>
+
+    <div class="detail-block-panel">
+      <div class="detail-block-title">Counter-Signals</div>
+      <div class="signal-list">${negativeSignals}</div>
+    </div>
+
+    <div class="detail-block-panel">
+      <div class="detail-block-title">Parser Warnings</div>
+      ${parseWarnings}
+    </div>
+
+    <div class="detail-block-panel">
+      <div class="detail-block-title">Manual Review Flags</div>
+      ${reviewReasons}
+    </div>
   `;
 }
 
+function renderListHtml(values) {
+  if (!values?.length) {
+    return `<div class="detail-copy">None</div>`;
+  }
+
+  const items = values
+    .map(value => `<li>${escapeHtml(value)}</li>`)
+    .join("");
+  return `<ul class="detail-list">${items}</ul>`;
+}
+
+function renderSignalChips(values, type) {
+  if (!values?.length) {
+    return `<span class="signal-chip signal-chip-${type}">None</span>`;
+  }
+
+  return values
+    .map(
+      value =>
+        `<span class="signal-chip signal-chip-${type}">${escapeHtml(value)}</span>`
+    )
+    .join("");
+}
+
 function priorityBadge(score) {
-  if (score >= 80) return `<span class="badge badge-high">High</span>`;
-  if (score >= 60) return `<span class="badge badge-medium">Medium</span>`;
+  if (score >= 85) return `<span class="badge badge-high">High</span>`;
+  if (score >= 58) return `<span class="badge badge-medium">Medium</span>`;
   return `<span class="badge badge-low">Low</span>`;
 }
 
-function impactBadge(level) {
-  const map = {
-    High: "badge-high",
-    Medium: "badge-medium",
-    Low: "badge-low"
-  };
-  return `<span class="badge ${map[level] || "badge-low"}">${escapeHtml(level)}</span>`;
+function parseBadge(score) {
+  if (score >= 85) return `<span class="badge badge-high">High</span>`;
+  if (score >= 70) return `<span class="badge badge-medium">Medium</span>`;
+  return `<span class="badge badge-review">Review</span>`;
 }
 
-function unique(arr) {
-  return [...new Set(arr.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+function stageBadge(label) {
+  const lowKey = String(label || "").toLowerCase();
+  if (lowKey.includes("final") || lowKey.includes("reporting")) {
+    return `<span class="badge badge-high">${escapeHtml(label)}</span>`;
+  }
+  if (lowKey.includes("consultation") || lowKey.includes("supervisory")) {
+    return `<span class="badge badge-medium">${escapeHtml(label)}</span>`;
+  }
+  return `<span class="badge badge-neutral">${escapeHtml(label)}</span>`;
+}
+
+function changeBadge(status) {
+  if (status === "New") return `<span class="badge badge-high">New</span>`;
+  if (status === "Changed") return `<span class="badge badge-medium">Changed</span>`;
+  return `<span class="badge badge-neutral">Existing</span>`;
+}
+
+function buildBlob(item) {
+  return [
+    item.sectionName,
+    item.subcategory,
+    item.leadRegulator,
+    item.initiativeTitle,
+    item.initiativeDescription,
+    item.expectedKeyMilestones,
+    item.rawText
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function scoreSignalGroups(groups, blob) {
+  let score = 0;
+  const reasons = [];
+
+  groups.forEach(group => {
+    const matchedTerms = group.terms.filter(term => blob.includes(term.toLowerCase()));
+    if (matchedTerms.length) {
+      score += group.weight;
+      reasons.push(group.reason);
+    }
+  });
+
+  return {
+    score,
+    reasons: dedupeStrings(reasons)
+  };
+}
+
+function inferTimingBucket(text) {
+  const blob = String(text || "").toLowerCase();
+  if (
+    /\bq1\b/.test(blob) ||
+    /\bq2\b/.test(blob) ||
+    /\bh1\b/.test(blob) ||
+    /\bjan(uary)?\b/.test(blob) ||
+    /\bfeb(ruary)?\b/.test(blob) ||
+    /\bmar(ch)?\b/.test(blob) ||
+    /\bapr(il)?\b/.test(blob) ||
+    /\bmay\b/.test(blob) ||
+    /\bjune?\b/.test(blob)
+  ) {
+    return "Near Term";
+  }
+
+  if (
+    /\bq3\b/.test(blob) ||
+    /\bq4\b/.test(blob) ||
+    /\bh2\b/.test(blob) ||
+    /\bjul(y)?\b/.test(blob) ||
+    /\baug(ust)?\b/.test(blob) ||
+    /\bsep(t|tember)?\b/.test(blob) ||
+    /\boct(ober)?\b/.test(blob) ||
+    /\bnov(ember)?\b/.test(blob) ||
+    /\bdec(ember)?\b/.test(blob) ||
+    /\b2026\b/.test(blob)
+  ) {
+    return "Medium Term";
+  }
+
+  if (/\b2027\b/.test(blob) || /post july 2027/.test(blob)) {
+    return "Longer Term";
+  }
+
+  return "To Be Confirmed";
+}
+
+function extractMilestones(text) {
+  const matches = [];
+  const patterns = [
+    /\b(?:q[1-4]|h[12])\s+\d{4}\b[^.]*\.?/gi,
+    /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s*[-/]\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}\b/gi,
+    /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b[^.]*\.?/gi,
+    /\b\d{1,2}\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b[^.]*\.?/gi
+  ];
+
+  patterns.forEach(pattern => {
+    const found = text.match(pattern);
+    if (found) matches.push(...found);
+  });
+
+  return dedupeStrings(matches.map(normaliseWs)).slice(0, 5).join(" | ");
+}
+
+function looksLikeMilestoneText(text) {
+  const value = String(text || "").toLowerCase();
+  return /\b(?:q[1-4]|h[12]|january|february|march|april|may|june|july|august|september|october|november|december|202[5-9])\b/.test(value);
+}
+
+function splitLeadAndTitle(line) {
+  const pattern = new RegExp(
+    `^((?:${REGULATOR_CODES.join("|")})(?:\\/(?:${REGULATOR_CODES.join("|")}))*)\\s+(.+)$`,
+    "i"
+  );
+  const match = normaliseWs(line).match(pattern);
+  if (!match) return null;
+
+  const lead = normaliseLeadToken(match[1]);
+  const title = cleanTitleCandidate(match[2]);
+  if (!lead || !title) return null;
+
+  return { lead, title };
+}
+
+function isPlausibleTitle(value) {
+  const title = normaliseWs(value);
+  if (!title || title.length < 6) return false;
+  if (isLeadToken(title)) return false;
+  if (ROW_NOISE_PATTERNS.some(pattern => pattern.test(title))) return false;
+  return !HEADER_TEXT_PATTERNS.some(pattern => pattern.test(title));
+}
+
+function cleanTitleCandidate(value) {
+  let title = normaliseWs(value);
+  const pattern = new RegExp(
+    `^(?:${REGULATOR_CODES.join("|")})(?:\\/(?:${REGULATOR_CODES.join("|")}))*\\s+`,
+    "i"
+  );
+  title = title.replace(pattern, "");
+  return normaliseWs(title);
+}
+
+function stripLeadPrefix(value, lead) {
+  const text = normaliseWs(value);
+  if (!text || !lead) return text;
+  if (text === lead) return "";
+  if (text.startsWith(`${lead} `)) return normaliseWs(text.slice(lead.length));
+  return text;
+}
+
+function stripRepeatedTitle(value, title) {
+  const text = normaliseWs(value);
+  const cleanTitle = normaliseWs(title);
+  if (!text) return "";
+  if (!cleanTitle) return text;
+  if (text === cleanTitle) return "";
+  if (text.startsWith(`${cleanTitle} `)) {
+    return normaliseWs(text.slice(cleanTitle.length));
+  }
+  return text;
+}
+
+function normaliseLeadToken(value) {
+  const text = normaliseWs(value).toUpperCase().replace(/\s+/g, "");
+  if (!text) return "";
+  const parts = text.split("/");
+  if (!parts.every(part => REGULATOR_CODES.includes(part))) return "";
+  return parts.join("/");
+}
+
+function isLeadToken(value) {
+  return Boolean(normaliseLeadToken(value));
+}
+
+function extractImpactFlag(value) {
+  const text = normaliseWs(value).toUpperCase();
+  if (!text) return "";
+  if (/\bHIGH\b/.test(text) || /\bH\b/.test(text)) return "H";
+  if (/\bMEDIUM\b/.test(text) || /\bM\b/.test(text) || /\bU\b/.test(text)) return "U";
+  if (/\bLOW\b/.test(text) || /\bL\b/.test(text)) return "L";
+  return "";
+}
+
+function normaliseTrafficLight(value) {
+  const text = normaliseWs(value).toUpperCase();
+  if (!text) return "";
+  if (/\b(?:H|HIGH)\b/.test(text)) return "H";
+  if (/\b(?:M|MEDIUM)\b/.test(text)) return "M";
+  if (/\b(?:L|LOW)\b/.test(text)) return "L";
+  return "";
+}
+
+function normaliseYesNo(value) {
+  const text = normaliseWs(value).toLowerCase();
+  if (!text) return "";
+  if (/\b(yes|y|new)\b/.test(text)) return "Yes";
+  if (/\b(no|n)\b/.test(text)) return "No";
+  return "";
+}
+
+function buildCanonicalKey(item) {
+  return [
+    normaliseWs(item.sectionName).toLowerCase(),
+    normaliseWs(item.leadRegulator).toLowerCase(),
+    normaliseWs(item.initiativeTitle).toLowerCase()
+  ].join("|");
+}
+
+function appendUnique(target, value) {
+  if (value == null || value === "") return;
+  if (Array.isArray(target)) {
+    if (!target.includes(value)) target.push(value);
+  }
+}
+
+function dedupeStrings(values) {
+  return [...new Set(values.map(value => normaliseWs(value)).filter(Boolean))];
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+function truncateText(value, maxLength) {
+  const text = String(value || "");
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 3)}...`;
 }
 
 function slugify(value) {
@@ -985,24 +2394,28 @@ function slugify(value) {
     .slice(0, 60);
 }
 
-function normaliseWs(text) {
-  return String(text || "")
+function normaliseWs(value) {
+  return String(value || "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function formatDate(value) {
   if (!value) return "Unknown";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString("en-GB");
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-GB");
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function escapeHtml(value) {
   return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
