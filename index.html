@@ -4,12 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FMRUK Regulatory Initiatives Dashboard</title>
-  <link rel="stylesheet" href="./styles.css?v=6" />
-
-  <!-- SheetJS -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-
-  <!-- PDF.js UMD build -->
+  <link rel="stylesheet" href="./styles.css?v=7" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
@@ -22,10 +17,12 @@
       <div class="toolbar">
         <div class="brand-block">
           <div class="brand-line-1">Fidelity Investments</div>
-          <div class="brand-line-2">UK Entity Regulatory Intake &amp; Analysis</div>
+          <div class="brand-line-2">UK Entity Regulatory Intake, Triage &amp; Review</div>
         </div>
         <div class="toolbar-actions">
           <button class="xp-btn" id="reloadBtn" type="button">Reload</button>
+          <button class="xp-btn" id="exportJsonBtn" type="button">Export JSON</button>
+          <button class="xp-btn" id="exportCsvBtn" type="button">Export CSV</button>
           <button class="xp-btn" id="clearStorageBtn" type="button">Clear Saved Data</button>
         </div>
       </div>
@@ -34,14 +31,14 @@
     <main class="layout">
       <section class="left-column">
         <div class="window panel">
-          <div class="panel-title">Upload FCA Grid File</div>
+          <div class="panel-title">Upload FCA Grid PDF</div>
           <div class="panel-body">
             <div class="upload-box">
-              <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf" />
-              <button class="xp-btn" id="uploadBtn" type="button">Upload &amp; Analyse</button>
+              <input type="file" id="fileInput" accept=".pdf,application/pdf" />
+              <button class="xp-btn" id="uploadBtn" type="button">Upload &amp; Analyse PDF</button>
             </div>
             <div class="small-note">
-              XLSX is the cleanest source. PDF is supported with structure-aware parsing.
+              PDF-only mode is enabled. The parser now uses page structure and column-aware extraction instead of generic text scraping.
             </div>
             <div id="uploadStatus" class="status-text">No upload in progress.</div>
           </div>
@@ -51,6 +48,7 @@
           <div class="panel-title">Saved Dataset</div>
           <div class="panel-body">
             <div class="small-note" id="datasetInfo">No saved dataset found.</div>
+            <div class="small-note" id="comparisonInfo">Upload a PDF to compare it with the last saved version.</div>
           </div>
         </div>
 
@@ -59,7 +57,7 @@
           <div class="panel-body form-grid">
             <label>
               <span>Search</span>
-              <input type="text" id="searchInput" placeholder="Search title, impact, rationale..." />
+              <input type="text" id="searchInput" placeholder="Search title, impact, rationale, signals..." />
             </label>
 
             <label>
@@ -84,6 +82,23 @@
             </label>
 
             <label>
+              <span>Initiative Stage</span>
+              <select id="stageFilter">
+                <option value="">All</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Change Status</span>
+              <select id="changeFilter">
+                <option value="">All</option>
+                <option value="New">New</option>
+                <option value="Changed">Changed</option>
+                <option value="Existing">Existing</option>
+              </select>
+            </label>
+
+            <label>
               <span>Impact Level</span>
               <select id="impactFilter">
                 <option value="">All</option>
@@ -98,8 +113,19 @@
               <select id="relevanceFilter">
                 <option value="0">0+</option>
                 <option value="40">40+</option>
-                <option value="60" selected>60+</option>
-                <option value="80">80+</option>
+                <option value="55">55+</option>
+                <option value="70" selected>70+</option>
+                <option value="85">85+</option>
+              </select>
+            </label>
+
+            <label>
+              <span>Minimum Parse Confidence</span>
+              <select id="parseConfidenceFilter">
+                <option value="0">0+</option>
+                <option value="50">50+</option>
+                <option value="70" selected>70+</option>
+                <option value="85">85+</option>
               </select>
             </label>
 
@@ -111,6 +137,11 @@
             <label class="checkbox-row">
               <input type="checkbox" id="excludeAnnexFilter" checked />
               <span>Exclude completed/stopped annex</span>
+            </label>
+
+            <label class="checkbox-row">
+              <input type="checkbox" id="needsReviewFilter" />
+              <span>Only items needing manual review</span>
             </label>
           </div>
         </div>
@@ -124,6 +155,10 @@
                 <div class="kpi-value" id="kpiTotal">0</div>
               </div>
               <div class="kpi-card">
+                <div class="kpi-label">Immediate Action</div>
+                <div class="kpi-value" id="kpiImmediateAction">0</div>
+              </div>
+              <div class="kpi-card">
                 <div class="kpi-label">High Relevance</div>
                 <div class="kpi-value" id="kpiHighRelevance">0</div>
               </div>
@@ -132,8 +167,12 @@
                 <div class="kpi-value" id="kpiHighImpact">0</div>
               </div>
               <div class="kpi-card">
-                <div class="kpi-label">FMRUK Relevant</div>
-                <div class="kpi-value" id="kpiRelevant">0</div>
+                <div class="kpi-label">Needs Review</div>
+                <div class="kpi-value" id="kpiNeedsReview">0</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">New / Changed</div>
+                <div class="kpi-value" id="kpiChanges">0</div>
               </div>
             </div>
 
@@ -149,6 +188,24 @@
             </div>
           </div>
         </div>
+
+        <div class="window panel">
+          <div class="panel-title">Review Queue</div>
+          <div class="panel-body review-grid">
+            <div class="review-block">
+              <div class="mini-summary-title">Immediate Actions</div>
+              <ul id="immediateActionsList"></ul>
+            </div>
+            <div class="review-block">
+              <div class="mini-summary-title">Needs Review</div>
+              <ul id="reviewList"></ul>
+            </div>
+            <div class="review-block">
+              <div class="mini-summary-title">New / Changed</div>
+              <ul id="changesList"></ul>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="right-column">
@@ -159,9 +216,11 @@
               <thead>
                 <tr>
                   <th>Priority</th>
+                  <th>Parse</th>
+                  <th>Stage</th>
+                  <th>Change</th>
                   <th>Section</th>
                   <th>Theme</th>
-                  <th>Impact</th>
                   <th>Primary Owner</th>
                   <th>Initiative</th>
                 </tr>
@@ -174,13 +233,13 @@
         <div class="window panel">
           <div class="panel-title">Detail</div>
           <div id="detailPanel" class="detail-panel empty-state">
-            Upload the FCA Grid XLSX or PDF, then select an initiative.
+            Upload the FCA Grid PDF, then select an initiative.
           </div>
         </div>
       </section>
     </main>
   </div>
 
-  <script src="./app.js?v=6"></script>
+  <script src="./app.js?v=7"></script>
 </body>
 </html>
