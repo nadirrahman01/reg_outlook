@@ -1,4 +1,9 @@
-const STORAGE_KEY = "fmruk_reg_grid_v7_pdf_only";
+const STORAGE_KEY = "fmruk_reg_intelligence_v8";
+const PROFILE_KEY = "fmruk_profile_v8";
+const FEEDBACK_KEY = "fmruk_feedback_v8";
+const PDF_DB_NAME = "fmruk_pdf_workspace";
+const PDF_STORE_NAME = "pdfs";
+const PDF_RECORD_KEY = "current_pdf";
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -6,10 +11,118 @@ if (window.pdfjsLib) {
 }
 
 const state = {
+  baseItems: [],
   raw: [],
   filtered: [],
   selectedItemId: null,
-  datasetMeta: null
+  datasetMeta: null,
+  profile: null,
+  feedback: {},
+  roleView: "Compliance",
+  activePreset: "all",
+  pdfBuffer: null,
+  pdfDocument: null,
+  pdfRenderToken: 0,
+  currentPdfHighlightKey: "",
+  ask: {
+    query: "",
+    answer: "",
+    results: []
+  }
+};
+
+const PROFILE_FIELDS = [
+  ["businessLines", "businessLinesProfile"],
+  ["permissions", "permissionsProfile"],
+  ["products", "productsProfile"],
+  ["distributionModel", "distributionProfile"],
+  ["outsourcedProviders", "outsourcingProfile"],
+  ["reportingObligations", "reportingProfile"],
+  ["committees", "committeesProfile"],
+  ["regulatoryTouchpoints", "touchpointsProfile"]
+];
+
+const DEFAULT_PROFILE = {
+  businessLines: [
+    "investment management",
+    "fund governance",
+    "wholesale markets",
+    "portfolio management"
+  ],
+  permissions: [
+    "mifid investment firm",
+    "portfolio management",
+    "arranging",
+    "dealing"
+  ],
+  products: [
+    "institutional mandates",
+    "funds",
+    "wholesale products",
+    "investment services"
+  ],
+  distributionModel: [
+    "institutional",
+    "professional clients",
+    "wholesale distribution",
+    "limited retail"
+  ],
+  outsourcedProviders: [
+    "fund administration",
+    "market data vendors",
+    "reporting vendors",
+    "technology service providers"
+  ],
+  reportingObligations: [
+    "transaction reporting",
+    "mifidpru",
+    "regulatory returns",
+    "outsourcing register"
+  ],
+  committees: [
+    "board",
+    "risk committee",
+    "compliance committee",
+    "oversight committee"
+  ],
+  regulatoryTouchpoints: [
+    "fca",
+    "mifid",
+    "mifidpru",
+    "operational resilience",
+    "consumer duty"
+  ]
+};
+
+const ROLE_VIEWS = {
+  Compliance: {
+    summary:
+      "Compliance view prioritises policy interpretation, governance, surveillance, supervisory exposure, and implementation readiness.",
+    ownerBoosts: ["Compliance", "Risk", "Legal"],
+    obligationBoosts: ["Policy & Procedures", "Governance & Accountability", "Market Conduct & Surveillance", "Training & Communications"],
+    stageBoosts: ["Final Rules / Implementation", "Supervisory / Thematic Review", "Consultation / Policy Development"]
+  },
+  COO: {
+    summary:
+      "COO view surfaces operational delivery risk, outsourcing dependencies, reporting readiness, data quality, and programme mobilisation.",
+    ownerBoosts: ["Operations", "Risk", "Technology", "Finance"],
+    obligationBoosts: ["Reporting & MI", "Outsourcing & Third Parties", "Operational Resilience", "Operating Model"],
+    stageBoosts: ["Reporting / Data Request", "Final Rules / Implementation", "Supervisory / Thematic Review"]
+  },
+  Legal: {
+    summary:
+      "Legal view emphasises perimeter changes, disclosures, interpretation questions, contractual implications, and governance obligations.",
+    ownerBoosts: ["Legal", "Compliance"],
+    obligationBoosts: ["Legal Entity Perimeter", "Disclosure & Communications", "Policy & Procedures", "Governance & Accountability"],
+    stageBoosts: ["Legislative / Perimeter Change", "Consultation / Policy Development", "Final Rules / Implementation"]
+  },
+  Executive: {
+    summary:
+      "Executive view compresses the portfolio into material items, change themes, near-term decisions, and the few issues that need leadership attention.",
+    ownerBoosts: ["Compliance", "Risk", "Operations", "Legal"],
+    obligationBoosts: ["Governance & Accountability", "Operational Resilience", "Reporting & MI", "Legal Entity Perimeter"],
+    stageBoosts: ["Final Rules / Implementation", "Reporting / Data Request", "Supervisory / Thematic Review"]
+  }
 };
 
 const KNOWN_SECTIONS = [
@@ -44,6 +157,30 @@ const SUBCATEGORY_LOOKUP = new Map(
   KNOWN_SUBCATEGORIES.map(value => [value.toLowerCase(), value])
 );
 
+const REGULATOR_CODES = [
+  "FCA",
+  "PRA",
+  "BOE",
+  "HMT",
+  "ICO",
+  "TPR",
+  "FRC",
+  "PSR",
+  "CMA",
+  "FOS",
+  "FSCS"
+];
+
+const DEFAULT_COLUMN_START_RATIOS = {
+  lead: 0.02,
+  initiative: 0.12,
+  milestones: 0.45,
+  impact: 0.77,
+  consumer: 0.84,
+  timing: 0.9,
+  isNew: 0.95
+};
+
 const HEADER_TEXT_PATTERNS = [
   /regulatory initiatives grid/i,
   /^lead$/i,
@@ -66,69 +203,6 @@ const ROW_NOISE_PATTERNS = [
   /^post july \d{4}$/i,
   /^e\s*formal engagement planned/i
 ];
-
-const REGULATOR_CODES = [
-  "FCA",
-  "PRA",
-  "BOE",
-  "HMT",
-  "ICO",
-  "TPR",
-  "FRC",
-  "PSR",
-  "CMA",
-  "FOS",
-  "FSCS"
-];
-
-const DEFAULT_COLUMN_START_RATIOS = {
-  lead: 0.02,
-  initiative: 0.12,
-  milestones: 0.45,
-  impact: 0.77,
-  consumer: 0.83,
-  timing: 0.89,
-  isNew: 0.95
-};
-
-const FMRUK_PROFILE = {
-  summary:
-    "UK entity with strongest exposure to investment management, MiFID / wholesale markets, governance, resilience, reporting and cross-cutting FCA change.",
-  coreAreas: [
-    "Investment management / funds",
-    "MiFID / wholesale markets / market conduct",
-    "Operational resilience / outsourcing / third parties",
-    "Regulatory reporting / prudential / governance",
-    "Financial crime, sanctions, data and sustainability change"
-  ]
-};
-
-const GENERIC_STAGE_ACTIONS = {
-  consultation: [
-    "Review the consultation scope, identify impacted business lines and decide whether FMRUK should respond or feed into a group response.",
-    "Capture policy interpretation points and implementation risks early so they can shape the eventual delivery plan."
-  ],
-  final_rules: [
-    "Run a rule-to-control gap assessment against the final position and assign a delivery owner with dates.",
-    "Confirm whether policy documents, procedures, governance packs, training or MI need to be updated before go-live."
-  ],
-  supervisory: [
-    "Benchmark current controls against the supervisory expectation and gather evidence before any thematic or multi-firm engagement.",
-    "Prepare management reporting on current-state compliance, open gaps and remediation ownership."
-  ],
-  reporting: [
-    "Confirm the reporting perimeter, data lineage, control owners and sign-off model for any new or amended submission.",
-    "Plan test cycles for data completeness, exceptions and reconciliations before the first live return or attestation."
-  ],
-  legislation: [
-    "Assess whether the legislative or perimeter change affects permissions, legal entity scope or delegated arrangements.",
-    "Coordinate legal interpretation, implementation planning and downstream policy updates before rules crystallise."
-  ],
-  monitoring: [
-    "Retain the item on the regulatory watchlist and refresh the assessment when scope, timing or FCA messaging changes.",
-    "Keep a light owner assigned so the business is not surprised if the initiative accelerates."
-  ]
-};
 
 const CLASSIFICATION_RULES = [
   {
@@ -702,8 +776,93 @@ const STAGE_RULES = [
   {
     id: "monitoring",
     label: "Monitoring",
+    signals: [{ weight: 10, terms: ["roadmap", "work programme", "strategy", "monitoring"] }]
+  }
+];
+
+const OBLIGATION_RULES = [
+  {
+    name: "Policy & Procedures",
     signals: [
-      { weight: 10, terms: ["roadmap", "work programme", "strategy", "monitoring"] }
+      { weight: 10, terms: ["policy", "handbook", "rule change", "guidance", "procedure"] },
+      { weight: 8, terms: ["control framework", "process update", "implementation"] }
+    ]
+  },
+  {
+    name: "Governance & Accountability",
+    signals: [
+      { weight: 12, terms: ["governance", "board", "committee", "smcr", "accountability"] },
+      { weight: 8, terms: ["oversight", "dear ceo", "attestation", "senior manager"] }
+    ]
+  },
+  {
+    name: "Training & Communications",
+    signals: [
+      { weight: 10, terms: ["training", "communication", "client communication", "employee dealing"] },
+      { weight: 6, terms: ["disclosure", "consumer", "outcomes"] }
+    ]
+  },
+  {
+    name: "Reporting & MI",
+    signals: [
+      { weight: 12, terms: ["reporting", "data collection", "return", "submission", "template"] },
+      { weight: 8, terms: ["mi", "attestation", "notification", "reconciliation"] }
+    ]
+  },
+  {
+    name: "Product & Distribution",
+    signals: [
+      { weight: 10, terms: ["product governance", "distribution", "fund", "target market"] },
+      { weight: 8, terms: ["consumer duty", "fair value", "product"] }
+    ]
+  },
+  {
+    name: "Market Conduct & Surveillance",
+    signals: [
+      { weight: 12, terms: ["market abuse", "surveillance", "best execution", "transaction reporting"] },
+      { weight: 8, terms: ["mifir", "stors", "inside information"] }
+    ]
+  },
+  {
+    name: "Outsourcing & Third Parties",
+    signals: [
+      { weight: 12, terms: ["outsourcing", "third party", "vendor", "service provider"] },
+      { weight: 8, terms: ["critical third party", "supplier", "contractual"] }
+    ]
+  },
+  {
+    name: "Operational Resilience",
+    signals: [
+      { weight: 12, terms: ["operational resilience", "impact tolerance", "important business service"] },
+      { weight: 8, terms: ["scenario testing", "mapping", "resilience"] }
+    ]
+  },
+  {
+    name: "Prudential & Capital",
+    signals: [
+      { weight: 12, terms: ["mifidpru", "icara", "capital", "liquidity", "own funds"] },
+      { weight: 8, terms: ["prudential", "k-factor", "fixed overhead"] }
+    ]
+  },
+  {
+    name: "Disclosure & Communications",
+    signals: [
+      { weight: 10, terms: ["disclosure", "sustainability", "sdr", "greenwashing"] },
+      { weight: 8, terms: ["consumer", "marketing", "naming", "label"] }
+    ]
+  },
+  {
+    name: "Legal Entity Perimeter",
+    signals: [
+      { weight: 12, terms: ["legislation", "fsma", "authorisation", "perimeter", "regime"] },
+      { weight: 8, terms: ["hm treasury", "statutory instrument", "repeal and replacement"] }
+    ]
+  },
+  {
+    name: "Operating Model",
+    signals: [
+      { weight: 10, terms: ["operating model", "vendor", "technology", "data", "digital"] },
+      { weight: 8, terms: ["outsourcing", "operational resilience", "implementation"] }
     ]
   }
 ];
@@ -711,55 +870,55 @@ const STAGE_RULES = [
 const RELEVANCE_SIGNAL_GROUPS = {
   positive: [
     {
-      weight: 22,
+      weight: 18,
       reason: "Touches investment management, funds or portfolio activity.",
       terms: ["investment management", "asset management", "fund", "portfolio management", "ucits", "aifmd"]
     },
     {
-      weight: 22,
+      weight: 18,
       reason: "Touches MiFID, prudential or wholesale market obligations.",
       terms: ["mifid", "mifidpru", "investment firm", "wholesale", "market abuse", "best execution", "transaction reporting"]
     },
     {
-      weight: 18,
+      weight: 15,
       reason: "Touches cross-cutting governance, resilience or outsourcing controls.",
       terms: ["operational resilience", "outsourcing", "third party", "governance", "smcr", "dear ceo"]
     },
     {
-      weight: 16,
+      weight: 14,
       reason: "Touches regulatory reporting, data or submissions that often land on the UK entity.",
       terms: ["regulatory reporting", "reporting", "data collection", "return", "attestation", "notification"]
     },
     {
-      weight: 14,
+      weight: 12,
       reason: "Touches financial crime, sanctions or client onboarding controls.",
       terms: ["aml", "anti-money laundering", "sanctions", "kyc", "financial crime"]
     },
     {
-      weight: 12,
+      weight: 10,
       reason: "Touches sustainability, disclosures or technology change with cross-cutting UK impact.",
       terms: ["sustainability", "sdr", "greenwashing", "cyber", "ai", "data"]
     }
   ],
   negative: [
     {
-      weight: 24,
+      weight: 20,
       reason: "Looks primarily insurance-specific.",
       terms: ["insurance", "reinsurance", "solvency", "policyholder"]
     },
     {
-      weight: 22,
+      weight: 18,
       reason: "Looks primarily pensions-specific.",
       terms: ["pensions", "retirement income", "defined benefit", "defined contribution"]
     },
     {
-      weight: 18,
+      weight: 16,
       reason: "Looks primarily retail banking or consumer credit-specific.",
       terms: ["mortgage", "consumer credit", "banking", "deposit", "current account"]
     },
     {
-      weight: 14,
-      reason: "Looks primarily payments or crypto-specific unless FMRUK scope is explicitly stated.",
+      weight: 12,
+      reason: "Looks primarily payments or crypto-specific unless FMRUK scope is explicit.",
       terms: ["payment services", "open banking", "cryptoasset", "stablecoin", "e-money"]
     }
   ],
@@ -777,50 +936,129 @@ const RELEVANCE_SIGNAL_GROUPS = {
   }
 };
 
-const els = {
-  headerMeta: document.getElementById("headerMeta"),
-  fileInput: document.getElementById("fileInput"),
-  uploadBtn: document.getElementById("uploadBtn"),
-  reloadBtn: document.getElementById("reloadBtn"),
-  exportJsonBtn: document.getElementById("exportJsonBtn"),
-  exportCsvBtn: document.getElementById("exportCsvBtn"),
-  clearStorageBtn: document.getElementById("clearStorageBtn"),
-  uploadStatus: document.getElementById("uploadStatus"),
-  datasetInfo: document.getElementById("datasetInfo"),
-  comparisonInfo: document.getElementById("comparisonInfo"),
-  searchInput: document.getElementById("searchInput"),
-  sectionFilter: document.getElementById("sectionFilter"),
-  themeFilter: document.getElementById("themeFilter"),
-  ownerFilter: document.getElementById("ownerFilter"),
-  stageFilter: document.getElementById("stageFilter"),
-  changeFilter: document.getElementById("changeFilter"),
-  impactFilter: document.getElementById("impactFilter"),
-  relevanceFilter: document.getElementById("relevanceFilter"),
-  parseConfidenceFilter: document.getElementById("parseConfidenceFilter"),
-  fmrukOnlyFilter: document.getElementById("fmrukOnlyFilter"),
-  excludeAnnexFilter: document.getElementById("excludeAnnexFilter"),
-  needsReviewFilter: document.getElementById("needsReviewFilter"),
-  tableBody: document.getElementById("tableBody"),
-  detailPanel: document.getElementById("detailPanel"),
-  kpiTotal: document.getElementById("kpiTotal"),
-  kpiImmediateAction: document.getElementById("kpiImmediateAction"),
-  kpiHighRelevance: document.getElementById("kpiHighRelevance"),
-  kpiHighImpact: document.getElementById("kpiHighImpact"),
-  kpiNeedsReview: document.getElementById("kpiNeedsReview"),
-  kpiChanges: document.getElementById("kpiChanges"),
-  topThemesList: document.getElementById("topThemesList"),
-  topOwnersList: document.getElementById("topOwnersList"),
-  immediateActionsList: document.getElementById("immediateActionsList"),
-  reviewList: document.getElementById("reviewList"),
-  changesList: document.getElementById("changesList")
+const GENERIC_STAGE_ACTIONS = {
+  consultation: [
+    "Review the consultation scope, identify impacted business lines and decide whether FMRUK should respond or feed into a group response.",
+    "Capture policy interpretation points and implementation risks early so they can shape the eventual delivery plan."
+  ],
+  final_rules: [
+    "Run a rule-to-control gap assessment against the final position and assign a delivery owner with dates.",
+    "Confirm whether policy documents, procedures, governance packs, training or MI need to be updated before go-live."
+  ],
+  supervisory: [
+    "Benchmark current controls against the supervisory expectation and gather evidence before any thematic or multi-firm engagement.",
+    "Prepare management reporting on current-state compliance, open gaps and remediation ownership."
+  ],
+  reporting: [
+    "Confirm the reporting perimeter, data lineage, control owners and sign-off model for any new or amended submission.",
+    "Plan test cycles for data completeness, exceptions and reconciliations before the first live return or attestation."
+  ],
+  legislation: [
+    "Assess whether the legislative or perimeter change affects permissions, legal entity scope or delegated arrangements.",
+    "Coordinate legal interpretation, implementation planning and downstream policy updates before rules crystallise."
+  ],
+  monitoring: [
+    "Retain the item on the regulatory watchlist and refresh the assessment when scope, timing or FCA messaging changes.",
+    "Keep a light owner assigned so the business is not surprised if the initiative accelerates."
+  ]
 };
 
-document.addEventListener("DOMContentLoaded", init);
+const MONTH_LOOKUP = {
+  january: 0,
+  february: 1,
+  march: 2,
+  april: 3,
+  may: 4,
+  june: 5,
+  july: 6,
+  august: 7,
+  september: 8,
+  october: 9,
+  november: 10,
+  december: 11
+};
 
-function init() {
+const els = {};
+
+document.addEventListener("DOMContentLoaded", () => {
+  init().catch(err => {
+    console.error(err);
+  });
+});
+
+async function init() {
+  mapEls();
   bindEvents();
+  state.profile = loadProfile();
+  state.feedback = loadFeedback();
   loadFromStorage();
+  renderProfileForm();
+  await hydratePdfFromStorage();
   renderAll();
+}
+
+function mapEls() {
+  const ids = [
+    "headerMeta",
+    "datasetInfo",
+    "comparisonInfo",
+    "portfolioNarrative",
+    "currentRoleLabel",
+    "reloadBtn",
+    "exportJsonBtn",
+    "exportCsvBtn",
+    "exportBoardBriefBtn",
+    "exportOwnerPackBtn",
+    "clearStorageBtn",
+    "fileInput",
+    "uploadBtn",
+    "uploadStatus",
+    "roleViewButtons",
+    "roleSummary",
+    "presetButtons",
+    "activePresetLabel",
+    "searchInput",
+    "sectionFilter",
+    "themeFilter",
+    "ownerFilter",
+    "stageFilter",
+    "changeFilter",
+    "clusterFilter",
+    "relevanceFilter",
+    "parseConfidenceFilter",
+    "fmrukOnlyFilter",
+    "excludeAnnexFilter",
+    "needsReviewFilter",
+    "saveProfileBtn",
+    "resetProfileBtn",
+    "clusterList",
+    "deltaList",
+    "initiativeList",
+    "listMeta",
+    "detailPanel",
+    "detailMeta",
+    "timelineList",
+    "pdfPreviewStatus",
+    "evidenceTrail",
+    "pdfPreview",
+    "askInput",
+    "askBtn",
+    "askAnswer",
+    "askResults",
+    "kpiTotal",
+    "kpiImmediateAction",
+    "kpiHighRelevance",
+    "kpiNeedsReview",
+    "kpiChanges"
+  ];
+
+  ids.forEach(id => {
+    els[id] = document.getElementById(id);
+  });
+
+  PROFILE_FIELDS.forEach(([, domId]) => {
+    els[domId] = document.getElementById(domId);
+  });
 }
 
 function bindEvents() {
@@ -828,19 +1066,57 @@ function bindEvents() {
   els.reloadBtn.addEventListener("click", () => renderAll());
   els.exportJsonBtn.addEventListener("click", exportJson);
   els.exportCsvBtn.addEventListener("click", exportCsv);
+  els.exportBoardBriefBtn.addEventListener("click", exportBoardBrief);
+  els.exportOwnerPackBtn.addEventListener("click", exportOwnerPack);
   els.clearStorageBtn.addEventListener("click", clearSavedData);
-  els.searchInput.addEventListener("input", applyFilters);
-  els.sectionFilter.addEventListener("change", applyFilters);
-  els.themeFilter.addEventListener("change", applyFilters);
-  els.ownerFilter.addEventListener("change", applyFilters);
-  els.stageFilter.addEventListener("change", applyFilters);
-  els.changeFilter.addEventListener("change", applyFilters);
-  els.impactFilter.addEventListener("change", applyFilters);
-  els.relevanceFilter.addEventListener("change", applyFilters);
-  els.parseConfidenceFilter.addEventListener("change", applyFilters);
-  els.fmrukOnlyFilter.addEventListener("change", applyFilters);
-  els.excludeAnnexFilter.addEventListener("change", applyFilters);
-  els.needsReviewFilter.addEventListener("change", applyFilters);
+  els.roleViewButtons.addEventListener("click", handleRoleViewClick);
+  els.presetButtons.addEventListener("click", handlePresetClick);
+  els.askBtn.addEventListener("click", runAskQuery);
+  els.askInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      runAskQuery();
+    }
+  });
+  els.saveProfileBtn.addEventListener("click", saveProfileFromForm);
+  els.resetProfileBtn.addEventListener("click", resetProfile);
+
+  [
+    els.searchInput,
+    els.sectionFilter,
+    els.themeFilter,
+    els.ownerFilter,
+    els.stageFilter,
+    els.changeFilter,
+    els.clusterFilter,
+    els.relevanceFilter,
+    els.parseConfidenceFilter,
+    els.fmrukOnlyFilter,
+    els.excludeAnnexFilter,
+    els.needsReviewFilter
+  ].forEach(element => {
+    if (!element) return;
+    const eventName = element.tagName === "INPUT" && element.type === "text" ? "input" : "change";
+    element.addEventListener(eventName, applyFilters);
+  });
+}
+
+function handleRoleViewClick(event) {
+  const button = event.target.closest("[data-role-view]");
+  if (!button) return;
+
+  state.roleView = button.dataset.roleView;
+  renderRoleButtons();
+  renderAll();
+}
+
+function handlePresetClick(event) {
+  const button = event.target.closest("[data-preset]");
+  if (!button) return;
+
+  state.activePreset = button.dataset.preset;
+  renderPresetButtons();
+  applyFilters();
 }
 
 function loadFromStorage() {
@@ -849,31 +1125,130 @@ function loadFromStorage() {
 
   try {
     const payload = JSON.parse(raw);
+    state.baseItems = Array.isArray(payload.parsedItems) ? payload.parsedItems : [];
     state.raw = Array.isArray(payload.items) ? payload.items : [];
     state.datasetMeta = payload.meta || null;
+    state.selectedItemId = state.raw[0]?.id || null;
   } catch (err) {
     console.error(err);
   }
 }
 
 function saveToStorage() {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      meta: state.datasetMeta,
-      items: state.raw
-    })
-  );
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        meta: state.datasetMeta,
+        parsedItems: state.baseItems,
+        items: state.raw
+      })
+    );
+  } catch (err) {
+    console.error(err);
+    els.uploadStatus.textContent =
+      "Dataset is too large for browser storage. The current session will still work, but persistence may be limited.";
+  }
 }
 
 function clearSavedData() {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(FEEDBACK_KEY);
+  localStorage.removeItem(PROFILE_KEY);
+  state.baseItems = [];
   state.raw = [];
   state.filtered = [];
   state.selectedItemId = null;
   state.datasetMeta = null;
-  els.uploadStatus.textContent = "Saved browser data cleared.";
-  renderAll();
+  state.feedback = {};
+  state.profile = structuredClone(DEFAULT_PROFILE);
+  state.ask = { query: "", answer: "", results: [] };
+  renderProfileForm();
+  clearStoredPdf()
+    .catch(console.error)
+    .finally(() => {
+      state.pdfBuffer = null;
+      state.pdfDocument = null;
+      els.uploadStatus.textContent = "Saved browser data cleared.";
+      renderAll();
+    });
+}
+
+function loadProfile() {
+  const raw = localStorage.getItem(PROFILE_KEY);
+  if (!raw) return structuredClone(DEFAULT_PROFILE);
+
+  try {
+    const parsed = JSON.parse(raw);
+    return mergeProfile(parsed);
+  } catch (err) {
+    console.error(err);
+    return structuredClone(DEFAULT_PROFILE);
+  }
+}
+
+function saveProfileFromForm() {
+  const nextProfile = {};
+  PROFILE_FIELDS.forEach(([field, domId]) => {
+    nextProfile[field] = splitLines(els[domId].value);
+  });
+
+  state.profile = mergeProfile(nextProfile);
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profile));
+  els.uploadStatus.textContent = "FMRUK profile saved. Re-scoring the current dataset.";
+  reanalyseCurrentDataset();
+}
+
+function resetProfile() {
+  state.profile = structuredClone(DEFAULT_PROFILE);
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profile));
+  renderProfileForm();
+  els.uploadStatus.textContent = "FMRUK profile reset to the default model.";
+  reanalyseCurrentDataset();
+}
+
+function renderProfileForm() {
+  PROFILE_FIELDS.forEach(([field, domId]) => {
+    if (!els[domId]) return;
+    els[domId].value = (state.profile?.[field] || []).join(", ");
+  });
+}
+
+function mergeProfile(profile) {
+  const merged = structuredClone(DEFAULT_PROFILE);
+  PROFILE_FIELDS.forEach(([field]) => {
+    merged[field] = Array.isArray(profile?.[field])
+      ? profile[field].map(normaliseWs).filter(Boolean)
+      : structuredClone(DEFAULT_PROFILE[field]);
+  });
+  return merged;
+}
+
+function loadFeedback() {
+  const raw = localStorage.getItem(FEEDBACK_KEY);
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) || {};
+  } catch (err) {
+    console.error(err);
+    return {};
+  }
+}
+
+function saveFeedback() {
+  localStorage.setItem(FEEDBACK_KEY, JSON.stringify(state.feedback));
+}
+
+async function hydratePdfFromStorage() {
+  try {
+    const buffer = await loadStoredPdf();
+    if (buffer) {
+      state.pdfBuffer = buffer;
+      state.pdfDocument = await loadPdfDocumentFromBuffer(buffer);
+    }
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 async function handleUpload() {
@@ -885,7 +1260,7 @@ async function handleUpload() {
 
   const ext = file.name.split(".").pop().toLowerCase();
   if (ext !== "pdf") {
-    els.uploadStatus.textContent = "PDF-only mode is enabled for now.";
+    els.uploadStatus.textContent = "PDF-only mode is enabled in this workspace.";
     return;
   }
 
@@ -900,33 +1275,39 @@ async function handleUpload() {
   try {
     els.uploadStatus.textContent = `Reading PDF: ${file.name}...`;
     const buffer = await file.arrayBuffer();
-    const parsed = await parsePdfFile(buffer, file.name);
-    const deduped = dedupeItems(parsed);
+    const parsedItems = await parsePdfFile(buffer, file.name);
+    const deduped = dedupeItems(parsedItems);
 
     if (!deduped.length) {
       els.uploadStatus.textContent =
-        "No initiatives were detected in the PDF. Review the source formatting or parsing assumptions.";
+        "No initiatives were detected in the PDF. Review the source formatting or parser assumptions.";
       return;
     }
+
+    await saveStoredPdf(buffer);
+    state.pdfBuffer = buffer;
+    state.pdfDocument = await loadPdfDocumentFromBuffer(buffer);
 
     els.uploadStatus.textContent = `Analysing ${deduped.length} extracted initiatives...`;
     const analysed = analyseRows(deduped);
     const comparison = compareWithPreviousDataset(previousItems, analysed);
 
-    state.raw = comparison.items;
+    state.baseItems = deduped;
+    state.raw = sortItems(comparison.items);
     state.datasetMeta = {
       fileName: file.name,
       uploadedAt: new Date().toISOString(),
-      rowCount: comparison.items.length,
+      rowCount: state.raw.length,
       fileType: "PDF",
+      parserVersion: "v8",
       previousFileName: previousMeta?.fileName || "",
-      comparisonSummary: comparison.summary,
-      parserVersion: "v7"
+      comparisonSummary: comparison.summary
     };
-    state.selectedItemId = comparison.items[0]?.id || null;
+    state.selectedItemId = state.raw[0]?.id || null;
+    state.currentPdfHighlightKey = "";
 
     saveToStorage();
-    els.uploadStatus.textContent = `Loaded ${comparison.items.length} initiatives from ${file.name}.`;
+    els.uploadStatus.textContent = `Loaded ${state.raw.length} initiatives from ${file.name}.`;
     renderAll();
   } catch (err) {
     console.error(err);
@@ -945,12 +1326,13 @@ async function parsePdfFile(buffer, fileName) {
     const viewport = page.getViewport({ scale: 1 });
     const textContent = await page.getTextContent();
     const pageRows = buildPdfRows(textContent.items, pageNumber);
-    const headerTemplate = detectColumnTemplate(pageRows, viewport.width);
-    activeTemplate = headerTemplate || activeTemplate || buildFallbackColumnTemplate(viewport.width);
+    const template = detectColumnTemplate(pageRows, viewport.width);
+    activeTemplate = template || activeTemplate || buildFallbackColumnTemplate(viewport.width);
 
-    pageRows.forEach(row => {
-      row.cells = assignRowCells(row, activeTemplate);
+    pageRows.forEach((row, rowIndex) => {
+      row.rowId = `p${pageNumber}-r${rowIndex + 1}`;
       row.pageWidth = viewport.width;
+      row.cells = assignRowCells(row, activeTemplate);
       rows.push(row);
     });
   }
@@ -980,28 +1362,23 @@ function buildPdfRows(items, pageNumber) {
       current.y = (current.y + token.y) / 2;
     } else {
       rawRows.push({
+        pageNumber,
         y: token.y,
-        tokens: [token],
-        pageNumber
+        tokens: [token]
       });
     }
   }
 
-  return rawRows.map(row => normaliseRow(row));
-}
-
-function normaliseRow(row) {
-  const segments = mergeRowTokens(row.tokens.sort((a, b) => a.x - b.x));
-  const text = normaliseWs(segments.map(segment => segment.text).join(" "));
-
-  return {
-    pageNumber: row.pageNumber,
-    y: row.y,
-    segments,
-    text,
-    hasBold: segments.some(segment => /bold/i.test(segment.fontName || "")),
-    cells: {}
-  };
+  return rawRows.map(row => {
+    const segments = mergeRowTokens(row.tokens.sort((a, b) => a.x - b.x));
+    return {
+      pageNumber: row.pageNumber,
+      y: row.y,
+      segments,
+      text: normaliseWs(segments.map(segment => segment.text).join(" ")),
+      hasBold: segments.some(segment => /bold/i.test(segment.fontName || ""))
+    };
+  });
 }
 
 function mergeRowTokens(tokens) {
@@ -1066,9 +1443,9 @@ function detectColumnTemplate(rows, pageWidth) {
 
 function buildFallbackColumnTemplate(pageWidth) {
   const anchors = {};
-  for (const [key, ratio] of Object.entries(DEFAULT_COLUMN_START_RATIOS)) {
+  Object.entries(DEFAULT_COLUMN_START_RATIOS).forEach(([key, ratio]) => {
     anchors[key] = pageWidth * ratio;
-  }
+  });
   return buildColumnTemplate(anchors, pageWidth);
 }
 
@@ -1076,16 +1453,13 @@ function buildColumnTemplate(anchorMap, pageWidth) {
   const keys = ["lead", "initiative", "milestones", "impact", "consumer", "timing", "isNew"];
   const starts = keys.map(key => ({
     key,
-    start:
-      anchorMap[key] != null
-        ? anchorMap[key]
-        : pageWidth * DEFAULT_COLUMN_START_RATIOS[key]
+    start: anchorMap[key] != null ? anchorMap[key] : pageWidth * DEFAULT_COLUMN_START_RATIOS[key]
   }));
 
   const columns = [];
   for (let index = 0; index < starts.length; index += 1) {
-    const current = starts[index];
     const previous = starts[index - 1];
+    const current = starts[index];
     const next = starts[index + 1];
     columns.push({
       key: current.key,
@@ -1098,23 +1472,31 @@ function buildColumnTemplate(anchorMap, pageWidth) {
 }
 
 function assignRowCells(row, template) {
-  const cells = {
-    lead: "",
-    initiative: "",
-    milestones: "",
-    impact: "",
-    consumer: "",
-    timing: "",
-    isNew: "",
-    overflow: ""
-  };
+  const keys = ["lead", "initiative", "milestones", "impact", "consumer", "timing", "isNew", "overflow"];
+  const cells = Object.fromEntries(
+    keys.map(key => [
+      key,
+      {
+        text: "",
+        x1: null,
+        x2: null
+      }
+    ])
+  );
 
-  for (const segment of row.segments) {
+  row.segments.forEach(segment => {
     const centre = segment.x + segment.width / 2;
     const column = template.find(item => centre >= item.start && centre < item.end);
     const key = column?.key || "overflow";
-    cells[key] = normaliseWs(`${cells[key]} ${segment.text}`);
-  }
+    const cell = cells[key];
+    cell.text = joinInline(cell.text, segment.text);
+    cell.x1 = cell.x1 == null ? segment.x : Math.min(cell.x1, segment.x);
+    cell.x2 = cell.x2 == null ? segment.x + segment.width : Math.max(cell.x2, segment.x + segment.width);
+  });
+
+  Object.values(cells).forEach(cell => {
+    cell.text = normaliseWs(cell.text);
+  });
 
   return cells;
 }
@@ -1151,12 +1533,12 @@ function extractPdfInitiatives(rows, fileName) {
         initiatives.push(finalisePdfInitiative(current, initiatives.length, fileName));
       }
 
-      current = createInitiativeAccumulator(start, currentSection, currentSubcategory, row, fileName);
+      current = createAccumulator(start, currentSection, currentSubcategory, fileName, row);
       ingestRowIntoAccumulator(current, row, { isStartRow: true });
 
       if (start.consumeNextRow && nextRow) {
         ingestRowIntoAccumulator(current, nextRow, {
-          suppressInitiativeCell: true
+          consumeAsTitle: true
         });
         index += 1;
       }
@@ -1179,7 +1561,6 @@ function extractPdfInitiatives(rows, fileName) {
 function isNoiseRow(row) {
   const text = row.text;
   if (!text) return true;
-
   if (ROW_NOISE_PATTERNS.some(pattern => pattern.test(text))) return true;
 
   const headerHits = HEADER_TEXT_PATTERNS.reduce((count, pattern) => {
@@ -1193,7 +1574,7 @@ function detectInitiativeStart(row, nextRow) {
   const direct = extractLeadAndTitle(row);
   if (direct) return direct;
 
-  const leadOnly = normaliseLeadToken(row.cells.lead || row.text);
+  const leadOnly = normaliseLeadToken(cellText(row, "lead") || row.text);
   if (
     leadOnly &&
     nextRow &&
@@ -1201,7 +1582,7 @@ function detectInitiativeStart(row, nextRow) {
     !SECTION_LOOKUP.has(nextRow.text.toLowerCase()) &&
     !SUBCATEGORY_LOOKUP.has(nextRow.text.toLowerCase())
   ) {
-    const nextTitle = cleanTitleCandidate(nextRow.cells.initiative || nextRow.text);
+    const nextTitle = cleanTitleCandidate(cellText(nextRow, "initiative") || nextRow.text);
     if (isPlausibleTitle(nextTitle) && !extractLeadAndTitle(nextRow)) {
       return {
         lead: leadOnly,
@@ -1215,8 +1596,8 @@ function detectInitiativeStart(row, nextRow) {
 }
 
 function extractLeadAndTitle(row) {
-  const directLead = normaliseLeadToken(row.cells.lead);
-  const directTitle = cleanTitleCandidate(row.cells.initiative);
+  const directLead = normaliseLeadToken(cellText(row, "lead"));
+  const directTitle = cleanTitleCandidate(cellText(row, "initiative"));
 
   if (directLead && isPlausibleTitle(directTitle)) {
     return {
@@ -1235,22 +1616,20 @@ function extractLeadAndTitle(row) {
     };
   }
 
-  if (row.cells.initiative) {
-    const embedded = splitLeadAndTitle(row.cells.initiative);
-    if (embedded && isPlausibleTitle(embedded.title)) {
-      return {
-        lead: embedded.lead,
-        title: embedded.title,
-        consumeNextRow: false
-      };
-    }
+  const embedded = splitLeadAndTitle(cellText(row, "initiative"));
+  if (embedded && isPlausibleTitle(embedded.title)) {
+    return {
+      lead: embedded.lead,
+      title: embedded.title,
+      consumeNextRow: false
+    };
   }
 
   return null;
 }
 
-function createInitiativeAccumulator(start, sectionName, subcategory, row, fileName) {
-  return {
+function createAccumulator(start, sectionName, subcategory, fileName, row) {
+  const accumulator = {
     sourceFile: fileName,
     sectionName: sectionName || "",
     subcategory: subcategory || "",
@@ -1262,75 +1641,138 @@ function createInitiativeAccumulator(start, sectionName, subcategory, row, fileN
     consumerParts: [],
     timingParts: [],
     isNewParts: [],
-    rawParts: [row.text],
-    pageNumbers: [row.pageNumber],
-    parseWarnings: []
+    rawParts: [],
+    pageNumbers: [],
+    evidence: {
+      title: [],
+      lead: [],
+      description: [],
+      milestones: [],
+      impact: [],
+      consumer: [],
+      timing: [],
+      isNew: [],
+      general: []
+    }
   };
+
+  recordEvidence(accumulator, "lead", row, "lead", start.lead);
+  recordEvidence(accumulator, "title", row, "initiative", start.title);
+  return accumulator;
 }
 
 function ingestRowIntoAccumulator(accumulator, row, options) {
   const opts = options || {};
 
-  appendUnique(accumulator.rawParts, row.text);
   appendUnique(accumulator.pageNumbers, row.pageNumber);
+  appendUnique(accumulator.rawParts, row.text);
+  recordEvidence(accumulator, "general", row, "overflow", row.text);
 
-  appendUnique(accumulator.milestoneParts, row.cells.milestones);
-  appendUnique(accumulator.impactParts, row.cells.impact);
-  appendUnique(accumulator.consumerParts, row.cells.consumer);
-  appendUnique(accumulator.timingParts, row.cells.timing);
-  appendUnique(accumulator.isNewParts, row.cells.isNew);
+  if (cellText(row, "milestones")) {
+    appendUnique(accumulator.milestoneParts, cellText(row, "milestones"));
+    recordEvidence(accumulator, "milestones", row, "milestones");
+  }
+
+  if (cellText(row, "impact")) {
+    appendUnique(accumulator.impactParts, cellText(row, "impact"));
+    recordEvidence(accumulator, "impact", row, "impact");
+  }
+
+  if (cellText(row, "consumer")) {
+    appendUnique(accumulator.consumerParts, cellText(row, "consumer"));
+    recordEvidence(accumulator, "consumer", row, "consumer");
+  }
+
+  if (cellText(row, "timing")) {
+    appendUnique(accumulator.timingParts, cellText(row, "timing"));
+    recordEvidence(accumulator, "timing", row, "timing");
+  }
+
+  if (cellText(row, "isNew")) {
+    appendUnique(accumulator.isNewParts, cellText(row, "isNew"));
+    recordEvidence(accumulator, "isNew", row, "isNew");
+  }
+
+  const initiativeCell = stripRepeatedTitle(cellText(row, "initiative"), accumulator.initiativeTitle);
+  const overflowText = normaliseWs(cellText(row, "overflow"));
+  const leadResidue = stripLeadPrefix(cellText(row, "lead"), accumulator.leadRegulator);
 
   if (opts.isStartRow) {
-    const extraLeadText = stripLeadPrefix(row.cells.lead, accumulator.leadRegulator);
-    appendUnique(accumulator.initiativeDescriptionParts, extraLeadText);
-
-    const extraTitleText = stripRepeatedTitle(row.cells.initiative, accumulator.initiativeTitle);
-    if (extraTitleText && !shouldTreatAsTitleContinuation(accumulator, extraTitleText, row)) {
-      appendUnique(accumulator.initiativeDescriptionParts, extraTitleText);
+    if (leadResidue) {
+      appendUnique(accumulator.initiativeDescriptionParts, leadResidue);
+      recordEvidence(accumulator, "description", row, "lead", leadResidue);
     }
-    return;
+    if (initiativeCell && !shouldTreatAsTitleContinuation(accumulator, initiativeCell, row)) {
+      appendUnique(accumulator.initiativeDescriptionParts, initiativeCell);
+      recordEvidence(accumulator, "description", row, "initiative", initiativeCell);
+    }
+  } else if (opts.consumeAsTitle && initiativeCell) {
+    accumulator.initiativeTitle = normaliseWs(`${accumulator.initiativeTitle} ${initiativeCell}`);
+    recordEvidence(accumulator, "title", row, "initiative", initiativeCell);
+  } else if (initiativeCell) {
+    if (shouldTreatAsTitleContinuation(accumulator, initiativeCell, row)) {
+      accumulator.initiativeTitle = normaliseWs(`${accumulator.initiativeTitle} ${initiativeCell}`);
+      recordEvidence(accumulator, "title", row, "initiative", initiativeCell);
+    } else {
+      appendUnique(accumulator.initiativeDescriptionParts, initiativeCell);
+      recordEvidence(accumulator, "description", row, "initiative", initiativeCell);
+    }
   }
 
-  if (!opts.suppressInitiativeCell) {
-    const continuation = stripRepeatedTitle(row.cells.initiative, accumulator.initiativeTitle);
-    if (continuation) {
-      if (shouldTreatAsTitleContinuation(accumulator, continuation, row)) {
-        accumulator.initiativeTitle = normaliseWs(`${accumulator.initiativeTitle} ${continuation}`);
-      } else {
-        appendUnique(accumulator.initiativeDescriptionParts, continuation);
-      }
-    }
+  if (overflowText) {
+    appendUnique(accumulator.initiativeDescriptionParts, overflowText);
+    recordEvidence(accumulator, "description", row, "overflow", overflowText);
   }
-
-  appendUnique(accumulator.initiativeDescriptionParts, row.cells.overflow);
 }
 
-function shouldTreatAsTitleContinuation(accumulator, value, row) {
-  if (!value) return false;
-  if (accumulator.initiativeTitle.length > 110) return false;
-  if (row.cells.milestones || row.cells.impact || row.cells.consumer) return false;
-  if (/[.:;]/.test(value)) return false;
-  if (looksLikeMilestoneText(value)) return false;
-  return value.length <= 90;
+function recordEvidence(accumulator, field, row, cellKey, overrideText) {
+  const text = normaliseWs(overrideText || cellText(row, cellKey) || row.text);
+  if (!text) return;
+
+  const source = row.cells?.[cellKey] || {};
+  const x1 = source.x1 == null ? 0 : source.x1;
+  const x2 = source.x2 == null ? row.pageWidth : source.x2;
+  const entry = {
+    key: `${field}:${row.rowId}:${slugify(text).slice(0, 24)}`,
+    field,
+    pageNumber: row.pageNumber,
+    rowId: row.rowId,
+    y: row.y,
+    x1,
+    x2,
+    pageWidth: row.pageWidth,
+    excerpt: text,
+    rowText: row.text
+  };
+
+  pushUniqueEvidence(accumulator.evidence[field], entry);
+}
+
+function pushUniqueEvidence(target, entry) {
+  if (!target.find(item => item.key === entry.key)) {
+    target.push(entry);
+  }
 }
 
 function finalisePdfInitiative(accumulator, index, fileName) {
   const raw = normaliseWs(accumulator.rawParts.join(" "));
+  const description = dedupeStrings(accumulator.initiativeDescriptionParts).join(" ");
   const milestones = dedupeStrings(
     [
       ...accumulator.milestoneParts,
       extractMilestones(raw)
     ].filter(Boolean)
-  ).join(" | ");
-
-  const description = dedupeStrings(accumulator.initiativeDescriptionParts).join(" ");
+  )
+    .slice(0, 5)
+    .join(" | ");
   const impactFlag = extractImpactFlag(accumulator.impactParts.join(" ") || raw);
   const consumerInterest = normaliseTrafficLight(accumulator.consumerParts.join(" "));
   const timingUpdated = normaliseYesNo(accumulator.timingParts.join(" "));
-  const isNew = normaliseYesNo(accumulator.isNewParts.join(" ")) || (/\bnew\b/i.test(raw) ? "Yes" : "No");
+  const isNew =
+    normaliseYesNo(accumulator.isNewParts.join(" ")) || (/\bnew\b/i.test(raw) ? "Yes" : "No");
   const parseAssessment = assessParseQuality(accumulator, {
-    milestones,
     description,
+    milestones,
     impactFlag
   });
 
@@ -1347,13 +1789,14 @@ function finalisePdfInitiative(accumulator, index, fileName) {
     expectedKeyMilestones: milestones,
     indicativeImpactOnFirms: impactFlag,
     consumerInterest,
-    timingUpdated: timingUpdated || "",
+    timingUpdated,
     isNew,
     timingBucket: inferTimingBucket(`${milestones} ${description} ${raw}`),
     rawText: raw,
     parseConfidence: parseAssessment.score,
     parseConfidenceBand: parseAssessment.band,
-    parseWarnings: parseAssessment.warnings
+    parseWarnings: parseAssessment.warnings,
+    evidence: accumulator.evidence
   };
 }
 
@@ -1379,7 +1822,6 @@ function assessParseQuality(accumulator, context) {
 
   if (context.impactFlag) score += 6;
   if (accumulator.pageNumbers.length) score += 4;
-  if (accumulator.rawParts.length > 1) score += 2;
 
   score = clamp(score, 0, 100);
 
@@ -1394,67 +1836,89 @@ function dedupeItems(items) {
   const seen = new Set();
   const output = [];
 
-  for (const item of items) {
+  items.forEach(item => {
     const key = item.canonicalKey || buildCanonicalKey(item);
-    if (seen.has(key)) continue;
+    if (seen.has(key)) return;
     seen.add(key);
     output.push(item);
-  }
+  });
 
   return output;
 }
 
 function analyseRows(items) {
-  return items
-    .map(item => {
-      const classification = classifyItem(item);
-      const stage = determineStage(item);
-      const impact = determineImpactLevel(item, classification, stage);
-      const relevance = evaluateFmrukRelevance(item, classification, stage);
-      const potentialBusinessImpact = buildPotentialBusinessImpact(classification, stage, item);
-      const suggestedActions = buildSuggestedActions(item, classification, stage, impact, relevance);
-      const review = determineReviewStatus(item, classification, stage, relevance);
-      const rationale = buildRationale(item, classification, stage, relevance);
+  return items.map(item => {
+    const classification = classifyItem(item);
+    const stage = determineStage(item);
+    const obligations = mapObligations(item, classification, stage);
+    const impact = determineImpactLevel(item, classification, stage, obligations);
+    const relevance = evaluateFmrukRelevance(item, classification, stage, obligations);
+    const uncertainty = determineUncertainty(item, classification, stage, relevance);
+    const suggestedActions = buildSuggestedActions(
+      item,
+      classification,
+      stage,
+      impact,
+      relevance,
+      obligations,
+      uncertainty
+    );
+    const potentialBusinessImpact = buildPotentialBusinessImpact(
+      item,
+      classification,
+      stage,
+      obligations
+    );
+    const timeline = buildTimelinePoint(item);
+    const clusterLabel = determineCluster(item, classification, obligations);
 
-      return {
-        ...item,
-        theme: classification.theme,
-        internalSubTheme: classification.subTheme,
-        classificationConfidence: classification.confidence,
-        classificationSignals: classification.signals,
-        classificationAmbiguity: classification.ambiguity,
-        potentialBusinessImpact,
-        primaryOwner: classification.primaryOwner,
-        secondaryOwner: classification.secondaryOwner,
-        stage: stage.id,
-        stageLabel: stage.label,
-        stageConfidence: stage.confidence,
-        stageSignals: stage.signals,
-        impactLevel: impact.level,
-        impactScore: impact.score,
-        relevanceScore: relevance.score,
-        relevanceBand: relevance.band,
-        relevanceConfidence: relevance.confidence,
-        relevanceSignals: relevance.positiveReasons,
-        relevanceNegativeSignals: relevance.negativeReasons,
-        isFmrukRelevant: relevance.isRelevant,
-        rationale,
+    let analysed = {
+      ...item,
+      theme: classification.theme,
+      internalSubTheme: classification.subTheme,
+      primaryOwner: classification.primaryOwner,
+      secondaryOwner: classification.secondaryOwner,
+      classificationConfidence: classification.confidence,
+      classificationSignals: classification.signals,
+      classificationAmbiguity: classification.ambiguity,
+      stage: stage.id,
+      stageLabel: stage.label,
+      stageConfidence: stage.confidence,
+      stageSignals: stage.signals,
+      obligations,
+      impactLevel: impact.level,
+      impactScore: impact.score,
+      relevanceScore: relevance.score,
+      relevanceBand: relevance.band,
+      isFmrukRelevant: relevance.isRelevant,
+      relevanceSignals: relevance.positiveReasons,
+      relevanceNegativeSignals: relevance.negativeReasons,
+      profileReasons: relevance.profileReasons,
+      whyNotRelevant: relevance.whyNotRelevant,
+      uncertaintyFlags: uncertainty.flags,
+      needsReview: uncertainty.needsReview,
+      potentialBusinessImpact,
+      suggestedActions,
+      suggestedAction: suggestedActions.join(" "),
+      immediateActionRequired:
+        relevance.isRelevant && impact.level === "High" && stage.id !== "monitoring",
+      rationale: buildRationale(item, classification, stage, relevance, obligations),
+      briefBlocks: buildBriefBlocks(
+        item,
+        classification,
+        stage,
+        obligations,
+        relevance,
         suggestedActions,
-        suggestedAction: suggestedActions.join(" "),
-        immediateActionRequired: relevance.isRelevant && impact.level === "High" && stage.id !== "monitoring",
-        needsReview: review.needsReview,
-        reviewReasons: review.reasons
-      };
-    })
-    .sort((a, b) => {
-      if ((b.immediateActionRequired ? 1 : 0) !== (a.immediateActionRequired ? 1 : 0)) {
-        return (b.immediateActionRequired ? 1 : 0) - (a.immediateActionRequired ? 1 : 0);
-      }
-      if ((b.relevanceScore || 0) !== (a.relevanceScore || 0)) {
-        return (b.relevanceScore || 0) - (a.relevanceScore || 0);
-      }
-      return (b.impactScore || 0) - (a.impactScore || 0);
-    });
+        uncertainty
+      ),
+      timeline,
+      clusterLabel
+    };
+
+    analysed = applyFeedbackOverrides(analysed);
+    return analysed;
+  });
 }
 
 function classifyItem(item) {
@@ -1481,7 +1945,7 @@ function classifyItem(item) {
       impactBias: best.rule.impactBias,
       impactStatement: best.rule.impactStatement,
       coreActions: best.rule.coreActions,
-      confidence: clamp(45 + best.score, 0, 100),
+      confidence: clamp(46 + best.score, 0, 100),
       signals: best.signals,
       ambiguity:
         runnerUp && best.score - runnerUp.score <= 6
@@ -1515,7 +1979,7 @@ function determineStage(item) {
     return {
       id: best.rule.id,
       label: best.rule.label,
-      confidence: clamp(45 + best.score, 0, 100),
+      confidence: clamp(46 + best.score, 0, 100),
       signals: best.reasons
     };
   }
@@ -1528,21 +1992,78 @@ function determineStage(item) {
   };
 }
 
-function determineImpactLevel(item, classification, stage) {
+function mapObligations(item, classification, stage) {
+  const blob = buildBlob(item);
+  const scored = OBLIGATION_RULES.map(rule => {
+    const result = scoreSignalGroups(rule.signals, blob);
+    let score = result.score;
+
+    if (classification.subTheme === "Transaction Reporting" && rule.name === "Reporting & MI") {
+      score += 10;
+    }
+    if (classification.subTheme === "Market Abuse / Surveillance" && rule.name === "Market Conduct & Surveillance") {
+      score += 10;
+    }
+    if (classification.subTheme === "Outsourcing / Third Party Risk" && rule.name === "Outsourcing & Third Parties") {
+      score += 10;
+    }
+    if (classification.subTheme === "Operational Resilience" && rule.name === "Operational Resilience") {
+      score += 10;
+    }
+    if (classification.subTheme === "Capital / Liquidity" && rule.name === "Prudential & Capital") {
+      score += 10;
+    }
+    if (stage.id === "reporting" && rule.name === "Reporting & MI") {
+      score += 10;
+    }
+    if (stage.id === "legislation" && rule.name === "Legal Entity Perimeter") {
+      score += 10;
+    }
+    if (stage.id === "final_rules" && rule.name === "Policy & Procedures") {
+      score += 8;
+    }
+
+    return {
+      name: rule.name,
+      score,
+      reasons: result.reasons
+    };
+  })
+    .filter(itemScore => itemScore.score >= 10)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  if (!scored.length) {
+    return [
+      {
+        name: "Policy & Procedures",
+        reason: "Default obligation map when the initiative has not yet been tied to a more specific control domain."
+      }
+    ];
+  }
+
+  return scored.map(entry => ({
+    name: entry.name,
+    reason: entry.reasons[0] || `${entry.name} appears in scope based on the source text and stage.`
+  }));
+}
+
+function determineImpactLevel(item, classification, stage, obligations) {
   let score = 30;
   const impactFlag = String(item.indicativeImpactOnFirms || "").trim().toUpperCase();
   if (impactFlag === "H" || impactFlag === "HIGH") score += 40;
-  if (impactFlag === "M" || impactFlag === "MEDIUM" || impactFlag === "U") score += 22;
+  if (impactFlag === "U" || impactFlag === "M" || impactFlag === "MEDIUM") score += 22;
   if (impactFlag === "L" || impactFlag === "LOW") score += 8;
 
   score += classification.impactBias || 0;
-
   if (stage.id === "final_rules") score += 12;
   if (stage.id === "reporting") score += 10;
   if (stage.id === "supervisory") score += 8;
   if (item.timingBucket === "Near Term") score += 8;
   if (item.timingBucket === "Longer Term") score -= 4;
   if (item.consumerInterest === "H") score += 4;
+  if (obligations.some(obligation => obligation.name === "Reporting & MI")) score += 5;
+  if (obligations.some(obligation => obligation.name === "Operational Resilience")) score += 5;
 
   score = clamp(score, 0, 100);
 
@@ -1552,14 +2073,16 @@ function determineImpactLevel(item, classification, stage) {
   };
 }
 
-function evaluateFmrukRelevance(item, classification, stage) {
+function evaluateFmrukRelevance(item, classification, stage, obligations) {
   const blob = buildBlob(item);
-  let score = 38;
+  let score = 30;
   const positive = scoreSignalGroups(RELEVANCE_SIGNAL_GROUPS.positive, blob);
   const negative = scoreSignalGroups(RELEVANCE_SIGNAL_GROUPS.negative, blob);
+  const profileMatch = scoreProfileMatch(item, state.profile);
 
   score += positive.score;
   score -= negative.score;
+  score += profileMatch.score;
   score += RELEVANCE_SIGNAL_GROUPS.sectionAdjustments[item.sectionName] || 0;
 
   if (
@@ -1567,60 +2090,105 @@ function evaluateFmrukRelevance(item, classification, stage) {
       classification.subTheme
     )
   ) {
-    score += 10;
+    score += 8;
   }
 
+  if (obligations.some(obligation => obligation.name === "Reporting & MI")) score += 4;
+  if (obligations.some(obligation => obligation.name === "Governance & Accountability")) score += 4;
   if (stage.id === "reporting" || stage.id === "final_rules") score += 4;
   if (item.leadRegulator.includes("FCA")) score += 3;
   if (item.sectionName === "Annex: initiatives completed/stopped") score -= 10;
 
   score = clamp(score, 0, 100);
 
-  const positiveReasons = [...positive.reasons];
-  const negativeReasons = [...negative.reasons];
-  const sectionAdj = RELEVANCE_SIGNAL_GROUPS.sectionAdjustments[item.sectionName] || 0;
-  if (sectionAdj > 0) positiveReasons.push(`Section boost: ${item.sectionName}.`);
-  if (sectionAdj < 0) negativeReasons.push(`Section drag: ${item.sectionName}.`);
+  const positiveReasons = dedupeStrings([
+    ...positive.reasons,
+    ...profileMatch.reasons,
+    ...(RELEVANCE_SIGNAL_GROUPS.sectionAdjustments[item.sectionName] > 0
+      ? [`Section boost: ${item.sectionName}.`]
+      : [])
+  ]);
 
-  const mixedSignals = positiveReasons.length > 0 && negativeReasons.length > 0;
+  const negativeReasons = dedupeStrings([
+    ...negative.reasons,
+    ...(RELEVANCE_SIGNAL_GROUPS.sectionAdjustments[item.sectionName] < 0
+      ? [`Section drag: ${item.sectionName}.`]
+      : [])
+  ]);
+
   const isRelevant = score >= 58 || (score >= 50 && !negativeReasons.length);
   const band = score >= 80 ? "High" : score >= 58 ? "Medium" : "Low";
-  const confidence = clamp(55 + Math.abs(score - 58), 0, 100);
+  const whyNotRelevant =
+    !isRelevant && negativeReasons.length
+      ? `This item currently looks low relevance for FMRUK because ${negativeReasons.join(" ")}`
+      : "";
 
   return {
     score,
     band,
-    confidence,
+    isRelevant,
     positiveReasons,
     negativeReasons,
-    mixedSignals,
-    isRelevant
+    profileReasons: profileMatch.reasons,
+    whyNotRelevant
   };
 }
 
-function determineReviewStatus(item, classification, stage, relevance) {
+function scoreProfileMatch(item, profile) {
+  const blob = buildBlob(item);
+  const categories = [
+    ["businessLines", 16, "Matches FMRUK business line"],
+    ["permissions", 14, "Matches FMRUK permission set"],
+    ["products", 12, "Matches FMRUK product scope"],
+    ["distributionModel", 10, "Matches FMRUK distribution model"],
+    ["outsourcedProviders", 10, "Matches outsourced provider exposure"],
+    ["reportingObligations", 14, "Matches reporting obligation"],
+    ["committees", 8, "Matches governance committee touchpoint"],
+    ["regulatoryTouchpoints", 12, "Matches regulatory touchpoint"]
+  ];
+
+  let score = 0;
   const reasons = [];
 
-  if (item.parseConfidence < 70) reasons.push("PDF extraction confidence is low.");
-  if (classification.confidence < 60) reasons.push("Classification confidence is modest.");
-  if (classification.ambiguity) reasons.push(classification.ambiguity);
-  if (stage.confidence < 58) reasons.push("Initiative stage is uncertain.");
-  if (relevance.mixedSignals) reasons.push("Relevance signals are mixed across FMRUK and non-FMRUK scope.");
-  if (relevance.score >= 45 && relevance.score <= 65) reasons.push("Relevance score sits in the judgement zone and should be checked manually.");
-  if (!item.expectedKeyMilestones) reasons.push("Milestones were not clearly extracted.");
+  categories.forEach(([field, weight, label]) => {
+    const entries = profile?.[field] || [];
+    const matches = entries.filter(entry => blob.includes(entry.toLowerCase()));
+    if (!matches.length) return;
+
+    score += Math.min(weight, 8 + matches.length * 4);
+    reasons.push(`${label}: ${matches.slice(0, 2).join(", ")}.`);
+  });
 
   return {
-    needsReview: reasons.length > 0,
-    reasons: dedupeStrings(reasons)
+    score,
+    reasons
   };
 }
 
-function buildPotentialBusinessImpact(classification, stage, item) {
-  const timingNote =
-    item.timingBucket && item.timingBucket !== "To Be Confirmed"
-      ? ` Current horizon is ${item.timingBucket.toLowerCase()}.`
-      : "";
+function determineUncertainty(item, classification, stage, relevance) {
+  const flags = [];
+  if ((item.parseConfidence || 0) < 70) flags.push("PDF extraction confidence is low.");
+  if ((classification.confidence || 0) < 60) flags.push("Classification confidence is modest.");
+  if (classification.ambiguity) flags.push(classification.ambiguity);
+  if ((stage.confidence || 0) < 58) flags.push("Initiative stage is uncertain.");
+  if (!item.expectedKeyMilestones) flags.push("Milestones were not clearly extracted.");
+  if (relevance.score >= 45 && relevance.score <= 65) {
+    flags.push("Relevance sits in the judgement zone and should be checked manually.");
+  }
+  if (relevance.positiveReasons.length && relevance.negativeReasons.length) {
+    flags.push("The initiative shows both FMRUK and non-FMRUK relevance signals.");
+  }
+  return {
+    flags: dedupeStrings([...flags, ...(item.parseWarnings || [])]),
+    needsReview: flags.length > 0 || (item.parseWarnings || []).length > 0
+  };
+}
 
+function buildPotentialBusinessImpact(item, classification, stage, obligations) {
+  const obligationNames = obligations.map(obligation => obligation.name).slice(0, 3);
+  const obligationText = obligationNames.length
+    ? ` The main control domains in scope are ${obligationNames.join(", ")}.`
+    : "";
   const stageNote = {
     consultation:
       " The main near-term need is understanding scope, shaping response and avoiding late delivery surprises.",
@@ -1636,11 +2204,12 @@ function buildPotentialBusinessImpact(classification, stage, item) {
       " This currently looks more like a watchlist item than an immediate delivery programme."
   }[stage.id] || "";
 
-  return `${classification.impactStatement}${stageNote}${timingNote}`;
+  return `${classification.impactStatement}${obligationText}${stageNote}`;
 }
 
-function buildSuggestedActions(item, classification, stage, impact, relevance) {
+function buildSuggestedActions(item, classification, stage, impact, relevance, obligations, uncertainty) {
   const actions = [];
+  const stageActions = GENERIC_STAGE_ACTIONS[stage.id] || GENERIC_STAGE_ACTIONS.monitoring;
 
   if (relevance.isRelevant) {
     actions.push(
@@ -1652,7 +2221,6 @@ function buildSuggestedActions(item, classification, stage, impact, relevance) {
     );
   }
 
-  const stageActions = GENERIC_STAGE_ACTIONS[stage.id] || GENERIC_STAGE_ACTIONS.monitoring;
   actions.push(stageActions[0]);
   actions.push(classification.coreActions[0]);
 
@@ -1660,84 +2228,1045 @@ function buildSuggestedActions(item, classification, stage, impact, relevance) {
     actions.push(classification.coreActions[1]);
   }
 
-  if (item.expectedKeyMilestones) {
-    actions.push(`Track milestone text captured from the PDF: ${truncateText(item.expectedKeyMilestones, 150)}.`);
+  if (obligations.length) {
+    actions.push(`Focus the first review on ${obligations.slice(0, 2).map(itemObligation => itemObligation.name).join(" and ")}.`);
   }
 
-  if (item.parseConfidence < 70 || relevance.mixedSignals) {
+  if (item.expectedKeyMilestones) {
+    actions.push(`Track milestone text captured from the PDF: ${truncateText(item.expectedKeyMilestones, 160)}.`);
+  }
+
+  if (uncertainty.needsReview) {
     actions.push("Validate the extracted row against the source PDF before relying on the detail for delivery planning.");
   }
 
   return dedupeStrings(actions).slice(0, 5);
 }
 
-function buildRationale(item, classification, stage, relevance) {
+function buildRationale(item, classification, stage, relevance, obligations) {
   const positives = relevance.positiveReasons.length
-    ? `Positive relevance signals: ${relevance.positiveReasons.join(" ")}`
+    ? `Positive signals: ${relevance.positiveReasons.join(" ")}`
     : "No strong positive relevance signals were detected.";
   const negatives = relevance.negativeReasons.length
     ? ` Counter-signals: ${relevance.negativeReasons.join(" ")}`
     : "";
+  const obligationText = obligations.length
+    ? ` Obligation map: ${obligations.map(obligation => obligation.name).join(", ")}.`
+    : "";
 
-  return `Mapped to ${classification.theme} / ${classification.subTheme}. Treated as ${stage.label}. ${positives}${negatives} FMRUK profile assumption: ${FMRUK_PROFILE.summary}`;
+  return `Mapped to ${classification.theme} / ${classification.subTheme}. Treated as ${stage.label}. ${positives}${negatives}${obligationText}`;
+}
+
+function buildBriefBlocks(item, classification, stage, obligations, relevance, actions, uncertainty) {
+  const whatIsThis =
+    `This initiative appears to be an ${stage.label.toLowerCase()} item in ${classification.theme}, led by ${item.leadRegulator || "the relevant regulator"} and captured under ${item.sectionName || "the FCA grid"}.`;
+  const whatIsChanging =
+    item.initiativeDescription
+      ? `The source suggests the change affects ${truncateText(item.initiativeDescription, 220)}`
+      : classification.impactStatement;
+  const whyNow =
+    item.expectedKeyMilestones
+      ? `The current timing signal is ${item.timingBucket.toLowerCase()}, with milestone text reading: ${truncateText(item.expectedKeyMilestones, 190)}`
+      : `The timing is ${item.timingBucket.toLowerCase()} and the item is being treated as ${stage.label.toLowerCase()}.`;
+  const whyFmrukMayCare =
+    relevance.isRelevant
+      ? `FMRUK may care because ${truncateText(relevance.positiveReasons.join(" "), 220)}`
+      : item.whyNotRelevant || "The current model does not see strong FMRUK relevance yet.";
+  const whoOwnsIt =
+    `${classification.primaryOwner} is the lead owner, with ${classification.secondaryOwner} as the main support function. The key obligation domains are ${obligations.map(obligation => obligation.name).join(", ")}.`;
+  const whatNeedsToHappenNext = actions.slice(0, 3).join(" ");
+  const whatIsStillUnclear = uncertainty.flags.length
+    ? uncertainty.flags.join(" ")
+    : "No major uncertainty flags were generated from the current parse and scoring model.";
+
+  return [
+    {
+      title: "What is this?",
+      copy: whatIsThis,
+      evidenceFields: ["title", "lead", "general"]
+    },
+    {
+      title: "What is changing?",
+      copy: whatIsChanging,
+      evidenceFields: ["description", "impact", "general"]
+    },
+    {
+      title: "Why now?",
+      copy: whyNow,
+      evidenceFields: ["milestones", "timing", "isNew"]
+    },
+    {
+      title: "Why FMRUK may care",
+      copy: whyFmrukMayCare,
+      evidenceFields: ["description", "milestones", "general"]
+    },
+    {
+      title: "Who owns it?",
+      copy: whoOwnsIt,
+      evidenceFields: ["title", "description"]
+    },
+    {
+      title: "What needs to happen next?",
+      copy: whatNeedsToHappenNext,
+      evidenceFields: ["milestones", "description", "general"]
+    },
+    {
+      title: "What is still unclear?",
+      copy: whatIsStillUnclear,
+      evidenceFields: ["general", "milestones", "description"]
+    }
+  ];
+}
+
+function buildTimelinePoint(item) {
+  const match = parseTimelineDate(item.expectedKeyMilestones || item.rawText || "");
+  return {
+    label: match?.label || item.timingBucket,
+    sortValue: match?.dateValue || estimateTimingBucketDate(item.timingBucket),
+    raw: item.expectedKeyMilestones || item.timingBucket || "To Be Confirmed"
+  };
+}
+
+function determineCluster(item, classification, obligations) {
+  if (obligations.some(obligation => obligation.name === "Reporting & MI")) {
+    return "Reporting and Data Change";
+  }
+  if (obligations.some(obligation => obligation.name === "Outsourcing & Third Parties")) {
+    return "Resilience and Third-Party Oversight";
+  }
+  if (obligations.some(obligation => obligation.name === "Governance & Accountability")) {
+    return "Governance and Accountability";
+  }
+  if (classification.theme.includes("Market")) {
+    return "Market Conduct and Wholesale Change";
+  }
+  if (classification.theme.includes("Investment Management")) {
+    return "Investment Management Programme";
+  }
+  if (classification.theme.includes("Prudential")) {
+    return "Prudential and Capital Programme";
+  }
+  if (classification.theme.includes("Sustainability")) {
+    return "Sustainability and Disclosure Change";
+  }
+  return classification.theme;
+}
+
+function applyFeedbackOverrides(item) {
+  const feedback = state.feedback[item.canonicalKey];
+  if (!feedback) return item;
+
+  const next = { ...item };
+  next.feedback = feedback;
+
+  if (feedback.themeOverride) {
+    next.theme = feedback.themeOverride;
+    next.internalSubTheme = "Analyst override";
+    next.classificationSignals = dedupeStrings([
+      `Analyst override: theme set to ${feedback.themeOverride}.`,
+      ...(next.classificationSignals || [])
+    ]);
+  }
+
+  if (feedback.ownerOverride) {
+    next.primaryOwner = feedback.ownerOverride;
+  }
+
+  if (feedback.markNotRelevant) {
+    next.isFmrukRelevant = false;
+    next.relevanceScore = Math.min(next.relevanceScore || 0, 35);
+    next.relevanceBand = "Low";
+    next.whyNotRelevant = "Analyst override has marked this initiative as not relevant to FMRUK at present.";
+  }
+
+  if (feedback.markUrgent) {
+    next.impactLevel = "High";
+    next.impactScore = Math.max(next.impactScore || 0, 82);
+    next.immediateActionRequired = true;
+  }
+
+  if (feedback.markParseIssue) {
+    next.parseConfidence = Math.max((next.parseConfidence || 70) - 18, 20);
+    next.parseConfidenceBand = next.parseConfidence >= 85 ? "High" : next.parseConfidence >= 70 ? "Medium" : "Low";
+    next.parseWarnings = dedupeStrings([
+      ...(next.parseWarnings || []),
+      "Analyst feedback indicates a parsing issue."
+    ]);
+  }
+
+  if (feedback.note) {
+    next.uncertaintyFlags = dedupeStrings([
+      ...(next.uncertaintyFlags || []),
+      `Analyst note: ${feedback.note}`
+    ]);
+  }
+
+  next.needsReview = Boolean(
+    next.needsReview ||
+      feedback.markParseIssue ||
+      feedback.note ||
+      feedback.themeOverride ||
+      feedback.ownerOverride
+  );
+
+  return next;
 }
 
 function compareWithPreviousDataset(previousItems, newItems) {
   const previousMap = new Map(previousItems.map(item => [item.canonicalKey, item]));
   const nextMap = new Map(newItems.map(item => [item.canonicalKey, item]));
+  const removedItems = [];
   let newCount = 0;
   let changedCount = 0;
-  let existingCount = 0;
+  let acceleratedCount = 0;
+  let delayedCount = 0;
 
   const items = newItems.map(item => {
     const previous = previousMap.get(item.canonicalKey);
-    let changeStatus = "Existing";
-
     if (!previous) {
-      changeStatus = "New";
       newCount += 1;
-    } else if (hasMeaningfulChanges(previous, item)) {
-      changeStatus = "Changed";
-      changedCount += 1;
-    } else {
-      existingCount += 1;
+      return {
+        ...item,
+        changeStatus: "New",
+        changeNarrative: "New initiative compared with the previous upload."
+      };
     }
+
+    const deltaType = determineDeltaType(previous, item);
+    if (deltaType === "Accelerated") acceleratedCount += 1;
+    else if (deltaType === "Delayed") delayedCount += 1;
+    else if (deltaType === "Changed") changedCount += 1;
 
     return {
       ...item,
-      changeStatus
+      changeStatus: deltaType,
+      changeNarrative: buildChangeNarrative(previous, item, deltaType)
     };
   });
 
-  let removedCount = 0;
-  for (const previousKey of previousMap.keys()) {
-    if (!nextMap.has(previousKey)) removedCount += 1;
-  }
+  previousMap.forEach(previousItem => {
+    if (!nextMap.has(previousItem.canonicalKey)) {
+      removedItems.push(previousItem.initiativeTitle);
+    }
+  });
 
   return {
     items,
     summary: {
       newCount,
       changedCount,
-      existingCount,
-      removedCount
+      acceleratedCount,
+      delayedCount,
+      removedCount: removedItems.length,
+      removedItems: removedItems.slice(0, 8)
     }
   };
 }
 
-function hasMeaningfulChanges(previous, next) {
-  const fields = [
+function determineDeltaType(previous, next) {
+  const previousDate = previous.timeline?.sortValue || estimateTimingBucketDate(previous.timingBucket);
+  const nextDate = next.timeline?.sortValue || estimateTimingBucketDate(next.timingBucket);
+
+  if (Number.isFinite(previousDate) && Number.isFinite(nextDate)) {
+    if (nextDate < previousDate - 28 * 24 * 60 * 60 * 1000) return "Accelerated";
+    if (nextDate > previousDate + 28 * 24 * 60 * 60 * 1000) return "Delayed";
+  }
+
+  const meaningfulFields = [
     "initiativeDescription",
     "expectedKeyMilestones",
     "indicativeImpactOnFirms",
     "theme",
     "internalSubTheme",
-    "stage",
+    "stageLabel",
     "impactLevel",
     "relevanceBand"
   ];
 
-  return fields.some(field => normaliseWs(previous[field]) !== normaliseWs(next[field]));
+  const changed = meaningfulFields.some(field => normaliseWs(previous[field]) !== normaliseWs(next[field]));
+  return changed ? "Changed" : "Existing";
+}
+
+function buildChangeNarrative(previous, next, deltaType) {
+  if (deltaType === "New") return "New initiative compared with the previous upload.";
+  if (deltaType === "Accelerated") return "Milestone timing appears to have moved earlier relative to the previous upload.";
+  if (deltaType === "Delayed") return "Milestone timing appears to have moved later relative to the previous upload.";
+  if (deltaType === "Changed") return "Description, staging or triage outcome differs from the previous upload.";
+  return "No material delta detected against the previous upload.";
+}
+
+function reanalyseCurrentDataset() {
+  if (!state.baseItems.length) {
+    renderAll();
+    return;
+  }
+
+  const deltaMap = new Map(
+    state.raw.map(item => [
+      item.canonicalKey,
+      {
+        changeStatus: item.changeStatus || "Existing",
+        changeNarrative: item.changeNarrative || "No delta story is currently available."
+      }
+    ])
+  );
+
+  state.raw = sortItems(
+    analyseRows(state.baseItems).map(item => ({
+      ...item,
+      ...(deltaMap.get(item.canonicalKey) || {
+        changeStatus: "Existing",
+        changeNarrative: "No delta story is currently available."
+      })
+    }))
+  );
+
+  saveToStorage();
+  renderAll();
+}
+
+function renderAll() {
+  updateMeta();
+  renderRoleButtons();
+  renderPresetButtons();
+  populateFilters();
+  applyFilters();
+}
+
+function updateMeta() {
+  const roleView = ROLE_VIEWS[state.roleView];
+  els.currentRoleLabel.textContent = `${state.roleView} lens active`;
+  els.roleSummary.textContent = roleView.summary;
+
+  if (!state.datasetMeta) {
+    els.headerMeta.textContent = "No dataset loaded";
+    els.datasetInfo.textContent = "No saved dataset found.";
+    els.comparisonInfo.textContent = "Upload a PDF to build the first comparison story.";
+    return;
+  }
+
+  els.headerMeta.textContent = `${state.datasetMeta.fileName} | ${state.datasetMeta.rowCount} initiatives | uploaded ${formatDate(state.datasetMeta.uploadedAt)}`;
+  els.datasetInfo.textContent = `Stored in this browser only. File type: ${state.datasetMeta.fileType}. Parser: ${state.datasetMeta.parserVersion}.`;
+
+  const summary = state.datasetMeta.comparisonSummary;
+  if (summary) {
+    const comparisonBits = [
+      `${summary.newCount} new`,
+      `${summary.changedCount} changed`,
+      `${summary.acceleratedCount} accelerated`,
+      `${summary.delayedCount} delayed`,
+      `${summary.removedCount} removed`
+    ];
+    els.comparisonInfo.textContent = `Comparison story: ${comparisonBits.join(", ")}.`;
+  } else {
+    els.comparisonInfo.textContent = "No comparison history is available yet.";
+  }
+}
+
+function renderRoleButtons() {
+  const buttons = els.roleViewButtons.querySelectorAll("[data-role-view]");
+  buttons.forEach(button => {
+    button.classList.toggle("active", button.dataset.roleView === state.roleView);
+  });
+}
+
+function renderPresetButtons() {
+  const buttons = els.presetButtons.querySelectorAll("[data-preset]");
+  buttons.forEach(button => {
+    button.classList.toggle("active", button.dataset.preset === state.activePreset);
+  });
+  els.activePresetLabel.textContent = `Preset: ${presetLabel(state.activePreset)}`;
+}
+
+function populateFilters() {
+  fillSelect(els.sectionFilter, unique(state.raw.map(item => item.sectionName)));
+  fillSelect(els.themeFilter, unique(state.raw.map(item => item.theme)));
+  fillSelect(els.ownerFilter, unique(state.raw.map(item => item.primaryOwner)));
+  fillSelect(els.stageFilter, unique(state.raw.map(item => item.stageLabel)));
+  fillSelect(els.clusterFilter, unique(state.raw.map(item => item.clusterLabel)));
+}
+
+function fillSelect(selectEl, values) {
+  if (!selectEl) return;
+  const current = selectEl.value;
+  selectEl.innerHTML = `<option value="">All</option>`;
+  values.forEach(value => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    if (value === current) option.selected = true;
+    selectEl.appendChild(option);
+  });
+}
+
+function applyFilters() {
+  const query = els.searchInput.value.trim().toLowerCase();
+  const section = els.sectionFilter.value;
+  const theme = els.themeFilter.value;
+  const owner = els.ownerFilter.value;
+  const stage = els.stageFilter.value;
+  const change = els.changeFilter.value;
+  const cluster = els.clusterFilter.value;
+  const minRelevance = Number(els.relevanceFilter.value || 0);
+  const minParseConfidence = Number(els.parseConfidenceFilter.value || 0);
+  const fmrukOnly = els.fmrukOnlyFilter.checked;
+  const excludeAnnex = els.excludeAnnexFilter.checked;
+  const needsReviewOnly = els.needsReviewFilter.checked;
+
+  const items = state.raw.filter(item => {
+    const haystack = [
+      item.sectionName,
+      item.subcategory,
+      item.leadRegulator,
+      item.initiativeTitle,
+      item.initiativeDescription,
+      item.theme,
+      item.internalSubTheme,
+      item.primaryOwner,
+      item.secondaryOwner,
+      item.stageLabel,
+      item.clusterLabel,
+      item.potentialBusinessImpact,
+      item.rationale,
+      item.whyNotRelevant,
+      ...(item.classificationSignals || []),
+      ...(item.relevanceSignals || []),
+      ...(item.relevanceNegativeSignals || []),
+      ...(item.profileReasons || []),
+      ...(item.uncertaintyFlags || []),
+      ...(item.obligations || []).map(obligation => obligation.name),
+      ...(flattenEvidence(item.evidence) || []).map(entry => entry.excerpt)
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return (
+      (!query || haystack.includes(query)) &&
+      (!section || item.sectionName === section) &&
+      (!theme || item.theme === theme) &&
+      (!owner || item.primaryOwner === owner) &&
+      (!stage || item.stageLabel === stage) &&
+      (!change || item.changeStatus === change) &&
+      (!cluster || item.clusterLabel === cluster) &&
+      (item.relevanceScore || 0) >= minRelevance &&
+      (item.parseConfidence || 0) >= minParseConfidence &&
+      (!fmrukOnly || item.isFmrukRelevant === true) &&
+      (!excludeAnnex || item.sectionName !== "Annex: initiatives completed/stopped") &&
+      (!needsReviewOnly || item.needsReview === true) &&
+      matchesActivePreset(item)
+    );
+  });
+
+  state.filtered = sortItems(items, state.roleView);
+
+  if (!state.filtered.find(item => item.id === state.selectedItemId)) {
+    state.selectedItemId = state.filtered[0]?.id || null;
+  }
+
+  renderSummary(state.filtered);
+  renderInitiativeList(state.filtered);
+  const selectedItem = state.filtered.find(item => item.id === state.selectedItemId);
+  renderDetail(selectedItem);
+  renderTimelineList(state.filtered);
+  renderPdfEvidence(selectedItem);
+  renderAskResults();
+}
+
+function matchesActivePreset(item) {
+  switch (state.activePreset) {
+    case "high_priority":
+      return item.immediateActionRequired || (item.relevanceScore || 0) >= 80 || item.impactLevel === "High";
+    case "needs_review":
+      return item.needsReview === true;
+    case "delta":
+      return item.changeStatus !== "Existing";
+    case "reporting":
+      return item.obligations?.some(obligation => obligation.name === "Reporting & MI");
+    default:
+      return true;
+  }
+}
+
+function sortItems(items, roleView = state.roleView) {
+  const role = ROLE_VIEWS[roleView] || ROLE_VIEWS.Compliance;
+  return [...items].sort((a, b) => {
+    const roleScoreA = rolePriorityScore(a, role);
+    const roleScoreB = rolePriorityScore(b, role);
+    if (roleScoreB !== roleScoreA) return roleScoreB - roleScoreA;
+    if ((b.immediateActionRequired ? 1 : 0) !== (a.immediateActionRequired ? 1 : 0)) {
+      return (b.immediateActionRequired ? 1 : 0) - (a.immediateActionRequired ? 1 : 0);
+    }
+    if ((b.relevanceScore || 0) !== (a.relevanceScore || 0)) {
+      return (b.relevanceScore || 0) - (a.relevanceScore || 0);
+    }
+    return (b.impactScore || 0) - (a.impactScore || 0);
+  });
+}
+
+function rolePriorityScore(item, role) {
+  let score = 0;
+  if (role.ownerBoosts.includes(item.primaryOwner)) score += 12;
+  if ((item.obligations || []).some(obligation => role.obligationBoosts.includes(obligation.name))) score += 10;
+  if (role.stageBoosts.includes(item.stageLabel)) score += 8;
+  if (state.roleView === "Executive" && item.changeStatus !== "Existing") score += 8;
+  if (item.immediateActionRequired) score += 12;
+  if (item.needsReview) score += 4;
+  return score;
+}
+
+function renderSummary(items) {
+  els.kpiTotal.textContent = items.length;
+  els.kpiImmediateAction.textContent = items.filter(item => item.immediateActionRequired).length;
+  els.kpiHighRelevance.textContent = items.filter(item => (item.relevanceScore || 0) >= 80).length;
+  els.kpiNeedsReview.textContent = items.filter(item => item.needsReview).length;
+  els.kpiChanges.textContent = items.filter(item => item.changeStatus !== "Existing").length;
+  els.listMeta.textContent = `${items.length} items in scope`;
+  els.portfolioNarrative.textContent = buildPortfolioNarrative(items);
+  renderClusterList(items);
+  renderDeltaList(items);
+}
+
+function buildPortfolioNarrative(items) {
+  if (!items.length) {
+    return "No initiatives match the current filters.";
+  }
+
+  const topThemes = topCounts(items.map(item => item.theme), 3)
+    .map(entry => entry.name)
+    .join(", ");
+  const topOwners = topCounts(items.map(item => item.primaryOwner), 2)
+    .map(entry => entry.name)
+    .join(" and ");
+  const highPriority = items.filter(item => item.immediateActionRequired).length;
+  const delta = items.filter(item => item.changeStatus !== "Existing").length;
+  const roleView = ROLE_VIEWS[state.roleView];
+
+  return `${roleView.summary} Within the current filtered scope there are ${items.length} initiatives, with ${highPriority} requiring immediate action and ${delta} carrying a visible delta from the previous upload. The strongest programme themes are ${topThemes || "not yet available"}, with ownership leaning toward ${topOwners || "no owner pattern yet"}.`;
+}
+
+function renderClusterList(items) {
+  const clusters = topCounts(items.map(item => item.clusterLabel), 6);
+  els.clusterList.innerHTML = "";
+
+  if (!clusters.length) {
+    els.clusterList.innerHTML = "<li>No clusters available yet.</li>";
+    return;
+  }
+
+  clusters.forEach(cluster => {
+    const li = document.createElement("li");
+    li.innerHTML = `<strong>${escapeHtml(cluster.name)}</strong><br />${cluster.count} initiatives currently align to this programme.`;
+    els.clusterList.appendChild(li);
+  });
+}
+
+function renderDeltaList(items) {
+  const summary = state.datasetMeta?.comparisonSummary;
+  els.deltaList.innerHTML = "";
+
+  if (!summary) {
+    els.deltaList.innerHTML = "<li>No comparison story is available yet.</li>";
+    return;
+  }
+
+  const lines = [
+    `${summary.newCount} new initiatives were detected in the latest upload.`,
+    `${summary.changedCount} initiatives changed in wording, stage or triage outcome.`,
+    `${summary.acceleratedCount} initiatives appear to have accelerated.`,
+    `${summary.delayedCount} initiatives appear to have moved later.`,
+    summary.removedItems?.length
+      ? `Removed from the latest upload: ${summary.removedItems.join(", ")}.`
+      : `${summary.removedCount} initiatives no longer appear in the latest upload.`
+  ];
+
+  const topChanged = items
+    .filter(item => item.changeStatus !== "Existing")
+    .slice(0, 2)
+    .map(item => `${item.changeStatus}: ${item.initiativeTitle}`);
+
+  [...lines, ...topChanged].forEach(line => {
+    const li = document.createElement("li");
+    li.textContent = line;
+    els.deltaList.appendChild(li);
+  });
+}
+
+function renderTimelineList(items) {
+  els.timelineList.innerHTML = "";
+
+  const nextItems = items
+    .filter(item => Number.isFinite(item.timeline?.sortValue))
+    .sort((a, b) => a.timeline.sortValue - b.timeline.sortValue)
+    .slice(0, 8);
+
+  if (!nextItems.length) {
+    els.timelineList.innerHTML = "<li>No milestone timeline is available for the current filter set.</li>";
+    return;
+  }
+
+  nextItems.forEach(item => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span class="timeline-date">${escapeHtml(item.timeline.label || item.timingBucket)}</span>
+      <strong>${escapeHtml(item.initiativeTitle)}</strong><br />
+      ${escapeHtml(truncateText(item.expectedKeyMilestones || item.stageLabel, 160))}
+    `;
+    els.timelineList.appendChild(li);
+  });
+}
+
+function renderInitiativeList(items) {
+  els.initiativeList.innerHTML = "";
+
+  if (!items.length) {
+    els.initiativeList.innerHTML = `<div class="empty-list">No initiatives match the current filters.</div>`;
+    return;
+  }
+
+  items.forEach(item => {
+    const card = document.createElement("article");
+    card.className = "initiative-card";
+    if (item.id === state.selectedItemId) card.classList.add("selected");
+
+    card.innerHTML = `
+      <div class="initiative-topline">
+        <div class="chip-row">
+          ${chipHtml(item.relevanceBand, item.relevanceBand)}
+          ${chipHtml(item.stageLabel, stageChipClass(item.stageLabel))}
+          ${chipHtml(item.changeStatus, changeChipClass(item.changeStatus))}
+        </div>
+        <span class="section-note">${escapeHtml(item.primaryOwner)}</span>
+      </div>
+      <h3 class="initiative-title">${escapeHtml(item.initiativeTitle)}</h3>
+      <p class="initiative-copy">${escapeHtml(truncateText(item.briefBlocks?.[1]?.copy || item.initiativeDescription, 190))}</p>
+      <div class="chip-row">
+        ${chipHtml(`Parse ${item.parseConfidence || 0}`, parseChipClass(item.parseConfidence || 0))}
+        ${chipHtml(item.clusterLabel, "chip-neutral")}
+        ${item.immediateActionRequired ? chipHtml("Immediate action", "chip-high") : ""}
+      </div>
+      <div class="chip-row">
+        ${(item.obligations || []).slice(0, 3).map(obligation => chipHtml(obligation.name, "chip-neutral")).join("")}
+      </div>
+    `;
+
+    card.addEventListener("click", () => {
+      state.selectedItemId = item.id;
+      renderInitiativeList(state.filtered);
+      renderDetail(item);
+      renderPdfEvidence(item);
+    });
+
+    els.initiativeList.appendChild(card);
+  });
+}
+
+function renderDetail(item) {
+  if (!item) {
+    els.detailMeta.textContent = "No initiative selected";
+    els.detailPanel.innerHTML =
+      "Upload the FCA Grid PDF, then select an initiative to generate a structured brief.";
+    return;
+  }
+
+  els.detailMeta.textContent = `${item.primaryOwner} lead | ${item.stageLabel} | pages ${item.sourcePages.join(", ")}`;
+
+  const sourcePages = item.sourcePages?.length ? item.sourcePages.join(", ") : "N/A";
+  const feedback = state.feedback[item.canonicalKey] || {};
+
+  const heroChips = [
+    chipHtml(`${item.relevanceScore} relevance`, chipClassForBand(item.relevanceBand)),
+    chipHtml(item.impactLevel, chipClassForBand(item.impactLevel)),
+    chipHtml(`${item.parseConfidence} parse`, parseChipClass(item.parseConfidence)),
+    chipHtml(item.changeStatus, changeChipClass(item.changeStatus)),
+    item.isFmrukRelevant ? chipHtml("FMRUK relevant", "chip-high") : chipHtml("Low FMRUK relevance", "chip-low")
+  ].join("");
+
+  const briefCards = item.briefBlocks
+    .map(block => renderBriefCard(item, block))
+    .join("");
+
+  const metaCards = [
+    ["Section", item.sectionName || "N/A"],
+    ["Subcategory", item.subcategory || "N/A"],
+    ["Lead regulator", item.leadRegulator || "N/A"],
+    ["Primary owner", item.primaryOwner || "N/A"],
+    ["Secondary owner", item.secondaryOwner || "N/A"],
+    ["Timing", item.timeline?.label || item.timingBucket || "N/A"],
+    ["Source pages", sourcePages],
+    ["Change story", item.changeNarrative || "N/A"]
+  ]
+    .map(
+      ([label, value]) => `
+        <div class="meta-card">
+          <div class="meta-label">${escapeHtml(label)}</div>
+          <div class="meta-value">${escapeHtml(value)}</div>
+        </div>
+      `
+    )
+    .join("");
+
+  const uncertaintyList = item.uncertaintyFlags?.length
+    ? `<ul class="detail-list">${item.uncertaintyFlags.map(flag => `<li>${escapeHtml(flag)}</li>`).join("")}</ul>`
+    : `<p>No major uncertainty flags were generated.</p>`;
+
+  const whyNotRelevant = item.whyNotRelevant
+    ? `<div class="support-card"><h4>Why This May Not Be Relevant</h4><p>${escapeHtml(item.whyNotRelevant)}</p></div>`
+    : "";
+
+  els.detailPanel.innerHTML = `
+    <section class="detail-hero">
+      <div class="chip-row">${heroChips}</div>
+      <h3>${escapeHtml(item.initiativeTitle)}</h3>
+      <p class="hero-copy">${escapeHtml(item.briefBlocks?.[0]?.copy || item.rationale)}</p>
+    </section>
+
+    <section class="detail-meta-grid">${metaCards}</section>
+
+    <section class="brief-grid">${briefCards}</section>
+
+    <section class="support-card">
+      <h4>Obligation Map</h4>
+      <div class="obligation-grid">
+        ${(item.obligations || []).map(obligation => chipHtml(obligation.name, "chip-neutral")).join("")}
+      </div>
+      <p class="support-copy">${escapeHtml(item.potentialBusinessImpact || "N/A")}</p>
+    </section>
+
+    <section class="support-card">
+      <h4>Confidence And Uncertainty</h4>
+      ${uncertaintyList}
+    </section>
+
+    <section class="support-card">
+      <h4>Evidence-Led Relevance Story</h4>
+      <div class="chip-column">
+        <div class="list-caption">Positive signals</div>
+        <div class="signal-grid">${renderSignalSet(item.relevanceSignals, "chip-high")}</div>
+        <div class="list-caption">Counter-signals</div>
+        <div class="signal-grid">${renderSignalSet(item.relevanceNegativeSignals, "chip-low")}</div>
+        <div class="list-caption">Profile matches</div>
+        <div class="signal-grid">${renderSignalSet(item.profileReasons, "chip-neutral")}</div>
+      </div>
+    </section>
+
+    ${whyNotRelevant}
+
+    <section class="feedback-panel">
+      <h4>Analyst Feedback Loop</h4>
+      <p class="feedback-note">
+        Mark urgent items, flag parsing issues, override ownership or classification, and add notes. These analyst corrections are saved and reused when the same initiative appears again.
+      </p>
+      <div class="feedback-actions">
+        <button class="feedback-chip ${feedback.markUrgent ? "active" : ""}" id="feedbackUrgentBtn" type="button">Mark Urgent</button>
+        <button class="feedback-chip ${feedback.markNotRelevant ? "active" : ""}" id="feedbackNotRelevantBtn" type="button">Mark Not Relevant</button>
+        <button class="feedback-chip ${feedback.markParseIssue ? "active" : ""}" id="feedbackParseBtn" type="button">Parsing Issue</button>
+        <button class="feedback-chip" id="clearFeedbackBtn" type="button">Clear Feedback</button>
+      </div>
+      <div class="filter-grid">
+        <label>
+          <span>Theme Override</span>
+          <select id="themeOverrideSelect">${buildThemeOptions(item.theme, feedback.themeOverride)}</select>
+        </label>
+        <label>
+          <span>Owner Override</span>
+          <select id="ownerOverrideSelect">${buildOwnerOptions(item.primaryOwner, feedback.ownerOverride)}</select>
+        </label>
+      </div>
+      <label>
+        <span>Analyst Note</span>
+        <textarea id="feedbackNoteInput" rows="3">${escapeHtml(feedback.note || "")}</textarea>
+      </label>
+      <div class="inline-actions">
+        <button class="secondary-btn" id="saveFeedbackBtn" type="button">Save Feedback</button>
+      </div>
+    </section>
+  `;
+
+  attachDetailEvents(item);
+}
+
+function renderBriefCard(item, block) {
+  const evidence = getEvidenceForFields(item, block.evidenceFields, 3);
+  return `
+    <article class="brief-card">
+      <h4>${escapeHtml(block.title)}</h4>
+      <p class="brief-copy">${escapeHtml(block.copy)}</p>
+      <div class="brief-evidence">
+        <div class="chip-row">
+          ${evidence.length ? evidence.map(entry => evidenceButtonHtml(entry)).join("") : chipHtml("No direct evidence link", "chip-neutral")}
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderSignalSet(values, chipClass) {
+  if (!values?.length) return chipHtml("None", "chip-neutral");
+  return values.map(value => chipHtml(value, chipClass)).join("");
+}
+
+function attachDetailEvents(item) {
+  els.detailPanel.querySelectorAll("[data-evidence-key]").forEach(button => {
+    button.addEventListener("click", () => {
+      state.currentPdfHighlightKey = button.dataset.evidenceKey;
+      renderPdfEvidence(item);
+      const activeChip = els.evidenceTrail.querySelector(`[data-evidence-key="${button.dataset.evidenceKey}"]`);
+      if (activeChip) activeChip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+    });
+  });
+
+  const urgentBtn = document.getElementById("feedbackUrgentBtn");
+  const notRelevantBtn = document.getElementById("feedbackNotRelevantBtn");
+  const parseBtn = document.getElementById("feedbackParseBtn");
+  const clearBtn = document.getElementById("clearFeedbackBtn");
+  const saveBtn = document.getElementById("saveFeedbackBtn");
+
+  urgentBtn?.addEventListener("click", () => toggleFeedbackFlag(item, "markUrgent"));
+  notRelevantBtn?.addEventListener("click", () => toggleFeedbackFlag(item, "markNotRelevant"));
+  parseBtn?.addEventListener("click", () => toggleFeedbackFlag(item, "markParseIssue"));
+  clearBtn?.addEventListener("click", () => clearFeedbackForItem(item));
+  saveBtn?.addEventListener("click", () => saveDetailFeedback(item));
+}
+
+function toggleFeedbackFlag(item, field) {
+  const current = state.feedback[item.canonicalKey] || {};
+  state.feedback[item.canonicalKey] = {
+    ...current,
+    [field]: !current[field]
+  };
+  saveFeedback();
+  reanalyseCurrentDataset();
+  preserveSelection(item.canonicalKey);
+}
+
+function clearFeedbackForItem(item) {
+  delete state.feedback[item.canonicalKey];
+  saveFeedback();
+  reanalyseCurrentDataset();
+  preserveSelection(item.canonicalKey);
+}
+
+function saveDetailFeedback(item) {
+  const current = state.feedback[item.canonicalKey] || {};
+  const themeOverride = document.getElementById("themeOverrideSelect")?.value || "";
+  const ownerOverride = document.getElementById("ownerOverrideSelect")?.value || "";
+  const note = normaliseWs(document.getElementById("feedbackNoteInput")?.value || "");
+
+  const next = {
+    ...current,
+    themeOverride: themeOverride || "",
+    ownerOverride: ownerOverride || "",
+    note
+  };
+
+  state.feedback[item.canonicalKey] = next;
+  saveFeedback();
+  els.uploadStatus.textContent = "Analyst feedback saved and applied to the dataset.";
+  reanalyseCurrentDataset();
+  preserveSelection(item.canonicalKey);
+}
+
+function preserveSelection(canonicalKey) {
+  const selected = state.raw.find(item => item.canonicalKey === canonicalKey);
+  if (selected) {
+    state.selectedItemId = selected.id;
+  }
+  renderAll();
+}
+
+function renderPdfEvidence(item) {
+  els.evidenceTrail.innerHTML = "";
+  els.pdfPreview.innerHTML = "";
+
+  if (!item) {
+    els.pdfPreviewStatus.textContent = "Select an initiative to review its linked evidence.";
+    return;
+  }
+
+  const evidence = getEvidenceForFields(item, ["title", "lead", "description", "milestones", "impact", "timing", "isNew"], 20);
+  if (!evidence.length) {
+    els.pdfPreviewStatus.textContent = "No evidence entries were captured for the selected initiative.";
+    return;
+  }
+
+  if (!state.currentPdfHighlightKey || !evidence.find(entry => entry.key === state.currentPdfHighlightKey)) {
+    state.currentPdfHighlightKey = evidence[0].key;
+  }
+
+  evidence.forEach(entry => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "evidence-chip";
+    if (entry.key === state.currentPdfHighlightKey) button.classList.add("active");
+    button.dataset.evidenceKey = entry.key;
+    button.textContent = `P${entry.pageNumber} ${fieldLabel(entry.field)}: ${truncateText(entry.excerpt, 52)}`;
+    button.addEventListener("click", () => {
+      state.currentPdfHighlightKey = entry.key;
+      renderPdfEvidence(item);
+    });
+    els.evidenceTrail.appendChild(button);
+  });
+
+  renderPdfPreview(item, evidence).catch(err => {
+    console.error(err);
+    els.pdfPreviewStatus.textContent = "The PDF preview could not be rendered for this selection.";
+  });
+}
+
+async function renderPdfPreview(item, evidence) {
+  els.pdfPreview.innerHTML = "";
+
+  if (!state.pdfDocument) {
+    els.pdfPreviewStatus.textContent =
+      "The current session does not have the PDF preview document loaded. Upload the PDF again to restore the live preview.";
+    return;
+  }
+
+  const pages = item.sourcePages?.length ? item.sourcePages.slice(0, 4) : [];
+  if (!pages.length) {
+    els.pdfPreviewStatus.textContent = "No source pages were captured for this initiative.";
+    return;
+  }
+
+  els.pdfPreviewStatus.textContent = `Showing source pages ${pages.join(", ")} with evidence-linked highlight bands.`;
+  const activeEvidence = evidence.find(entry => entry.key === state.currentPdfHighlightKey);
+  const token = ++state.pdfRenderToken;
+
+  for (const pageNumber of pages) {
+    const page = await state.pdfDocument.getPage(pageNumber);
+    if (token !== state.pdfRenderToken) return;
+
+    const viewport = page.getViewport({ scale: 1.1 });
+    const wrapper = document.createElement("div");
+    wrapper.className = "pdf-page";
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(viewport.width * ratio);
+    canvas.height = Math.floor(viewport.height * ratio);
+    canvas.style.width = `${viewport.width}px`;
+    canvas.style.height = `${viewport.height}px`;
+    context.scale(ratio, ratio);
+
+    await page.render({ canvasContext: context, viewport }).promise;
+    if (token !== state.pdfRenderToken) return;
+
+    const overlay = document.createElement("div");
+    overlay.className = "pdf-overlay";
+    overlay.style.width = `${viewport.width}px`;
+    overlay.style.height = `${viewport.height}px`;
+
+    evidence
+      .filter(entry => entry.pageNumber === pageNumber)
+      .forEach(entry => {
+        const highlight = document.createElement("div");
+        highlight.className = "pdf-highlight";
+        if (entry.key === activeEvidence?.key) highlight.classList.add("active");
+
+        const scale = viewport.width / entry.pageWidth;
+        const x1 = Math.max(entry.x1 * scale, 12);
+        const width = Math.max((entry.x2 - entry.x1) * scale, viewport.width * 0.28);
+        const top = clamp(viewport.height - entry.y * scale - 12, 8, viewport.height - 24);
+
+        highlight.style.left = `${x1}px`;
+        highlight.style.top = `${top}px`;
+        highlight.style.width = `${Math.min(width, viewport.width - x1 - 8)}px`;
+        highlight.style.height = "20px";
+        overlay.appendChild(highlight);
+      });
+
+    wrapper.appendChild(canvas);
+    wrapper.appendChild(overlay);
+    els.pdfPreview.appendChild(wrapper);
+  }
+}
+
+function runAskQuery() {
+  const query = normaliseWs(els.askInput.value);
+  state.ask.query = query;
+
+  if (!query) {
+    state.ask.answer =
+      "Ask a search-style question and the workspace will generate a portfolio answer from the parsed initiatives and evidence.";
+    state.ask.results = [];
+    renderAskResults();
+    return;
+  }
+
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const scored = state.raw
+    .map(item => {
+      const haystack = [
+        item.initiativeTitle,
+        item.theme,
+        item.internalSubTheme,
+        item.rationale,
+        item.potentialBusinessImpact,
+        item.whyNotRelevant,
+        item.primaryOwner,
+        item.stageLabel,
+        ...(item.obligations || []).map(obligation => obligation.name),
+        ...(flattenEvidence(item.evidence) || []).map(entry => entry.excerpt)
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      let score = 0;
+      terms.forEach(term => {
+        if (haystack.includes(term)) score += 8;
+      });
+      if (haystack.includes(query.toLowerCase())) score += 12;
+      if (item.isFmrukRelevant) score += 4;
+      if (item.immediateActionRequired) score += 4;
+
+      return { item, score };
+    })
+    .filter(result => result.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+
+  state.ask.results = scored.map(result => result.item);
+
+  if (!state.ask.results.length) {
+    state.ask.answer = `No initiatives matched "${query}" strongly enough in the current dataset.`;
+    renderAskResults();
+    return;
+  }
+
+  const topThemes = topCounts(state.ask.results.map(item => item.theme), 2)
+    .map(entry => entry.name)
+    .join(", ");
+  const topOwners = topCounts(state.ask.results.map(item => item.primaryOwner), 2)
+    .map(entry => entry.name)
+    .join(" and ");
+
+  state.ask.answer = `I found ${state.ask.results.length} initiatives aligned to "${query}". The strongest matches cluster around ${topThemes || "the current search scope"}, with likely ownership in ${topOwners || "the filtered owner set"}.`;
+  renderAskResults();
+}
+
+function renderAskResults() {
+  els.askAnswer.textContent = state.ask.answer || "Ask a question to search across the portfolio.";
+  els.askResults.innerHTML = "";
+
+  if (!state.ask.results.length) {
+    els.askResults.innerHTML = "<li>No ask-results are currently available.</li>";
+    return;
+  }
+
+  state.ask.results.forEach(item => {
+    const li = document.createElement("li");
+    li.innerHTML = `<strong>${escapeHtml(item.initiativeTitle)}</strong><br />${escapeHtml(
+      truncateText(item.briefBlocks?.[3]?.copy || item.rationale, 180)
+    )}`;
+    li.addEventListener("click", () => {
+      state.selectedItemId = item.id;
+      renderInitiativeList(state.filtered);
+      renderDetail(item);
+      renderPdfEvidence(item);
+    });
+    els.askResults.appendChild(li);
+  });
 }
 
 function exportJson() {
@@ -1747,7 +3276,7 @@ function exportJson() {
   }
 
   downloadTextFile(
-    "fmruk-regulatory-dashboard.json",
+    "fmruk-regulatory-intelligence.json",
     JSON.stringify(state.filtered, null, 2),
     "application/json"
   );
@@ -1759,13 +3288,9 @@ function exportCsv() {
     return;
   }
 
-  const csv = buildCsv(state.filtered);
-  downloadTextFile("fmruk-regulatory-dashboard.csv", csv, "text/csv;charset=utf-8;");
-}
-
-function buildCsv(items) {
   const columns = [
     "changeStatus",
+    "clusterLabel",
     "sectionName",
     "subcategory",
     "leadRegulator",
@@ -1780,7 +3305,6 @@ function buildCsv(items) {
     "parseConfidence",
     "timingBucket",
     "expectedKeyMilestones",
-    "initiativeDescription",
     "potentialBusinessImpact",
     "rationale",
     "suggestedAction"
@@ -1788,390 +3312,363 @@ function buildCsv(items) {
 
   const lines = [
     columns.join(","),
-    ...items.map(item =>
-      columns
-        .map(column => csvEscape(item[column]))
-        .join(",")
+    ...state.filtered.map(item =>
+      columns.map(column => csvEscape(item[column])).join(",")
     )
   ];
 
-  return lines.join("\n");
+  downloadTextFile("fmruk-regulatory-intelligence.csv", lines.join("\n"), "text/csv;charset=utf-8;");
 }
 
-function csvEscape(value) {
-  const stringValue = String(value ?? "");
-  return `"${stringValue.replace(/"/g, '""')}"`;
-}
-
-function downloadTextFile(fileName, content, mimeType) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-function renderAll() {
-  updateMeta();
-  populateFilters();
-  applyFilters();
-}
-
-function updateMeta() {
-  if (!state.datasetMeta) {
-    els.headerMeta.textContent = "No dataset loaded";
-    els.datasetInfo.textContent = "No saved dataset found.";
-    els.comparisonInfo.textContent = "Upload a PDF to compare it with the last saved version.";
+function exportBoardBrief() {
+  const items = state.filtered.slice(0, 12);
+  if (!items.length) {
+    els.uploadStatus.textContent = "There are no filtered initiatives available for a board brief.";
     return;
   }
 
-  els.headerMeta.textContent = `${state.datasetMeta.fileName} | ${state.datasetMeta.rowCount} initiatives | uploaded ${formatDate(state.datasetMeta.uploadedAt)}`;
-  els.datasetInfo.textContent = `Stored in this browser only. File type: ${state.datasetMeta.fileType}. Parser: ${state.datasetMeta.parserVersion}.`;
+  const lines = [
+    "# FMRUK Regulatory Board Brief",
+    "",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    state.datasetMeta?.fileName ? `Source PDF: ${state.datasetMeta.fileName}` : "",
+    "",
+    "## Portfolio Summary",
+    buildPortfolioNarrative(items),
+    "",
+    "## Key Movements"
+  ];
 
-  const summary = state.datasetMeta.comparisonSummary;
+  const summary = state.datasetMeta?.comparisonSummary;
   if (summary) {
-    const previousText = state.datasetMeta.previousFileName
-      ? ` vs ${state.datasetMeta.previousFileName}`
-      : "";
-    els.comparisonInfo.textContent =
-      `Comparison${previousText}: ${summary.newCount} new, ${summary.changedCount} changed, ${summary.removedCount} removed.`;
-  } else {
-    els.comparisonInfo.textContent = "No comparison history is available yet.";
+    lines.push(
+      `- ${summary.newCount} new items`,
+      `- ${summary.changedCount} changed items`,
+      `- ${summary.acceleratedCount} accelerated items`,
+      `- ${summary.delayedCount} delayed items`,
+      `- ${summary.removedCount} removed items`
+    );
   }
+
+  lines.push("", "## Material Initiatives");
+
+  items.forEach((item, index) => {
+    lines.push(
+      `${index + 1}. ${item.initiativeTitle}`,
+      `   - Why it matters: ${item.briefBlocks?.[3]?.copy || item.rationale}`,
+      `   - Owner: ${item.primaryOwner} with ${item.secondaryOwner}`,
+      `   - Stage and timing: ${item.stageLabel}; ${item.timeline?.label || item.timingBucket}`,
+      `   - Next action: ${item.suggestedActions?.[0] || item.suggestedAction}`,
+      `   - Uncertainty: ${item.uncertaintyFlags?.[0] || "No major uncertainty flags."}`
+    );
+  });
+
+  downloadTextFile("fmruk-board-brief.md", lines.join("\n"), "text/markdown");
 }
 
-function populateFilters() {
-  fillSelect(els.sectionFilter, unique(state.raw.map(item => item.sectionName)));
-  fillSelect(els.themeFilter, unique(state.raw.map(item => item.theme)));
-  fillSelect(els.ownerFilter, unique(state.raw.map(item => item.primaryOwner)));
-  fillSelect(els.stageFilter, unique(state.raw.map(item => item.stageLabel)));
+function exportOwnerPack() {
+  const role = state.roleView;
+  const relevantItems = state.filtered.filter(item =>
+    role === "Executive" ? item.immediateActionRequired || item.changeStatus !== "Existing" : true
+  );
+
+  if (!relevantItems.length) {
+    els.uploadStatus.textContent = "There are no filtered initiatives available for an owner pack.";
+    return;
+  }
+
+  const grouped = groupBy(relevantItems, item => item.primaryOwner);
+  const lines = [
+    `# FMRUK Owner Pack (${role} lens)`,
+    "",
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    "",
+    buildPortfolioNarrative(relevantItems),
+    ""
+  ];
+
+  Object.entries(grouped).forEach(([owner, items]) => {
+    lines.push(`## ${owner}`);
+    items.slice(0, 12).forEach(item => {
+      lines.push(
+        `- ${item.initiativeTitle}`,
+        `  Stage: ${item.stageLabel} | Change: ${item.changeStatus} | Relevance: ${item.relevanceScore}`,
+        `  Obligations: ${(item.obligations || []).map(obligation => obligation.name).join(", ")}`,
+        `  Action: ${item.suggestedActions?.[0] || item.suggestedAction}`
+      );
+    });
+    lines.push("");
+  });
+
+  downloadTextFile(`fmruk-owner-pack-${slugify(role)}.md`, lines.join("\n"), "text/markdown");
 }
 
-function fillSelect(selectEl, values) {
-  const current = selectEl.value;
-  selectEl.innerHTML = `<option value="">All</option>`;
-  values.forEach(value => {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = value;
-    if (value === current) option.selected = true;
-    selectEl.appendChild(option);
+async function loadPdfDocumentFromBuffer(buffer) {
+  const loadingTask = pdfjsLib.getDocument({ data: buffer.slice ? buffer.slice(0) : buffer });
+  return loadingTask.promise;
+}
+
+function openPdfDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(PDF_DB_NAME, 1);
+    request.onupgradeneeded = event => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(PDF_STORE_NAME)) {
+        db.createObjectStore(PDF_STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
 }
 
-function applyFilters() {
-  const q = els.searchInput.value.trim().toLowerCase();
-  const section = els.sectionFilter.value;
-  const theme = els.themeFilter.value;
-  const owner = els.ownerFilter.value;
-  const stage = els.stageFilter.value;
-  const change = els.changeFilter.value;
-  const impact = els.impactFilter.value;
-  const minRelevance = Number(els.relevanceFilter.value || 0);
-  const minParseConfidence = Number(els.parseConfidenceFilter.value || 0);
-  const fmrukOnly = els.fmrukOnlyFilter.checked;
-  const excludeAnnex = els.excludeAnnexFilter.checked;
-  const needsReviewOnly = els.needsReviewFilter.checked;
+async function saveStoredPdf(buffer) {
+  const db = await openPdfDatabase();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(PDF_STORE_NAME, "readwrite");
+    tx.objectStore(PDF_STORE_NAME).put(buffer, PDF_RECORD_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
 
-  const items = state.raw
-    .filter(item => {
-      const haystack = [
-        item.sectionName,
-        item.subcategory,
-        item.leadRegulator,
-        item.initiativeTitle,
-        item.initiativeDescription,
-        item.theme,
-        item.internalSubTheme,
-        item.primaryOwner,
-        item.secondaryOwner,
-        item.stageLabel,
-        item.potentialBusinessImpact,
-        item.rationale,
-        ...(item.classificationSignals || []),
-        ...(item.relevanceSignals || []),
-        ...(item.relevanceNegativeSignals || []),
-        ...(item.reviewReasons || [])
-      ]
-        .join(" ")
-        .toLowerCase();
+async function loadStoredPdf() {
+  const db = await openPdfDatabase();
+  const result = await new Promise((resolve, reject) => {
+    const tx = db.transaction(PDF_STORE_NAME, "readonly");
+    const request = tx.objectStore(PDF_STORE_NAME).get(PDF_RECORD_KEY);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return result;
+}
 
-      return (
-        (!q || haystack.includes(q)) &&
-        (!section || item.sectionName === section) &&
-        (!theme || item.theme === theme) &&
-        (!owner || item.primaryOwner === owner) &&
-        (!stage || item.stageLabel === stage) &&
-        (!change || item.changeStatus === change) &&
-        (!impact || item.impactLevel === impact) &&
-        (item.relevanceScore || 0) >= minRelevance &&
-        (item.parseConfidence || 0) >= minParseConfidence &&
-        (!fmrukOnly || item.isFmrukRelevant === true) &&
-        (!excludeAnnex || item.sectionName !== "Annex: initiatives completed/stopped") &&
-        (!needsReviewOnly || item.needsReview === true)
-      );
-    })
-    .sort((a, b) => {
-      if ((b.immediateActionRequired ? 1 : 0) !== (a.immediateActionRequired ? 1 : 0)) {
-        return (b.immediateActionRequired ? 1 : 0) - (a.immediateActionRequired ? 1 : 0);
-      }
-      return (b.relevanceScore || 0) - (a.relevanceScore || 0);
+async function clearStoredPdf() {
+  const db = await openPdfDatabase();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(PDF_STORE_NAME, "readwrite");
+    tx.objectStore(PDF_STORE_NAME).delete(PDF_RECORD_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+function getEvidenceForFields(item, fields, limit) {
+  const seen = new Set();
+  const entries = [];
+
+  fields.forEach(field => {
+    (item.evidence?.[field] || []).forEach(entry => {
+      if (seen.has(entry.key)) return;
+      seen.add(entry.key);
+      entries.push(entry);
     });
+  });
 
-  state.filtered = items;
+  return entries.slice(0, limit);
+}
 
-  if (!items.find(item => item.id === state.selectedItemId)) {
-    state.selectedItemId = items[0]?.id || null;
+function flattenEvidence(evidence) {
+  if (!evidence) return [];
+  return Object.values(evidence).flat();
+}
+
+function buildThemeOptions(currentTheme, overrideTheme) {
+  const options = unique([
+    "",
+    ...(state.raw || []).map(item => item.theme),
+    ...CLASSIFICATION_RULES.map(rule => rule.theme),
+    currentTheme,
+    overrideTheme
+  ]);
+  return options
+    .map(value => {
+      const selected = value === (overrideTheme || "") ? " selected" : "";
+      const label = value || "No override";
+      return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
+    })
+    .join("");
+}
+
+function buildOwnerOptions(currentOwner, overrideOwner) {
+  const owners = unique([
+    "",
+    ...(state.raw || []).map(item => item.primaryOwner),
+    currentOwner,
+    overrideOwner,
+    "Compliance",
+    "Risk",
+    "Operations",
+    "Technology",
+    "Finance",
+    "Legal",
+    "Product",
+    "HR"
+  ]);
+
+  return owners
+    .map(value => {
+      const selected = value === (overrideOwner || "") ? " selected" : "";
+      const label = value || "No override";
+      return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
+    })
+    .join("");
+}
+
+function renderSignalSet(values, className) {
+  if (!values?.length) {
+    return chipHtml("None", "chip-neutral");
   }
-
-  renderSummary(items);
-  renderTable(items);
-  renderDetail(items.find(item => item.id === state.selectedItemId));
+  return values.map(value => chipHtml(value, className)).join("");
 }
 
-function renderSummary(items) {
-  els.kpiTotal.textContent = items.length;
-  els.kpiImmediateAction.textContent = items.filter(item => item.immediateActionRequired).length;
-  els.kpiHighRelevance.textContent = items.filter(item => (item.relevanceScore || 0) >= 80).length;
-  els.kpiHighImpact.textContent = items.filter(item => item.impactLevel === "High").length;
-  els.kpiNeedsReview.textContent = items.filter(item => item.needsReview).length;
-  els.kpiChanges.textContent = items.filter(item => item.changeStatus !== "Existing").length;
-
-  renderFrequencyList(els.topThemesList, items.map(item => item.theme));
-  renderFrequencyList(els.topOwnersList, items.map(item => item.primaryOwner));
-  renderItemList(
-    els.immediateActionsList,
-    items.filter(item => item.immediateActionRequired).slice(0, 5),
-    item => `${item.initiativeTitle} (${item.primaryOwner})`
-  );
-  renderItemList(
-    els.reviewList,
-    items.filter(item => item.needsReview).slice(0, 5),
-    item => `${item.initiativeTitle} (${truncateText(item.reviewReasons.join(" "), 80)})`
-  );
-  renderItemList(
-    els.changesList,
-    items.filter(item => item.changeStatus !== "Existing").slice(0, 5),
-    item => `${item.changeStatus}: ${item.initiativeTitle}`
-  );
+function evidenceButtonHtml(entry) {
+  return `<button class="evidence-chip" data-evidence-key="${escapeHtml(entry.key)}" type="button">P${entry.pageNumber} ${escapeHtml(fieldLabel(entry.field))}</button>`;
 }
 
-function renderFrequencyList(target, values) {
-  target.innerHTML = "";
+function fieldLabel(field) {
+  return {
+    title: "title",
+    lead: "lead",
+    description: "description",
+    milestones: "milestone",
+    impact: "impact",
+    consumer: "consumer",
+    timing: "timing",
+    isNew: "new flag",
+    general: "source"
+  }[field] || field;
+}
+
+function chipHtml(value, className) {
+  return `<span class="chip ${className}">${escapeHtml(value)}</span>`;
+}
+
+function chipClassForBand(value) {
+  if (value === "High") return "chip-high";
+  if (value === "Medium") return "chip-medium";
+  if (value === "Low") return "chip-low";
+  return "chip-neutral";
+}
+
+function stageChipClass(value) {
+  if (/final|reporting/i.test(value)) return "chip-high";
+  if (/consultation|supervisory/i.test(value)) return "chip-medium";
+  return "chip-neutral";
+}
+
+function changeChipClass(value) {
+  if (value === "New" || value === "Accelerated") return "chip-high";
+  if (value === "Changed" || value === "Delayed") return "chip-medium";
+  return "chip-neutral";
+}
+
+function parseChipClass(score) {
+  if (score >= 85) return "chip-high";
+  if (score >= 70) return "chip-medium";
+  return "chip-low";
+}
+
+function presetLabel(value) {
+  return {
+    all: "All Items",
+    high_priority: "High Priority",
+    needs_review: "Needs Review",
+    delta: "New This Upload",
+    reporting: "Reporting Items"
+  }[value] || "All Items";
+}
+
+function topCounts(values, limit) {
   const counts = {};
   values.filter(Boolean).forEach(value => {
     counts[value] = (counts[value] || 0) + 1;
   });
 
-  const sorted = Object.entries(counts)
+  return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+    .slice(0, limit)
+    .map(([name, count]) => ({ name, count }));
+}
 
-  if (!sorted.length) {
-    target.innerHTML = "<li>None</li>";
-    return;
-  }
+function scoreSignalGroups(groups, blob) {
+  let score = 0;
+  const reasons = [];
 
-  sorted.forEach(([name, count]) => {
-    const li = document.createElement("li");
-    li.textContent = `${name} (${count})`;
-    target.appendChild(li);
+  groups.forEach(group => {
+    const matched = group.terms.filter(term => blob.includes(term.toLowerCase()));
+    if (!matched.length) return;
+    score += group.weight;
+    reasons.push(group.reason);
   });
+
+  return {
+    score,
+    reasons: dedupeStrings(reasons)
+  };
 }
 
-function renderItemList(target, items, formatter) {
-  target.innerHTML = "";
-  if (!items.length) {
-    target.innerHTML = "<li>None</li>";
-    return;
+function parseTimelineDate(text) {
+  const source = String(text || "").toLowerCase();
+  if (!source) return null;
+
+  const dayMonthYearMatch = source.match(
+    /\b(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})\b/
+  );
+  if (dayMonthYearMatch) {
+    const [, day, month, year] = dayMonthYearMatch;
+    const date = new Date(Number(year), MONTH_LOOKUP[month], Number(day));
+    return {
+      label: `${day} ${capitalise(month)} ${year}`,
+      dateValue: date.getTime()
+    };
   }
 
-  items.forEach(item => {
-    const li = document.createElement("li");
-    li.textContent = formatter(item);
-    target.appendChild(li);
-  });
-}
-
-function renderTable(items) {
-  els.tableBody.innerHTML = "";
-
-  if (!items.length) {
-    els.tableBody.innerHTML = `<tr><td colspan="8">No initiatives match the current filters.</td></tr>`;
-    return;
+  const monthYearMatch = source.match(
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{4})\b/
+  );
+  if (monthYearMatch) {
+    const [, month, year] = monthYearMatch;
+    const date = new Date(Number(year), MONTH_LOOKUP[month], 1);
+    return {
+      label: `${capitalise(month)} ${year}`,
+      dateValue: date.getTime()
+    };
   }
 
-  items.forEach(item => {
-    const tr = document.createElement("tr");
-    if (item.id === state.selectedItemId) tr.classList.add("selected");
-
-    tr.innerHTML = `
-      <td>${priorityBadge(item.relevanceScore || 0)}</td>
-      <td>${parseBadge(item.parseConfidence || 0)}</td>
-      <td>${stageBadge(item.stageLabel || "Monitoring")}</td>
-      <td>${changeBadge(item.changeStatus || "Existing")}</td>
-      <td>${escapeHtml(item.sectionName || "")}</td>
-      <td>${escapeHtml(item.theme || "")}</td>
-      <td>${escapeHtml(item.primaryOwner || "")}</td>
-      <td>${escapeHtml(item.initiativeTitle || "")}</td>
-    `;
-
-    tr.addEventListener("click", () => {
-      state.selectedItemId = item.id;
-      renderTable(state.filtered);
-      renderDetail(item);
-    });
-
-    els.tableBody.appendChild(tr);
-  });
-}
-
-function renderDetail(item) {
-  if (!item) {
-    els.detailPanel.innerHTML = "Upload the FCA Grid PDF, then select an initiative.";
-    return;
+  const quarterMatch = source.match(/\b(q[1-4]|h[12])\s+(\d{4})\b/);
+  if (quarterMatch) {
+    const [, period, yearText] = quarterMatch;
+    const year = Number(yearText);
+    const date = period === "q1"
+      ? new Date(year, 0, 1)
+      : period === "q2"
+      ? new Date(year, 3, 1)
+      : period === "q3"
+      ? new Date(year, 6, 1)
+      : period === "q4"
+      ? new Date(year, 9, 1)
+      : period === "h1"
+      ? new Date(year, 0, 1)
+      : new Date(year, 6, 1);
+    return {
+      label: `${period.toUpperCase()} ${year}`,
+      dateValue: date.getTime()
+    };
   }
 
-  const sourcePages = item.sourcePages?.length ? item.sourcePages.join(", ") : "N/A";
-  const parseWarnings = item.parseWarnings?.length
-    ? renderListHtml(item.parseWarnings)
-    : "<div class=\"detail-copy\">No parser warnings were generated.</div>";
-  const reviewReasons = item.reviewReasons?.length
-    ? renderListHtml(item.reviewReasons)
-    : "<div class=\"detail-copy\">No manual review flags were generated.</div>";
-  const actionList = renderListHtml(item.suggestedActions || []);
-  const positiveSignals = renderSignalChips(item.relevanceSignals || [], "positive");
-  const negativeSignals = renderSignalChips(item.relevanceNegativeSignals || [], "negative");
-  const classificationSignals = renderSignalChips(item.classificationSignals || [], "neutral");
-
-  els.detailPanel.innerHTML = `
-    <h2 class="detail-title">${escapeHtml(item.initiativeTitle || "")}</h2>
-    <p class="detail-subtitle">Lead: ${escapeHtml(item.leadRegulator || "N/A")} | Source pages: ${escapeHtml(sourcePages)}</p>
-
-    <div class="detail-grid">
-      <div class="detail-box"><div class="detail-label">Section</div><div class="detail-value">${escapeHtml(item.sectionName || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Subcategory</div><div class="detail-value">${escapeHtml(item.subcategory || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Theme</div><div class="detail-value">${escapeHtml(item.theme || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Sub-theme</div><div class="detail-value">${escapeHtml(item.internalSubTheme || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Primary Owner</div><div class="detail-value">${escapeHtml(item.primaryOwner || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Secondary Owner</div><div class="detail-value">${escapeHtml(item.secondaryOwner || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Stage</div><div class="detail-value">${escapeHtml(item.stageLabel || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Change Status</div><div class="detail-value">${escapeHtml(item.changeStatus || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Relevance Score</div><div class="detail-value">${escapeHtml(String(item.relevanceScore || 0))}</div></div>
-      <div class="detail-box"><div class="detail-label">Impact Level</div><div class="detail-value">${escapeHtml(item.impactLevel || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Timing Bucket</div><div class="detail-value">${escapeHtml(item.timingBucket || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Parse Confidence</div><div class="detail-value">${escapeHtml(`${item.parseConfidence || 0} (${item.parseConfidenceBand || "N/A"})`)}</div></div>
-      <div class="detail-box"><div class="detail-label">Indicative Impact</div><div class="detail-value">${escapeHtml(item.indicativeImpactOnFirms || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Consumer Interest</div><div class="detail-value">${escapeHtml(item.consumerInterest || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">Timing Updated</div><div class="detail-value">${escapeHtml(item.timingUpdated || "N/A")}</div></div>
-      <div class="detail-box"><div class="detail-label">New Flag</div><div class="detail-value">${escapeHtml(item.isNew || "N/A")}</div></div>
-    </div>
-
-    <div class="detail-block-panel">
-      <div class="detail-block-title">Potential Business Impact</div>
-      <div class="detail-copy">${escapeHtml(item.potentialBusinessImpact || "N/A")}</div>
-    </div>
-
-    <div class="detail-block-panel">
-      <div class="detail-block-title">Expected Key Milestones</div>
-      <div class="detail-copy">${escapeHtml(item.expectedKeyMilestones || "N/A")}</div>
-    </div>
-
-    <div class="detail-block-panel">
-      <div class="detail-block-title">Initiative Description</div>
-      <div class="detail-copy">${escapeHtml(item.initiativeDescription || "N/A")}</div>
-    </div>
-
-    <div class="detail-block-panel">
-      <div class="detail-block-title">Why It Matters To FMRUK</div>
-      <div class="detail-copy">${escapeHtml(item.rationale || "N/A")}</div>
-    </div>
-
-    <div class="detail-block-panel">
-      <div class="detail-block-title">Suggested Actions</div>
-      ${actionList}
-    </div>
-
-    <div class="detail-block-panel">
-      <div class="detail-block-title">Matched Classification Signals</div>
-      <div class="signal-list">${classificationSignals}</div>
-    </div>
-
-    <div class="detail-block-panel">
-      <div class="detail-block-title">Positive Relevance Signals</div>
-      <div class="signal-list">${positiveSignals}</div>
-    </div>
-
-    <div class="detail-block-panel">
-      <div class="detail-block-title">Counter-Signals</div>
-      <div class="signal-list">${negativeSignals}</div>
-    </div>
-
-    <div class="detail-block-panel">
-      <div class="detail-block-title">Parser Warnings</div>
-      ${parseWarnings}
-    </div>
-
-    <div class="detail-block-panel">
-      <div class="detail-block-title">Manual Review Flags</div>
-      ${reviewReasons}
-    </div>
-  `;
+  return null;
 }
 
-function renderListHtml(values) {
-  if (!values?.length) {
-    return `<div class="detail-copy">None</div>`;
-  }
-
-  const items = values
-    .map(value => `<li>${escapeHtml(value)}</li>`)
-    .join("");
-  return `<ul class="detail-list">${items}</ul>`;
-}
-
-function renderSignalChips(values, type) {
-  if (!values?.length) {
-    return `<span class="signal-chip signal-chip-${type}">None</span>`;
-  }
-
-  return values
-    .map(
-      value =>
-        `<span class="signal-chip signal-chip-${type}">${escapeHtml(value)}</span>`
-    )
-    .join("");
-}
-
-function priorityBadge(score) {
-  if (score >= 85) return `<span class="badge badge-high">High</span>`;
-  if (score >= 58) return `<span class="badge badge-medium">Medium</span>`;
-  return `<span class="badge badge-low">Low</span>`;
-}
-
-function parseBadge(score) {
-  if (score >= 85) return `<span class="badge badge-high">High</span>`;
-  if (score >= 70) return `<span class="badge badge-medium">Medium</span>`;
-  return `<span class="badge badge-review">Review</span>`;
-}
-
-function stageBadge(label) {
-  const lowKey = String(label || "").toLowerCase();
-  if (lowKey.includes("final") || lowKey.includes("reporting")) {
-    return `<span class="badge badge-high">${escapeHtml(label)}</span>`;
-  }
-  if (lowKey.includes("consultation") || lowKey.includes("supervisory")) {
-    return `<span class="badge badge-medium">${escapeHtml(label)}</span>`;
-  }
-  return `<span class="badge badge-neutral">${escapeHtml(label)}</span>`;
-}
-
-function changeBadge(status) {
-  if (status === "New") return `<span class="badge badge-high">New</span>`;
-  if (status === "Changed") return `<span class="badge badge-medium">Changed</span>`;
-  return `<span class="badge badge-neutral">Existing</span>`;
+function estimateTimingBucketDate(bucket) {
+  const now = new Date();
+  if (bucket === "Near Term") return now.getTime() + 30 * 24 * 60 * 60 * 1000;
+  if (bucket === "Medium Term") return now.getTime() + 180 * 24 * 60 * 60 * 1000;
+  if (bucket === "Longer Term") return now.getTime() + 420 * 24 * 60 * 60 * 1000;
+  return Number.POSITIVE_INFINITY;
 }
 
 function buildBlob(item) {
@@ -2186,24 +3683,6 @@ function buildBlob(item) {
   ]
     .join(" ")
     .toLowerCase();
-}
-
-function scoreSignalGroups(groups, blob) {
-  let score = 0;
-  const reasons = [];
-
-  groups.forEach(group => {
-    const matchedTerms = group.terms.filter(term => blob.includes(term.toLowerCase()));
-    if (matchedTerms.length) {
-      score += group.weight;
-      reasons.push(group.reason);
-    }
-  });
-
-  return {
-    score,
-    reasons: dedupeStrings(reasons)
-  };
 }
 
 function inferTimingBucket(text) {
@@ -2248,7 +3727,6 @@ function extractMilestones(text) {
   const matches = [];
   const patterns = [
     /\b(?:q[1-4]|h[12])\s+\d{4}\b[^.]*\.?/gi,
-    /\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s*[-/]\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}\b/gi,
     /\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b[^.]*\.?/gi,
     /\b\d{1,2}\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b[^.]*\.?/gi
   ];
@@ -2259,11 +3737,6 @@ function extractMilestones(text) {
   });
 
   return dedupeStrings(matches.map(normaliseWs)).slice(0, 5).join(" | ");
-}
-
-function looksLikeMilestoneText(text) {
-  const value = String(text || "").toLowerCase();
-  return /\b(?:q[1-4]|h[12]|january|february|march|april|may|june|july|august|september|october|november|december|202[5-9])\b/.test(value);
 }
 
 function splitLeadAndTitle(line) {
@@ -2281,14 +3754,6 @@ function splitLeadAndTitle(line) {
   return { lead, title };
 }
 
-function isPlausibleTitle(value) {
-  const title = normaliseWs(value);
-  if (!title || title.length < 6) return false;
-  if (isLeadToken(title)) return false;
-  if (ROW_NOISE_PATTERNS.some(pattern => pattern.test(title))) return false;
-  return !HEADER_TEXT_PATTERNS.some(pattern => pattern.test(title));
-}
-
 function cleanTitleCandidate(value) {
   let title = normaliseWs(value);
   const pattern = new RegExp(
@@ -2297,6 +3762,32 @@ function cleanTitleCandidate(value) {
   );
   title = title.replace(pattern, "");
   return normaliseWs(title);
+}
+
+function isPlausibleTitle(value) {
+  const title = normaliseWs(value);
+  if (!title || title.length < 6) return false;
+  if (isLeadToken(title)) return false;
+  if (ROW_NOISE_PATTERNS.some(pattern => pattern.test(title))) return false;
+  return !HEADER_TEXT_PATTERNS.some(pattern => pattern.test(title));
+}
+
+function shouldTreatAsTitleContinuation(accumulator, value, row) {
+  if (!value) return false;
+  if (accumulator.initiativeTitle.length > 120) return false;
+  if (cellText(row, "milestones") || cellText(row, "impact") || cellText(row, "consumer")) return false;
+  if (/[.:;]/.test(value)) return false;
+  if (looksLikeMilestoneText(value)) return false;
+  return value.length <= 90;
+}
+
+function looksLikeMilestoneText(text) {
+  const value = String(text || "").toLowerCase();
+  return /\b(?:q[1-4]|h[12]|january|february|march|april|may|june|july|august|september|october|november|december|202[5-9])\b/.test(value);
+}
+
+function cellText(row, key) {
+  return normaliseWs(row.cells?.[key]?.text || "");
 }
 
 function stripLeadPrefix(value, lead) {
@@ -2317,18 +3808,6 @@ function stripRepeatedTitle(value, title) {
     return normaliseWs(text.slice(cleanTitle.length));
   }
   return text;
-}
-
-function normaliseLeadToken(value) {
-  const text = normaliseWs(value).toUpperCase().replace(/\s+/g, "");
-  if (!text) return "";
-  const parts = text.split("/");
-  if (!parts.every(part => REGULATOR_CODES.includes(part))) return "";
-  return parts.join("/");
-}
-
-function isLeadToken(value) {
-  return Boolean(normaliseLeadToken(value));
 }
 
 function extractImpactFlag(value) {
@@ -2357,6 +3836,18 @@ function normaliseYesNo(value) {
   return "";
 }
 
+function normaliseLeadToken(value) {
+  const text = normaliseWs(value).toUpperCase().replace(/\s+/g, "");
+  if (!text) return "";
+  const parts = text.split("/");
+  if (!parts.every(part => REGULATOR_CODES.includes(part))) return "";
+  return parts.join("/");
+}
+
+function isLeadToken(value) {
+  return Boolean(normaliseLeadToken(value));
+}
+
 function buildCanonicalKey(item) {
   return [
     normaliseWs(item.sectionName).toLowerCase(),
@@ -2365,25 +3856,55 @@ function buildCanonicalKey(item) {
   ].join("|");
 }
 
-function appendUnique(target, value) {
-  if (value == null || value === "") return;
-  if (Array.isArray(target)) {
-    if (!target.includes(value)) target.push(value);
-  }
+function groupBy(items, getKey) {
+  return items.reduce((acc, item) => {
+    const key = getKey(item);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
 }
 
-function dedupeStrings(values) {
-  return [...new Set(values.map(value => normaliseWs(value)).filter(Boolean))];
+function csvEscape(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function downloadTextFile(fileName, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function splitLines(value) {
+  return String(value || "")
+    .split(",")
+    .map(normaliseWs)
+    .filter(Boolean);
 }
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
+function dedupeStrings(values) {
+  return [...new Set(values.map(value => normaliseWs(value)).filter(Boolean))];
+}
+
+function appendUnique(target, value) {
+  if (value == null || value === "") return;
+  if (Array.isArray(target) && !target.includes(value)) {
+    target.push(value);
+  }
+}
+
 function truncateText(value, maxLength) {
   const text = String(value || "");
   if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 3)}...`;
+  return `${text.slice(0, Math.max(maxLength - 3, 0))}...`;
 }
 
 function slugify(value) {
@@ -2398,6 +3919,11 @@ function normaliseWs(value) {
   return String(value || "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function capitalise(value) {
+  const text = String(value || "");
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function formatDate(value) {
