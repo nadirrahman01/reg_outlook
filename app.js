@@ -1316,7 +1316,7 @@ async function handleUpload() {
 }
 
 async function parsePdfFile(buffer, fileName) {
-  const loadingTask = pdfjsLib.getDocument({ data: buffer });
+  const loadingTask = pdfjsLib.getDocument({ data: clonePdfBinary(buffer) });
   const pdf = await loadingTask.promise;
   const rows = [];
   let activeTemplate = null;
@@ -3399,7 +3399,7 @@ function exportOwnerPack() {
 }
 
 async function loadPdfDocumentFromBuffer(buffer) {
-  const loadingTask = pdfjsLib.getDocument({ data: buffer.slice ? buffer.slice(0) : buffer });
+  const loadingTask = pdfjsLib.getDocument({ data: clonePdfBinary(buffer) });
   return loadingTask.promise;
 }
 
@@ -3421,7 +3421,7 @@ async function saveStoredPdf(buffer) {
   const db = await openPdfDatabase();
   await new Promise((resolve, reject) => {
     const tx = db.transaction(PDF_STORE_NAME, "readwrite");
-    tx.objectStore(PDF_STORE_NAME).put(buffer, PDF_RECORD_KEY);
+    tx.objectStore(PDF_STORE_NAME).put(clonePdfBinary(buffer), PDF_RECORD_KEY);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -3437,7 +3437,7 @@ async function loadStoredPdf() {
     request.onerror = () => reject(request.error);
   });
   db.close();
-  return result;
+  return result ? clonePdfBinary(result) : null;
 }
 
 async function clearStoredPdf() {
@@ -3858,6 +3858,28 @@ function groupBy(items, getKey) {
     acc[key].push(item);
     return acc;
   }, {});
+}
+
+function clonePdfBinary(value) {
+  if (!value) {
+    throw new Error("No PDF binary was provided.");
+  }
+
+  if (value instanceof Uint8Array) {
+    return new Uint8Array(value);
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(
+      value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength)
+    );
+  }
+
+  if (value instanceof ArrayBuffer) {
+    return new Uint8Array(value.slice(0));
+  }
+
+  throw new Error("Unsupported PDF binary format.");
 }
 
 function csvEscape(value) {
