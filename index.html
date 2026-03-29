@@ -10,53 +10,104 @@
     href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,500;6..72,700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="./styles.css?v=9" />
+  <link rel="stylesheet" href="./styles.css?v=10" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
-<body>
+<body data-page="home">
   <div class="app-shell">
-    <section class="landing-panel card" id="landingPage">
-      <div class="landing-copy">
-        <div class="eyebrow">Fidelity Investments</div>
-        <h1>FMRUK Regulatory Review</h1>
-        <p class="landing-subtitle">
-          A structured workspace for reviewing the FCA Initiatives Grid, identifying read-through for FMRUK, and preparing decision-ready outputs.
-        </p>
-        <div class="landing-actions">
-          <button class="primary-btn" id="enterDashboardBtn" type="button">Open Review Workspace</button>
+    <section class="home-page" id="homePage">
+      <header class="home-header">
+        <div class="home-brand">
+          <div class="eyebrow">Fidelity Investments</div>
+          <div class="home-brand-title">FMRUK Regulatory Review</div>
         </div>
-        <div class="landing-points">
-          <div class="landing-point">
-            <span class="landing-point-label">Evidence-linked review</span>
-            <strong>Trace each summary back to the source PDF.</strong>
+        <nav class="home-nav" aria-label="Primary">
+          <button class="ghost-btn page-switch is-current" data-page-target="home" type="button">Home</button>
+          <button class="primary-btn page-switch" data-page-target="review" type="button">Review Workspace</button>
+        </nav>
+      </header>
+
+      <section class="home-hero card">
+        <div class="home-hero-main">
+          <div class="home-kicker">FCA Initiatives Grid Review</div>
+          <h1>FMRUK Regulatory Review</h1>
+          <p class="home-subtitle">
+            A structured workspace for reviewing the FCA Initiatives Grid, identifying read-through for FMRUK, and preparing decision-ready outputs.
+          </p>
+          <div class="home-cta-row">
+            <button class="primary-btn" data-page-target="review" type="button">Enter Review Workspace</button>
+            <button class="ghost-btn home-secondary-btn" data-page-target="review" type="button">View Latest Portfolio</button>
           </div>
-          <div class="landing-point">
-            <span class="landing-point-label">Portfolio prioritisation</span>
-            <strong>Focus on relevance, timing, ownership and change movement.</strong>
+          <div class="home-feature-grid">
+            <article class="home-feature-card">
+              <span class="home-card-kicker">Evidence-linked review</span>
+              <strong>Trace each summary back to the source PDF.</strong>
+              <p>Move from extracted wording to supporting evidence without leaving the workspace.</p>
+            </article>
+            <article class="home-feature-card">
+              <span class="home-card-kicker">Portfolio prioritisation</span>
+              <strong>Focus on relevance, timing, ownership and change movement.</strong>
+              <p>Bring the FCA grid into a format that supports triage, challenge and follow-up action.</p>
+            </article>
+            <article class="home-feature-card">
+              <span class="home-card-kicker">Committee-ready outputs</span>
+              <strong>Prepare board and owner packs from the live review view.</strong>
+              <p>Use the same workspace for analysis, portfolio view and formal reporting outputs.</p>
+            </article>
           </div>
-          <div class="landing-point">
-            <span class="landing-point-label">Committee-ready outputs</span>
-            <strong>Export a board brief or owner pack from the current view.</strong>
-          </div>
         </div>
-      </div>
-      <div class="landing-aside">
-        <div class="landing-stat-card">
-          <div class="summary-label">Current build</div>
-          <div class="landing-stat-value" id="landingVersion">Version 1.2.0</div>
-          <p class="summary-copy">Designed for PDF-led regulatory review with evidence, comparison history and structured briefing.</p>
-        </div>
-        <div class="landing-stat-card">
-          <div class="summary-label">Latest workspace position</div>
-          <div class="landing-stat-value" id="landingDatasetStatus">Awaiting PDF upload</div>
-          <p class="summary-copy" id="landingDatasetCopy">Open the review workspace to load a PDF and generate the current portfolio view.</p>
-        </div>
-      </div>
+
+        <aside class="home-hero-aside">
+          <article class="home-status-panel">
+            <span class="home-card-kicker">Latest Workspace Position</span>
+            <h2 id="landingDatasetStatus">Awaiting PDF upload</h2>
+            <p id="landingDatasetCopy">
+              Open the review workspace to load a PDF and generate the current portfolio view.
+            </p>
+            <div class="home-status-grid">
+              <div class="home-status-item">
+                <span class="home-status-label">Current build</span>
+                <strong id="landingVersion">Version 1.2.0</strong>
+              </div>
+              <div class="home-status-item">
+                <span class="home-status-label">Last scan</span>
+                <strong id="homeLastScan">Not run</strong>
+              </div>
+              <div class="home-status-item">
+                <span class="home-status-label">Comparison</span>
+                <strong id="homeComparisonStatus">No baseline</strong>
+              </div>
+              <div class="home-status-item">
+                <span class="home-status-label">Environment</span>
+                <strong>Browser workspace</strong>
+              </div>
+            </div>
+          </article>
+
+          <article class="home-note-card">
+            <span class="home-card-kicker">How It Works</span>
+            <ul class="home-step-list">
+              <li>Open the review workspace and upload the FCA Initiatives Grid PDF.</li>
+              <li>Prioritise items by relevance, timing, ownership, evidence coverage and change movement.</li>
+              <li>Use the active view to prepare board and owner outputs.</li>
+            </ul>
+          </article>
+        </aside>
+      </section>
     </section>
 
-    <div class="utility-bar">
+    <section class="review-page" id="reviewPage">
+      <div class="review-page-topbar">
+        <div class="review-page-nav">
+          <button class="ghost-btn page-switch" data-page-target="home" type="button">Home</button>
+          <button class="ghost-btn page-switch is-current" data-page-target="review" type="button">Review Workspace</button>
+        </div>
+        <div class="review-page-meta">FCA initiatives grid analysis and review</div>
+      </div>
+
+      <div class="utility-bar">
       <div class="utility-item">
         <span class="utility-label">Environment</span>
         <strong id="utilityEnvironment">Browser workspace</strong>
@@ -85,9 +136,9 @@
         <span class="utility-label">Evidence coverage</span>
         <strong id="utilityEvidenceCoverage">0%</strong>
       </div>
-    </div>
+      </div>
 
-    <section class="mode-ribbon card">
+      <section class="mode-ribbon card">
       <div class="section-heading compact-heading">
         <div>
           <div class="section-kicker">Workspace View</div>
@@ -104,9 +155,9 @@
       <p class="support-copy" id="dashboardModeSummary">
         Analyst workspace keeps the full intake, filtering, review and evidence toolset visible.
       </p>
-    </section>
+      </section>
 
-    <div id="reviewDashboard">
+      <div id="reviewDashboard">
       <header class="app-header">
         <div class="header-copy">
           <div class="eyebrow">Fidelity Investments</div>
@@ -447,39 +498,39 @@
           </section>
         </aside>
       </main>
-    </div>
 
-    <footer class="app-footer card">
-      <div class="footer-topline">
-        <div>
-          <div class="section-kicker">Workspace Metadata</div>
-          <h2>FMRUK Regulatory Review Workspace</h2>
+      <footer class="app-footer card">
+        <div class="footer-topline">
+          <div>
+            <div class="section-kicker">Workspace Metadata</div>
+            <h2>FMRUK Regulatory Review Workspace</h2>
+          </div>
         </div>
-      </div>
-      <div class="footer-meta-grid">
-        <div class="footer-meta-item">
-          <span class="footer-label">Version</span>
-          <strong id="footerVersion">1.2.0</strong>
+        <div class="footer-meta-grid">
+          <div class="footer-meta-item">
+            <span class="footer-label">Version</span>
+            <strong id="footerVersion">1.2.0</strong>
+          </div>
+          <div class="footer-meta-item">
+            <span class="footer-label">Updated</span>
+            <strong id="footerUpdated">29 March 2026</strong>
+          </div>
+          <div class="footer-meta-item">
+            <span class="footer-label">Parser</span>
+            <strong id="footerParser">Awaiting dataset</strong>
+          </div>
+          <div class="footer-meta-item">
+            <span class="footer-label">Current dataset</span>
+            <strong id="footerDataset">No PDF loaded</strong>
+          </div>
         </div>
-        <div class="footer-meta-item">
-          <span class="footer-label">Updated</span>
-          <strong id="footerUpdated">29 March 2026</strong>
-        </div>
-        <div class="footer-meta-item">
-          <span class="footer-label">Parser</span>
-          <strong id="footerParser">Awaiting dataset</strong>
-        </div>
-        <div class="footer-meta-item">
-          <span class="footer-label">Current dataset</span>
-          <strong id="footerDataset">No PDF loaded</strong>
-        </div>
-      </div>
-      <p class="footer-copy" id="footerStorageNotice">
-        The workspace stores the current dataset, evidence trail and review settings locally in this browser.
-      </p>
-    </footer>
+        <p class="footer-copy" id="footerStorageNotice">
+          The workspace stores the current dataset, evidence trail and review settings locally in this browser.
+        </p>
+      </footer>
+    </section>
   </div>
 
-  <script src="./app.js?v=12"></script>
+  <script src="./app.js?v=13"></script>
 </body>
 </html>
