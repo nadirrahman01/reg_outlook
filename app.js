@@ -3322,43 +3322,23 @@ function exportBoardBrief() {
     return;
   }
 
-  const lines = [
-    "# FMRUK Regulatory Board Brief",
-    "",
-    `Generated: ${formatDate(new Date().toISOString())}`,
-    state.datasetMeta?.fileName ? `Source PDF: ${state.datasetMeta.fileName}` : "",
-    "",
-    "## Portfolio Summary",
-    buildPortfolioNarrative(items),
-    "",
-    "## Key Movements"
-  ];
-
-  const summary = state.datasetMeta?.comparisonSummary;
-  if (summary) {
-    lines.push(
-      `- ${summary.newCount} new items`,
-      `- ${summary.changedCount} changed items`,
-      `- ${summary.acceleratedCount} accelerated items`,
-      `- ${summary.delayedCount} delayed items`,
-      `- ${summary.removedCount} removed items`
-    );
+  const JsPDF = getPdfConstructor();
+  if (!JsPDF) {
+    els.uploadStatus.textContent = "The PDF export library did not load.";
+    return;
   }
 
-  lines.push("", "## Material Initiatives");
-
-  items.forEach((item, index) => {
-    lines.push(
-      `${index + 1}. ${item.initiativeTitle}`,
-      `   - Why it matters: ${item.briefBlocks?.[3]?.copy || item.rationale}`,
-      `   - Owner: ${item.primaryOwner} with ${item.secondaryOwner}`,
-      `   - Stage and timing: ${item.stageLabel}; ${item.timeline?.label || item.timingBucket}`,
-      `   - Next action: ${item.suggestedActions?.[0] || item.suggestedAction}`,
-      `   - Uncertainty: ${item.uncertaintyFlags?.[0] || "No major uncertainty flags."}`
-    );
+  const doc = buildReportPdf({
+    kind: "board",
+    title: "FMRUK Regulatory Board Brief",
+    subtitle: "Board-ready regulatory intelligence, portfolio movement, and audit-focused points.",
+    audience: `${state.roleView} lens`,
+    items,
+    summaryText: buildPortfolioNarrative(items)
   });
 
-  downloadTextFile("fmruk-board-brief.md", lines.join("\n"), "text/markdown");
+  const stamp = new Date().toISOString().slice(0, 10);
+  doc.save(`fmruk-board-brief-${stamp}.pdf`);
 }
 
 function exportOwnerPack() {
@@ -3372,30 +3352,609 @@ function exportOwnerPack() {
     return;
   }
 
-  const grouped = groupBy(relevantItems, item => item.primaryOwner);
-  const lines = [
-    `# FMRUK Owner Pack (${role} lens)`,
-    "",
-    `Generated: ${formatDate(new Date().toISOString())}`,
-    "",
-    buildPortfolioNarrative(relevantItems),
-    ""
-  ];
+  const JsPDF = getPdfConstructor();
+  if (!JsPDF) {
+    els.uploadStatus.textContent = "The PDF export library did not load.";
+    return;
+  }
 
-  Object.entries(grouped).forEach(([owner, items]) => {
-    lines.push(`## ${owner}`);
-    items.slice(0, 12).forEach(item => {
-      lines.push(
-        `- ${item.initiativeTitle}`,
-        `  Stage: ${item.stageLabel} | Change: ${item.changeStatus} | Relevance: ${item.relevanceScore}`,
-        `  Obligations: ${(item.obligations || []).map(obligation => obligation.name).join(", ")}`,
-        `  Action: ${item.suggestedActions?.[0] || item.suggestedAction}`
-      );
-    });
-    lines.push("");
+  const doc = buildReportPdf({
+    kind: "owner",
+    title: "FMRUK Owner Pack",
+    subtitle: "Operational owner pack with actions, assurance checks, and evidence-aware follow-up points.",
+    audience: `${role} lens`,
+    items: relevantItems,
+    summaryText: buildPortfolioNarrative(relevantItems)
   });
 
-  downloadTextFile(`fmruk-owner-pack-${slugify(role)}.md`, lines.join("\n"), "text/markdown");
+  const stamp = new Date().toISOString().slice(0, 10);
+  doc.save(`fmruk-owner-pack-${slugify(role)}-${stamp}.pdf`);
+}
+
+function getPdfConstructor() {
+  return window.jspdf?.jsPDF || null;
+}
+
+function buildReportPdf(config) {
+  const JsPDF = getPdfConstructor();
+  const doc = new JsPDF({
+    unit: "pt",
+    format: "a4",
+    compress: true
+  });
+
+  const ctx = createPdfContext(doc, config);
+  drawReportCover(ctx, config);
+  startPdfPage(ctx, "Portfolio overview");
+  addOverviewSection(ctx, config);
+
+  if (config.kind === "board") {
+    addMovementSection(ctx, config);
+    addMaterialInitiativeSection(ctx, config.items);
+    addPortfolioAuditSection(ctx, config.items, "Board assurance and audit points");
+  } else {
+    addOwnerSummarySection(ctx, config.items);
+    addOwnerDetailSections(ctx, config.items);
+    addPortfolioAuditSection(ctx, config.items, "Owner assurance and audit points");
+  }
+
+  addMethodologySection(ctx, config);
+  applyPdfPageNumbers(doc, config.title);
+  return doc;
+}
+
+function createPdfContext(doc, config) {
+  return {
+    doc,
+    pageWidth: doc.internal.pageSize.getWidth(),
+    pageHeight: doc.internal.pageSize.getHeight(),
+    margin: 46,
+    contentWidth: doc.internal.pageSize.getWidth() - 92,
+    y: 64,
+    colors: {
+      navy: [17, 59, 103],
+      navyDeep: [13, 45, 77],
+      teal: [13, 141, 134],
+      gold: [178, 124, 24],
+      red: [176, 67, 67],
+      green: [45, 122, 76],
+      text: [22, 35, 52],
+      soft: [95, 111, 132],
+      line: [214, 223, 233],
+      panel: [245, 248, 252],
+      white: [255, 255, 255]
+    },
+    datasetLabel: state.datasetMeta?.fileName || "Current filtered workspace",
+    audience: config.audience,
+    activeHeader: config.title
+  };
+}
+
+function drawReportCover(ctx, config) {
+  const { doc, pageWidth, pageHeight, colors, margin } = ctx;
+
+  doc.setFillColor(...colors.navyDeep);
+  doc.rect(0, 0, pageWidth, 182, "F");
+
+  doc.setFillColor(...colors.teal);
+  doc.rect(0, 182, pageWidth, 6, "F");
+
+  doc.setTextColor(...colors.white);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("FIDELITY INVESTMENTS", margin, 56);
+
+  doc.setFont("times", "bold");
+  doc.setFontSize(28);
+  doc.text(config.title, margin, 98);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  const subtitleLines = doc.splitTextToSize(config.subtitle, pageWidth - margin * 2);
+  doc.text(subtitleLines, margin, 126);
+
+  const summaryTop = 220;
+  const summaryHeight = 126;
+  doc.setFillColor(...colors.white);
+  doc.roundedRect(margin, summaryTop, pageWidth - margin * 2, summaryHeight, 18, 18, "F");
+  doc.setDrawColor(...colors.line);
+  doc.roundedRect(margin, summaryTop, pageWidth - margin * 2, summaryHeight, 18, 18, "S");
+
+  const metaLines = [
+    `Generated: ${formatDate(new Date().toISOString())}`,
+    `Source PDF: ${state.datasetMeta?.fileName || "Current browser session"}`,
+    `Audience: ${config.audience}`,
+    `Parser: ${state.datasetMeta?.parserVersion || "Current model"}`
+  ];
+
+  doc.setTextColor(...colors.text);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text("Document context", margin + 18, summaryTop + 28);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.text(metaLines, margin + 18, summaryTop + 48, { lineHeightFactor: 1.6 });
+
+  const metrics = buildPdfMetrics(config.items);
+  drawPdfMetrics(
+    ctx,
+    metrics,
+    summaryTop + summaryHeight + 22,
+    110,
+    2
+  );
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...colors.soft);
+  doc.text(
+    "This report is generated from the current filtered dataset in the FMRUK Regulatory Intelligence Workspace.",
+    margin,
+    pageHeight - 38
+  );
+}
+
+function buildPdfMetrics(items) {
+  return [
+    { label: "Items in scope", value: String(items.length) },
+    { label: "Immediate action", value: String(items.filter(item => item.immediateActionRequired).length) },
+    { label: "Needs review", value: String(items.filter(item => item.needsReview).length) },
+    { label: "Changed / moved", value: String(items.filter(item => item.changeStatus !== "Existing").length) }
+  ];
+}
+
+function drawPdfMetrics(ctx, metrics, y, boxHeight, columns) {
+  const { doc, pageWidth, margin, colors } = ctx;
+  const gap = 14;
+  const columnWidth = (pageWidth - margin * 2 - gap * (columns - 1)) / columns;
+  metrics.forEach((metric, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const x = margin + column * (columnWidth + gap);
+    const top = y + row * (boxHeight + gap);
+
+    doc.setFillColor(...colors.panel);
+    doc.setDrawColor(...colors.line);
+    doc.roundedRect(x, top, columnWidth, boxHeight, 16, 16, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...colors.soft);
+    doc.text(metric.label.toUpperCase(), x + 16, top + 24);
+    doc.setFont("times", "bold");
+    doc.setFontSize(26);
+    doc.setTextColor(...colors.navyDeep);
+    doc.text(metric.value, x + 16, top + 66);
+  });
+}
+
+function startPdfPage(ctx, label) {
+  const { doc, pageWidth, margin, colors } = ctx;
+  doc.addPage();
+  ctx.activeHeader = label;
+  ctx.y = 70;
+
+  doc.setFillColor(...colors.panel);
+  doc.rect(0, 0, pageWidth, 58, "F");
+  doc.setDrawColor(...colors.line);
+  doc.line(margin, 58, pageWidth - margin, 58);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...colors.teal);
+  doc.text(label.toUpperCase(), margin, 28);
+
+  doc.setFont("times", "bold");
+  doc.setFontSize(20);
+  doc.setTextColor(...colors.navyDeep);
+  doc.text(ctx.datasetLabel, margin, 48);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(...colors.soft);
+  doc.text(ctx.audience, pageWidth - margin, 28, { align: "right" });
+}
+
+function ensurePdfSpace(ctx, neededHeight) {
+  if (ctx.y + neededHeight <= ctx.pageHeight - 56) return;
+  startPdfPage(ctx, ctx.activeHeader);
+}
+
+function addPdfSectionTitle(ctx, kicker, title) {
+  ensurePdfSpace(ctx, 52);
+  const { doc, margin, colors } = ctx;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...colors.teal);
+  doc.text(kicker.toUpperCase(), margin, ctx.y);
+  ctx.y += 18;
+  doc.setFont("times", "bold");
+  doc.setFontSize(22);
+  doc.setTextColor(...colors.navyDeep);
+  doc.text(title, margin, ctx.y);
+  ctx.y += 24;
+}
+
+function addPdfParagraph(ctx, text, options = {}) {
+  const { doc, margin, contentWidth, colors } = ctx;
+  const width = options.width || contentWidth;
+  const x = options.x || margin;
+  const font = options.font || "helvetica";
+  const style = options.style || "normal";
+  const size = options.size || 11;
+  const gap = options.gap || 14;
+
+  doc.setFont(font, style);
+  doc.setFontSize(size);
+  doc.setTextColor(...(options.color || colors.soft));
+  const lines = doc.splitTextToSize(text, width);
+  ensurePdfSpace(ctx, lines.length * (size + 2) + gap);
+  doc.text(lines, x, ctx.y);
+  ctx.y += lines.length * (size + 2) + gap;
+}
+
+function addPdfBulletList(ctx, items, options = {}) {
+  const { doc, margin, colors } = ctx;
+  items.filter(Boolean).forEach(item => {
+    const bullet = `${options.bullet || "-"} ${item}`;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(options.size || 10.5);
+    doc.setTextColor(...(options.color || colors.text));
+    const lines = doc.splitTextToSize(bullet, options.width || ctx.contentWidth);
+    ensurePdfSpace(ctx, lines.length * 14 + 6);
+    doc.text(lines, (options.x || margin) + 4, ctx.y);
+    ctx.y += lines.length * 14 + 4;
+  });
+  ctx.y += 8;
+}
+
+function addOverviewSection(ctx, config) {
+  addPdfSectionTitle(ctx, "Portfolio overview", "Executive summary");
+  addPdfParagraph(ctx, config.summaryText, { color: ctx.colors.text, size: 11.5 });
+
+  const topThemes = topCounts(config.items.map(item => item.theme), 4);
+  const clusterRows = topCounts(config.items.map(item => item.clusterLabel), 5).map(entry => [
+    entry.name,
+    String(entry.count)
+  ]);
+
+  addTableSection(
+    ctx,
+    "Theme distribution",
+    ["Theme or cluster", "Items"],
+    [
+      ...topThemes.map(entry => [entry.name, String(entry.count)]),
+      ...clusterRows
+    ].slice(0, 8)
+  );
+}
+
+function addMovementSection(ctx, config) {
+  addPdfSectionTitle(ctx, "Change intelligence", "Movement snapshot");
+
+  const summary = state.datasetMeta?.comparisonSummary;
+  const bullets = summary
+    ? [
+        `${summary.newCount} initiatives are new in the current upload.`,
+        `${summary.changedCount} initiatives changed in wording, stage or triage outcome.`,
+        `${summary.acceleratedCount} initiatives appear to have accelerated and ${summary.delayedCount} appear to have moved later.`,
+        `${summary.removedCount} initiatives no longer appear in the latest upload.`
+      ]
+    : ["No prior upload comparison is available for movement analysis."];
+
+  addPdfBulletList(ctx, bullets, { color: ctx.colors.text });
+
+  const movementRows = config.items
+    .filter(item => item.changeStatus !== "Existing")
+    .slice(0, 8)
+    .map(item => [
+      item.changeStatus,
+      truncateText(item.initiativeTitle, 52),
+      item.primaryOwner,
+      item.timeline?.label || item.timingBucket
+    ]);
+
+  if (movementRows.length) {
+    addTableSection(ctx, "Material movements", ["Status", "Initiative", "Owner", "Timing"], movementRows);
+  }
+}
+
+function addMaterialInitiativeSection(ctx, items) {
+  addPdfSectionTitle(ctx, "Material initiatives", "Board-ready briefing notes");
+  items.forEach((item, index) => {
+    addInitiativeCard(ctx, item, index + 1, "board");
+  });
+}
+
+function addOwnerSummarySection(ctx, items) {
+  addPdfSectionTitle(ctx, "Owner summary", "Action coverage");
+  addPdfParagraph(
+    ctx,
+    "This owner pack is grouped by primary owner so each function can see its initiative queue, expected actions, control domains, evidence confidence, and assurance follow-up points.",
+    { color: ctx.colors.text, size: 11.5 }
+  );
+
+  const grouped = groupBy(items, item => item.primaryOwner);
+  const rows = Object.entries(grouped)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([owner, ownerItems]) => [
+      owner,
+      String(ownerItems.length),
+      String(ownerItems.filter(item => item.immediateActionRequired).length),
+      String(ownerItems.filter(item => item.needsReview).length)
+    ]);
+
+  addTableSection(ctx, "Owner queue", ["Owner", "Items", "Immediate", "Needs review"], rows);
+}
+
+function addOwnerDetailSections(ctx, items) {
+  const grouped = groupBy(items, item => item.primaryOwner);
+  Object.entries(grouped)
+    .sort((a, b) => b[1].length - a[1].length)
+    .forEach(([owner, ownerItems]) => {
+      addPdfSectionTitle(ctx, owner, "Owner action pack");
+      addPdfParagraph(
+        ctx,
+        `${owner} currently owns ${ownerItems.length} initiatives in the filtered scope. The table and detailed notes below are designed to support action tracking, challenge, and audit readiness.`,
+        { color: ctx.colors.text, size: 11.5 }
+      );
+
+      const trackerRows = ownerItems.slice(0, 12).map(item => [
+        truncateText(item.initiativeTitle, 44),
+        item.stageLabel,
+        item.changeStatus,
+        truncateText(item.suggestedActions?.[0] || item.suggestedAction, 66)
+      ]);
+
+      addTableSection(
+        ctx,
+        `${owner} action tracker`,
+        ["Initiative", "Stage", "Change", "Primary next action"],
+        trackerRows
+      );
+
+      ownerItems.forEach((item, index) => {
+        addInitiativeCard(ctx, item, index + 1, "owner");
+      });
+    });
+}
+
+function addPortfolioAuditSection(ctx, items, title) {
+  addPdfSectionTitle(ctx, "Audit and assurance", title);
+
+  addPdfBulletList(ctx, buildPortfolioAuditPoints(items), {
+    color: ctx.colors.text
+  });
+
+  const flaggedRows = items
+    .filter(item => item.needsReview || (item.parseConfidence || 0) < 70)
+    .slice(0, 10)
+    .map(item => [
+      truncateText(item.initiativeTitle, 46),
+      String(item.parseConfidence || 0),
+      item.primaryOwner,
+      truncateText((item.uncertaintyFlags || [])[0] || "Needs manual review.", 70)
+    ]);
+
+  if (flaggedRows.length) {
+    addTableSection(
+      ctx,
+      "Items needing the strongest challenge",
+      ["Initiative", "Parse", "Owner", "Primary review point"],
+      flaggedRows
+    );
+  }
+}
+
+function addMethodologySection(ctx, config) {
+  addPdfSectionTitle(ctx, "Method and assumptions", "How to read this report");
+
+  const profileSummary = PROFILE_FIELDS.map(([field]) => {
+    const label = field
+      .replace(/([A-Z])/g, " $1")
+      .replace(/^./, char => char.toUpperCase());
+    const values = (state.profile?.[field] || []).slice(0, 3).join(", ");
+    return `${label}: ${values || "Not set"}.`;
+  });
+
+  addPdfBulletList(
+    ctx,
+    [
+      "The report is generated from the currently filtered dataset in the workspace and inherits the active role lens and profile engine assumptions.",
+      "Every initiative summary is based on parsed FCA PDF content, evidence-linked source rows, rule-based classification, and current analyst feedback overrides.",
+      "Audit and assurance points surface parsing confidence, uncertainty flags, missing milestones, and scope signals that require human validation.",
+      ...profileSummary.slice(0, 4)
+    ],
+    { color: ctx.colors.text }
+  );
+
+  addPdfParagraph(
+    ctx,
+    config.kind === "board"
+      ? "Board interpretation note: this report is designed for leadership awareness and challenge. It should support decisions, not replace legal or compliance judgement."
+      : "Owner interpretation note: this pack is designed to help teams mobilise, evidence judgement, and prepare for challenge from compliance, legal, risk, and audit.",
+    { color: ctx.colors.soft, size: 10.5 }
+  );
+}
+
+function addInitiativeCard(ctx, item, index, mode) {
+  const { doc, margin, contentWidth, colors } = ctx;
+  const title = `${index}. ${item.initiativeTitle}`;
+  const meta = `${item.theme} | ${item.stageLabel} | ${item.primaryOwner} / ${item.secondaryOwner} | ${item.timeline?.label || item.timingBucket} | pages ${item.sourcePages.join(", ")}`;
+  const summary = item.briefBlocks?.[3]?.copy || item.rationale;
+  const action = item.suggestedActions?.[0] || item.suggestedAction;
+  const obligations = (item.obligations || []).map(obligation => obligation.name).join(", ");
+  const auditPoints = buildItemAuditPoints(item, mode);
+
+  doc.setFont("times", "bold");
+  doc.setFontSize(16);
+  const titleLines = doc.splitTextToSize(title, contentWidth - 30);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  const metaLines = doc.splitTextToSize(meta, contentWidth - 30);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10.5);
+  const summaryLines = doc.splitTextToSize(`Summary: ${summary}`, contentWidth - 30);
+  const actionLines = doc.splitTextToSize(`Action: ${action}`, contentWidth - 30);
+  const obligationLines = doc.splitTextToSize(`Obligations: ${obligations || "Not yet mapped."}`, contentWidth - 30);
+  const auditHeight = auditPoints.length * 15 + 8;
+  const boxHeight =
+    28 +
+    titleLines.length * 18 +
+    metaLines.length * 12 +
+    summaryLines.length * 12 +
+    actionLines.length * 12 +
+    obligationLines.length * 12 +
+    auditHeight +
+    24;
+
+  ensurePdfSpace(ctx, boxHeight + 12);
+
+  doc.setFillColor(...colors.panel);
+  doc.setDrawColor(...colors.line);
+  doc.roundedRect(margin, ctx.y, contentWidth, boxHeight, 16, 16, "FD");
+
+  let cursorY = ctx.y + 22;
+  doc.setTextColor(...colors.navyDeep);
+  doc.setFont("times", "bold");
+  doc.setFontSize(16);
+  doc.text(titleLines, margin + 16, cursorY);
+  cursorY += titleLines.length * 18;
+
+  doc.setTextColor(...colors.soft);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text(metaLines, margin + 16, cursorY);
+  cursorY += metaLines.length * 12 + 8;
+
+  doc.setTextColor(...colors.text);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10.5);
+  doc.text(summaryLines, margin + 16, cursorY);
+  cursorY += summaryLines.length * 12 + 8;
+  doc.text(actionLines, margin + 16, cursorY);
+  cursorY += actionLines.length * 12 + 8;
+  doc.text(obligationLines, margin + 16, cursorY);
+  cursorY += obligationLines.length * 12 + 10;
+
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...colors.teal);
+  doc.text("Audit and assurance points", margin + 16, cursorY);
+  cursorY += 14;
+
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...colors.text);
+  auditPoints.forEach(point => {
+    const lines = doc.splitTextToSize(`- ${point}`, contentWidth - 30);
+    doc.text(lines, margin + 16, cursorY);
+    cursorY += lines.length * 12 + 3;
+  });
+
+  ctx.y += boxHeight + 12;
+}
+
+function buildItemAuditPoints(item, mode) {
+  const points = [
+    `Source evidence captured on PDF pages ${item.sourcePages.join(", ")}.`,
+    `Parse confidence is ${item.parseConfidence} (${item.parseConfidenceBand}).`,
+    `Change signal is ${item.changeStatus}: ${item.changeNarrative}`,
+    `Primary review flags: ${(item.uncertaintyFlags || []).slice(0, 2).join(" ") || "No major uncertainty flags."}`
+  ];
+
+  if (mode === "owner") {
+    points.push(
+      `Primary owner challenge: confirm ${item.primaryOwner} has accepted the action and agrees the obligation map.`
+    );
+  } else {
+    points.push(
+      `Board challenge point: confirm whether the current action, timing, and ownership are proportionate for this level of relevance and impact.`
+    );
+  }
+
+  return points.slice(0, 5);
+}
+
+function buildPortfolioAuditPoints(items) {
+  const summary = state.datasetMeta?.comparisonSummary;
+  const reviewCount = items.filter(item => item.needsReview).length;
+  const lowParseCount = items.filter(item => (item.parseConfidence || 0) < 70).length;
+  const missingMilestoneCount = items.filter(item => !item.expectedKeyMilestones).length;
+  const changedCount = items.filter(item => item.changeStatus !== "Existing").length;
+  const urgentCount = items.filter(item => item.immediateActionRequired).length;
+
+  return [
+    `${reviewCount} initiatives currently carry manual review flags and should not be actioned without source validation.`,
+    `${lowParseCount} initiatives have lower parsing confidence and should be challenged back to the original PDF.`,
+    `${missingMilestoneCount} initiatives do not yet have clear milestone extraction, creating timing uncertainty.`,
+    `${changedCount} initiatives show visible movement compared with the previous upload, which should be challenged for business impact and prioritisation.`,
+    `${urgentCount} initiatives currently require immediate action based on impact, timing, and relevance.`,
+    summary?.removedCount
+      ? `${summary.removedCount} initiatives no longer appear in the latest upload and should be checked for whether they were completed, moved, or dropped from the grid.`
+      : "No removed initiatives were detected in the current comparison story."
+  ];
+}
+
+function addTableSection(ctx, title, head, body) {
+  if (!body.length) return;
+
+  addPdfParagraph(ctx, title, {
+    font: "helvetica",
+    style: "bold",
+    size: 12,
+    color: ctx.colors.navyDeep,
+    gap: 10
+  });
+
+  const doc = ctx.doc;
+  if (typeof doc.autoTable === "function") {
+    ensurePdfSpace(ctx, 90);
+    doc.autoTable({
+      startY: ctx.y,
+      head: [head],
+      body,
+      margin: {
+        left: ctx.margin,
+        right: ctx.margin
+      },
+      theme: "grid",
+      tableWidth: "auto",
+      styles: {
+        font: "helvetica",
+        fontSize: 9,
+        cellPadding: 6,
+        textColor: ctx.colors.text
+      },
+      headStyles: {
+        fillColor: ctx.colors.navy,
+        textColor: 255,
+        fontStyle: "bold"
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      }
+    });
+    ctx.y = doc.lastAutoTable.finalY + 18;
+    return;
+  }
+
+  body.forEach(row => {
+    addPdfBulletList(ctx, [row.join(" | ")], { color: ctx.colors.text });
+  });
+}
+
+function applyPdfPageNumbers(doc, title) {
+  const totalPages = doc.getNumberOfPages();
+  for (let page = 1; page <= totalPages; page += 1) {
+    doc.setPage(page);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    doc.setDrawColor(214, 223, 233);
+    doc.line(46, pageHeight - 28, pageWidth - 46, pageHeight - 28);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(95, 111, 132);
+    doc.text(title, 46, pageHeight - 12);
+    doc.text(`Page ${page} of ${totalPages}`, pageWidth - 46, pageHeight - 12, { align: "right" });
+  }
 }
 
 async function loadPdfDocumentFromBuffer(buffer) {
