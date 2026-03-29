@@ -21,6 +21,7 @@ const state = {
   datasetMeta: null,
   profile: null,
   feedback: {},
+  currentPage: "home",
   roleView: "Compliance",
   dashboardMode: "workspace",
   activePreset: "all",
@@ -1016,6 +1017,7 @@ document.addEventListener("DOMContentLoaded", () => {
 async function init() {
   mapEls();
   bindEvents();
+  state.currentPage = getPageFromHash();
   state.profile = loadProfile();
   state.feedback = loadFeedback();
   loadFromStorage();
@@ -1029,7 +1031,8 @@ function mapEls() {
     "landingVersion",
     "landingDatasetStatus",
     "landingDatasetCopy",
-    "enterDashboardBtn",
+    "homeLastScan",
+    "homeComparisonStatus",
     "utilityEnvironment",
     "utilityMode",
     "utilityViewer",
@@ -1108,7 +1111,6 @@ function mapEls() {
 }
 
 function bindEvents() {
-  els.enterDashboardBtn.addEventListener("click", enterDashboard);
   els.uploadBtn.addEventListener("click", handleUpload);
   els.reloadBtn.addEventListener("click", () => renderAll());
   els.exportJsonBtn.addEventListener("click", exportJson);
@@ -1119,6 +1121,10 @@ function bindEvents() {
   els.dashboardModeButtons.addEventListener("click", handleDashboardModeClick);
   els.roleViewButtons.addEventListener("click", handleRoleViewClick);
   els.presetButtons.addEventListener("click", handlePresetClick);
+  document.querySelectorAll("[data-page-target]").forEach(button => {
+    button.addEventListener("click", () => navigateToPage(button.dataset.pageTarget));
+  });
+  window.addEventListener("hashchange", syncPageFromHash);
   els.askBtn.addEventListener("click", runAskQuery);
   els.askInput.addEventListener("keydown", event => {
     if (event.key === "Enter") {
@@ -1149,11 +1155,28 @@ function bindEvents() {
   });
 }
 
-function enterDashboard() {
-  document.getElementById("reviewDashboard")?.scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
+function getPageFromHash() {
+  return window.location.hash === "#review" ? "review" : "home";
+}
+
+function syncPageFromHash() {
+  state.currentPage = getPageFromHash();
+  renderPageState();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function navigateToPage(page) {
+  if (!["home", "review"].includes(page)) return;
+
+  const nextHash = `#${page}`;
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+    return;
+  }
+
+  state.currentPage = page;
+  renderPageState();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function handleDashboardModeClick(event) {
@@ -2589,12 +2612,20 @@ function reanalyseCurrentDataset() {
 }
 
 function renderAll() {
+  renderPageState();
   renderDashboardModeButtons();
   updateMeta();
   renderRoleButtons();
   renderPresetButtons();
   populateFilters();
   applyFilters();
+}
+
+function renderPageState() {
+  document.body.dataset.page = state.currentPage;
+  document.querySelectorAll(".page-switch[data-page-target]").forEach(button => {
+    button.classList.toggle("is-current", button.dataset.pageTarget === state.currentPage);
+  });
 }
 
 function updateMeta() {
@@ -2618,6 +2649,8 @@ function updateMeta() {
     els.landingDatasetStatus.textContent = "Awaiting PDF upload";
     els.landingDatasetCopy.textContent =
       "Open the review workspace to load a PDF and generate the current portfolio view.";
+    els.homeLastScan.textContent = "Not run";
+    els.homeComparisonStatus.textContent = "No baseline";
     els.utilityPdfStatus.textContent = "Awaiting upload";
     els.utilityLastScan.textContent = "Not run";
     els.utilityComparison.textContent = "No baseline";
@@ -2631,6 +2664,7 @@ function updateMeta() {
   els.datasetInfo.textContent = `Stored in this browser only. File type: ${state.datasetMeta.fileType}. Parser: ${state.datasetMeta.parserVersion}.`;
   els.landingDatasetStatus.textContent = `${state.datasetMeta.rowCount} initiatives in scope`;
   els.utilityPdfStatus.textContent = truncateText(state.datasetMeta.fileName, 34);
+  els.homeLastScan.textContent = formatDate(state.datasetMeta.uploadedAt);
   els.utilityLastScan.textContent = formatDate(state.datasetMeta.uploadedAt);
   els.utilityEvidenceCoverage.textContent = formatPercent(calculateEvidenceCoverage(state.raw));
   els.footerParser.textContent = state.datasetMeta.parserVersion || "Current parser";
@@ -2645,12 +2679,15 @@ function updateMeta() {
       `${summary.delayedCount} delayed`,
       `${summary.removedCount} removed`
     ];
+    const movedCount = state.raw.filter(item => item.changeStatus !== "Existing").length;
     els.comparisonInfo.textContent = `Comparison summary: ${comparisonBits.join(", ")}.`;
-    els.utilityComparison.textContent = `${state.raw.filter(item => item.changeStatus !== "Existing").length} items moved`;
+    els.homeComparisonStatus.textContent = `${movedCount} items moved`;
+    els.utilityComparison.textContent = `${movedCount} items moved`;
     els.landingDatasetCopy.textContent =
       `Latest scan uploaded ${formatDate(state.datasetMeta.uploadedAt)}. Comparison baseline available with ${comparisonBits.join(", ")}.`;
   } else {
     els.comparisonInfo.textContent = "No comparison baseline is available yet.";
+    els.homeComparisonStatus.textContent = "Baseline not set";
     els.utilityComparison.textContent = "Baseline not set";
     els.landingDatasetCopy.textContent =
       `Latest scan uploaded ${formatDate(state.datasetMeta.uploadedAt)}. No comparison baseline is available yet.`;
