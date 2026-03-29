@@ -4,6 +4,9 @@ const FEEDBACK_KEY = "fmruk_feedback_v8";
 const PDF_DB_NAME = "fmruk_pdf_workspace";
 const PDF_STORE_NAME = "pdfs";
 const PDF_RECORD_KEY = "current_pdf";
+const APP_VERSION = "1.2.0";
+const APP_UPDATED_AT = "29 March 2026";
+const APP_ENVIRONMENT_LABEL = "Browser workspace";
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -19,6 +22,7 @@ const state = {
   profile: null,
   feedback: {},
   roleView: "Compliance",
+  dashboardMode: "workspace",
   activePreset: "all",
   pdfBuffer: null,
   pdfDocument: null,
@@ -28,6 +32,29 @@ const state = {
     query: "",
     answer: "",
     results: []
+  }
+};
+
+const DASHBOARD_MODES = {
+  workspace: {
+    label: "Analyst Workspace",
+    summary:
+      "Analyst workspace keeps the full intake, filtering, review and evidence toolset visible."
+  },
+  committee: {
+    label: "Committee View",
+    summary:
+      "Committee view reduces lower-value controls and keeps the narrative, priority items, timing and evidence in clearer focus."
+  },
+  executive: {
+    label: "Executive Summary",
+    summary:
+      "Executive summary strips the workspace back to portfolio position, material items, movement, ownership and near-term decisions."
+  },
+  evidence: {
+    label: "Evidence Review",
+    summary:
+      "Evidence review gives more room to the source PDF and evidence trail for challenge, verification and line-by-line checking."
   }
 };
 
@@ -999,6 +1026,20 @@ async function init() {
 
 function mapEls() {
   const ids = [
+    "landingVersion",
+    "landingDatasetStatus",
+    "landingDatasetCopy",
+    "enterDashboardBtn",
+    "utilityEnvironment",
+    "utilityMode",
+    "utilityViewer",
+    "utilityPdfStatus",
+    "utilityLastScan",
+    "utilityComparison",
+    "utilityEvidenceCoverage",
+    "dashboardModeButtons",
+    "dashboardModeLabel",
+    "dashboardModeSummary",
     "headerMeta",
     "datasetInfo",
     "comparisonInfo",
@@ -1049,7 +1090,12 @@ function mapEls() {
     "kpiImmediateAction",
     "kpiHighRelevance",
     "kpiNeedsReview",
-    "kpiChanges"
+    "kpiChanges",
+    "footerVersion",
+    "footerUpdated",
+    "footerParser",
+    "footerDataset",
+    "footerStorageNotice"
   ];
 
   ids.forEach(id => {
@@ -1062,6 +1108,7 @@ function mapEls() {
 }
 
 function bindEvents() {
+  els.enterDashboardBtn.addEventListener("click", enterDashboard);
   els.uploadBtn.addEventListener("click", handleUpload);
   els.reloadBtn.addEventListener("click", () => renderAll());
   els.exportJsonBtn.addEventListener("click", exportJson);
@@ -1069,6 +1116,7 @@ function bindEvents() {
   els.exportBoardBriefBtn.addEventListener("click", exportBoardBrief);
   els.exportOwnerPackBtn.addEventListener("click", exportOwnerPack);
   els.clearStorageBtn.addEventListener("click", clearSavedData);
+  els.dashboardModeButtons.addEventListener("click", handleDashboardModeClick);
   els.roleViewButtons.addEventListener("click", handleRoleViewClick);
   els.presetButtons.addEventListener("click", handlePresetClick);
   els.askBtn.addEventListener("click", runAskQuery);
@@ -1099,6 +1147,21 @@ function bindEvents() {
     const eventName = element.tagName === "INPUT" && element.type === "text" ? "input" : "change";
     element.addEventListener(eventName, applyFilters);
   });
+}
+
+function enterDashboard() {
+  document.getElementById("reviewDashboard")?.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+}
+
+function handleDashboardModeClick(event) {
+  const button = event.target.closest("[data-dashboard-mode]");
+  if (!button) return;
+
+  state.dashboardMode = button.dataset.dashboardMode;
+  renderAll();
 }
 
 function handleRoleViewClick(event) {
@@ -2281,37 +2344,37 @@ function buildBriefBlocks(item, classification, stage, obligations, relevance, a
 
   return [
     {
-      title: "Summary",
+      title: "What this is",
       copy: whatIsThis,
       evidenceFields: ["title", "lead", "general"]
     },
     {
-      title: "Regulatory change",
+      title: "What is changing",
       copy: whatIsChanging,
       evidenceFields: ["description", "impact", "general"]
     },
     {
-      title: "Timing",
+      title: "Why now",
       copy: whyNow,
       evidenceFields: ["milestones", "timing", "isNew"]
     },
     {
-      title: "FMRUK relevance",
+      title: "Why FMRUK may care",
       copy: whyFmrukMayCare,
       evidenceFields: ["description", "milestones", "general"]
     },
     {
-      title: "Ownership",
+      title: "Who owns it",
       copy: whoOwnsIt,
       evidenceFields: ["title", "description"]
     },
     {
-      title: "Required actions",
+      title: "What needs to happen next",
       copy: whatNeedsToHappenNext,
       evidenceFields: ["milestones", "description", "general"]
     },
     {
-      title: "Open points",
+      title: "What is still unclear",
       copy: whatIsStillUnclear,
       evidenceFields: ["general", "milestones", "description"]
     }
@@ -2526,6 +2589,7 @@ function reanalyseCurrentDataset() {
 }
 
 function renderAll() {
+  renderDashboardModeButtons();
   updateMeta();
   renderRoleButtons();
   renderPresetButtons();
@@ -2535,18 +2599,42 @@ function renderAll() {
 
 function updateMeta() {
   const roleView = ROLE_VIEWS[state.roleView];
+  const dashboardMode = DASHBOARD_MODES[state.dashboardMode] || DASHBOARD_MODES.workspace;
   els.currentRoleLabel.textContent = `${state.roleView} lens active`;
   els.roleSummary.textContent = roleView.summary;
+  els.utilityEnvironment.textContent = APP_ENVIRONMENT_LABEL;
+  els.utilityMode.textContent = dashboardMode.label;
+  els.utilityViewer.textContent = state.roleView;
+  els.footerVersion.textContent = APP_VERSION;
+  els.footerUpdated.textContent = APP_UPDATED_AT;
+  els.landingVersion.textContent = `Version ${APP_VERSION}`;
+  els.footerStorageNotice.textContent =
+    "The workspace stores the current dataset, evidence trail and review settings locally in this browser.";
 
   if (!state.datasetMeta) {
     els.headerMeta.textContent = "No dataset loaded";
     els.datasetInfo.textContent = "No saved dataset found.";
     els.comparisonInfo.textContent = "Upload a PDF to establish the first comparison baseline.";
+    els.landingDatasetStatus.textContent = "Awaiting PDF upload";
+    els.landingDatasetCopy.textContent =
+      "Open the review workspace to load a PDF and generate the current portfolio view.";
+    els.utilityPdfStatus.textContent = "Awaiting upload";
+    els.utilityLastScan.textContent = "Not run";
+    els.utilityComparison.textContent = "No baseline";
+    els.utilityEvidenceCoverage.textContent = "0%";
+    els.footerParser.textContent = "Awaiting dataset";
+    els.footerDataset.textContent = "No PDF loaded";
     return;
   }
 
   els.headerMeta.textContent = `${state.datasetMeta.fileName} | ${state.datasetMeta.rowCount} initiatives | uploaded ${formatDate(state.datasetMeta.uploadedAt)}`;
   els.datasetInfo.textContent = `Stored in this browser only. File type: ${state.datasetMeta.fileType}. Parser: ${state.datasetMeta.parserVersion}.`;
+  els.landingDatasetStatus.textContent = `${state.datasetMeta.rowCount} initiatives in scope`;
+  els.utilityPdfStatus.textContent = truncateText(state.datasetMeta.fileName, 34);
+  els.utilityLastScan.textContent = formatDate(state.datasetMeta.uploadedAt);
+  els.utilityEvidenceCoverage.textContent = formatPercent(calculateEvidenceCoverage(state.raw));
+  els.footerParser.textContent = state.datasetMeta.parserVersion || "Current parser";
+  els.footerDataset.textContent = `${state.datasetMeta.fileName} | ${state.datasetMeta.rowCount} items`;
 
   const summary = state.datasetMeta.comparisonSummary;
   if (summary) {
@@ -2558,9 +2646,27 @@ function updateMeta() {
       `${summary.removedCount} removed`
     ];
     els.comparisonInfo.textContent = `Comparison summary: ${comparisonBits.join(", ")}.`;
+    els.utilityComparison.textContent = `${state.raw.filter(item => item.changeStatus !== "Existing").length} items moved`;
+    els.landingDatasetCopy.textContent =
+      `Latest scan uploaded ${formatDate(state.datasetMeta.uploadedAt)}. Comparison baseline available with ${comparisonBits.join(", ")}.`;
   } else {
     els.comparisonInfo.textContent = "No comparison baseline is available yet.";
+    els.utilityComparison.textContent = "Baseline not set";
+    els.landingDatasetCopy.textContent =
+      `Latest scan uploaded ${formatDate(state.datasetMeta.uploadedAt)}. No comparison baseline is available yet.`;
   }
+}
+
+function renderDashboardModeButtons() {
+  const mode = DASHBOARD_MODES[state.dashboardMode] || DASHBOARD_MODES.workspace;
+  document.body.dataset.dashboardMode = state.dashboardMode;
+  els.dashboardModeLabel.textContent = mode.label;
+  els.dashboardModeSummary.textContent = mode.summary;
+
+  const buttons = els.dashboardModeButtons.querySelectorAll("[data-dashboard-mode]");
+  buttons.forEach(button => {
+    button.classList.toggle("active", button.dataset.dashboardMode === state.dashboardMode);
+  });
 }
 
 function renderRoleButtons() {
@@ -2868,10 +2974,10 @@ function renderDetail(item) {
     return;
   }
 
-  els.detailMeta.textContent = `${item.primaryOwner} lead | ${item.stageLabel} | pages ${item.sourcePages.join(", ")}`;
-
   const sourcePages = item.sourcePages?.length ? item.sourcePages.join(", ") : "N/A";
+  els.detailMeta.textContent = `${item.primaryOwner} lead | ${item.stageLabel} | pages ${sourcePages}`;
   const feedback = state.feedback[item.canonicalKey] || {};
+  const evidenceCount = flattenEvidence(item.evidence).length;
 
   const heroChips = [
     chipHtml(`${item.relevanceScore} relevance`, chipClassForBand(item.relevanceBand)),
@@ -2884,6 +2990,30 @@ function renderDetail(item) {
   const briefCards = item.briefBlocks
     .map(block => renderBriefCard(item, block))
     .join("");
+
+  const decisionStrip = [
+    buildDecisionStripCard(
+      "Lead and ownership",
+      `${item.primaryOwner || "TBC"} lead with ${item.secondaryOwner || "no secondary owner recorded"} support.`
+    ),
+    buildDecisionStripCard(
+      "Timing and movement",
+      `${item.timeline?.label || item.timingBucket || "Timing to be confirmed"} | ${item.changeStatus || "Existing"}`
+    ),
+    buildDecisionStripCard(
+      "Evidence basis",
+      `Pages ${sourcePages} | Parse confidence ${item.parseConfidence || 0} | ${evidenceCount} evidence anchor${evidenceCount === 1 ? "" : "s"}`
+    )
+  ].join("");
+
+  const decisionCards = [
+    buildDecisionCard(
+      "FMRUK read-through",
+      item.briefBlocks?.[3]?.copy || item.rationale || "No FMRUK read-through is currently recorded."
+    ),
+    buildDecisionCard("Decision required", buildDecisionRequiredCopy(item)),
+    buildDecisionCard("Governance route", buildGovernanceRoute(item))
+  ].join("");
 
   const metaCards = [
     ["Section", item.sectionName || "N/A"],
@@ -2910,7 +3040,7 @@ function renderDetail(item) {
     : `<p>No material review points are currently flagged.</p>`;
 
   const whyNotRelevant = item.whyNotRelevant
-    ? `<div class="support-card"><h4>Current Relevance View</h4><p>${escapeHtml(item.whyNotRelevant)}</p></div>`
+    ? `<div class="support-card"><h4>Current relevance view</h4><p>${escapeHtml(item.whyNotRelevant)}</p></div>`
     : "";
 
   els.detailPanel.innerHTML = `
@@ -2920,12 +3050,22 @@ function renderDetail(item) {
       <p class="hero-copy">${escapeHtml(item.briefBlocks?.[0]?.copy || item.rationale)}</p>
     </section>
 
-    <section class="detail-meta-grid">${metaCards}</section>
+    <section class="decision-strip">${decisionStrip}</section>
 
-    <section class="brief-grid">${briefCards}</section>
+    <section class="decision-note-grid">${decisionCards}</section>
 
     <section class="support-card">
-      <h4>Obligation Map</h4>
+      <div class="detail-section-heading">
+        <h4>Structured brief</h4>
+        <span class="section-note">Evidence-linked summary</span>
+      </div>
+      <div class="brief-grid">${briefCards}</div>
+    </section>
+
+    <section class="detail-meta-grid">${metaCards}</section>
+
+    <section class="support-card">
+      <h4>Impacted domains</h4>
       <div class="obligation-grid">
         ${(item.obligations || []).map(obligation => chipHtml(obligation.name, "chip-neutral")).join("")}
       </div>
@@ -2933,12 +3073,12 @@ function renderDetail(item) {
     </section>
 
     <section class="support-card">
-      <h4>Confidence and review points</h4>
+      <h4>Outstanding checks</h4>
       ${uncertaintyList}
     </section>
 
     <section class="support-card">
-      <h4>Relevance basis</h4>
+      <h4>Basis for prioritisation</h4>
       <div class="chip-column">
         <div class="list-caption">Positive signals</div>
         <div class="signal-grid">${renderSignalSet(item.relevanceSignals, "chip-high")}</div>
@@ -2952,7 +3092,7 @@ function renderDetail(item) {
     ${whyNotRelevant}
 
     <section class="feedback-panel">
-      <h4>Analyst review</h4>
+      <h4>Analyst review controls</h4>
       <p class="feedback-note">
         Record urgency, parsing issues, ownership changes, classification changes and review notes. Saved review decisions are reused when the same initiative appears again.
       </p>
@@ -2983,6 +3123,85 @@ function renderDetail(item) {
   `;
 
   attachDetailEvents(item);
+}
+
+function buildDecisionStripCard(label, copy) {
+  return `
+    <article class="decision-card">
+      <div class="meta-label">${escapeHtml(label)}</div>
+      <p class="decision-note-copy">${escapeHtml(copy)}</p>
+    </article>
+  `;
+}
+
+function buildDecisionCard(title, copy) {
+  return `
+    <article class="decision-card">
+      <h4>${escapeHtml(title)}</h4>
+      <p class="decision-note-copy">${escapeHtml(copy)}</p>
+    </article>
+  `;
+}
+
+function buildDecisionRequiredCopy(item) {
+  if (item.immediateActionRequired) {
+    return `Immediate triage is recommended. Confirm applicability, assign delivery ownership under ${item.primaryOwner || "the lead owner"}, and set an implementation response against the next milestone.`;
+  }
+
+  if (item.needsReview) {
+    return `Manual review is recommended before formal mobilisation. Confirm scope, ownership, evidence quality and timing against the source text.`;
+  }
+
+  if (!item.isFmrukRelevant) {
+    return `No immediate mobilisation is indicated on the current read-through. Keep the item visible for monitoring in case timing, scope or business impact changes.`;
+  }
+
+  return `Keep the item in active review with ${item.primaryOwner || "the lead owner"}. Confirm whether a policy, governance or delivery response is needed before the next milestone.`;
+}
+
+function buildGovernanceRoute(item) {
+  const committee = selectGovernanceCommittee(item);
+
+  if (item.immediateActionRequired) {
+    return `Take the item through ${committee} with ${item.primaryOwner || "the lead owner"} as sponsor and provide an executive update if implementation risk or timing escalates.`;
+  }
+
+  if (item.stageLabel === "Reporting / Data Request") {
+    return `Route through ${committee} and the relevant delivery forum so reporting readiness, control ownership and resourcing can be confirmed early.`;
+  }
+
+  if (item.needsReview) {
+    return `Keep the item within ${committee} until scope, relevance and ownership are confirmed. Escalate more widely if the review identifies a material change for FMRUK.`;
+  }
+
+  return `Maintain oversight through ${committee}, led by ${item.primaryOwner || "the primary owner"}, and revisit escalation if the initiative moves closer or broadens in scope.`;
+}
+
+function selectGovernanceCommittee(item) {
+  const committees = state.profile?.committees?.length
+    ? state.profile.committees
+    : DEFAULT_PROFILE.committees;
+
+  const lowerCommittees = committees.map(value => String(value || "").trim()).filter(Boolean);
+  const hasObligation = name =>
+    item.obligations?.some(obligation => obligation.name === name);
+
+  const choose = hint =>
+    lowerCommittees.find(entry => entry.toLowerCase().includes(hint));
+
+  if (item.immediateActionRequired) {
+    return choose("board") || choose("risk") || choose("compliance") || lowerCommittees[0] || "the relevant governance forum";
+  }
+
+  if (hasObligation("Operational Resilience") || hasObligation("Outsourcing & Third Parties")) {
+    return choose("risk") || choose("oversight") || lowerCommittees[0] || "the relevant governance forum";
+  }
+
+  if (hasObligation("Disclosure & Communications") || item.primaryOwner === "Legal") {
+    return choose("compliance") || choose("board") || lowerCommittees[0] || "the relevant governance forum";
+  }
+
+  return choose("compliance") || choose("oversight") || lowerCommittees[0] || "the relevant governance forum";
 }
 
 function renderBriefCard(item, block) {
@@ -4028,6 +4247,17 @@ function getEvidenceForFields(item, fields, limit) {
 function flattenEvidence(evidence) {
   if (!evidence) return [];
   return Object.values(evidence).flat();
+}
+
+function calculateEvidenceCoverage(items) {
+  if (!items?.length) return 0;
+  const covered = items.filter(item => flattenEvidence(item.evidence).length > 0).length;
+  return covered / items.length;
+}
+
+function formatPercent(value) {
+  if (!Number.isFinite(value)) return "0%";
+  return `${Math.round(value * 100)}%`;
 }
 
 function buildThemeOptions(currentTheme, overrideTheme) {
