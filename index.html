@@ -10,7 +10,7 @@
     href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,500;6..72,700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="./styles.css?v=10" />
+  <link rel="stylesheet" href="./styles.css?v=11" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -22,6 +22,9 @@
         <div class="home-brand">
           <div class="eyebrow">Fidelity Investments</div>
           <div class="home-brand-title">FMRUK Regulatory Review</div>
+          <p class="home-brand-copy">
+            Regulatory intelligence workspace for FCA initiatives analysis, prioritisation and governance reporting.
+          </p>
         </div>
         <nav class="home-nav" aria-label="Primary">
           <button class="ghost-btn page-switch is-current" data-page-target="home" type="button">Home</button>
@@ -31,11 +34,16 @@
 
       <section class="home-hero card">
         <div class="home-hero-main">
-          <div class="home-kicker">FCA Initiatives Grid Review</div>
-          <h1>FMRUK Regulatory Review</h1>
+          <div class="home-kicker">Regulatory Intelligence Workspace</div>
+          <h1>Review the FCA Initiatives Grid in a decision-ready format.</h1>
           <p class="home-subtitle">
-            A structured workspace for reviewing the FCA Initiatives Grid, identifying read-through for FMRUK, and preparing decision-ready outputs.
+            Bring the FCA initiatives grid into a cleaner institutional workflow with structured triage, evidence-linked review, FMRUK read-through and export-ready outputs.
           </p>
+          <div class="home-proof-strip">
+            <span class="home-proof-item">PDF-led review</span>
+            <span class="home-proof-item">Evidence-linked analysis</span>
+            <span class="home-proof-item">Board and owner outputs</span>
+          </div>
           <div class="home-cta-row">
             <button class="primary-btn" data-page-target="review" type="button">Enter Review Workspace</button>
             <button class="ghost-btn home-secondary-btn" data-page-target="review" type="button">View Latest Portfolio</button>
@@ -43,18 +51,18 @@
           <div class="home-feature-grid">
             <article class="home-feature-card">
               <span class="home-card-kicker">Evidence-linked review</span>
-              <strong>Trace each summary back to the source PDF.</strong>
-              <p>Move from extracted wording to supporting evidence without leaving the workspace.</p>
+              <strong>Move from portfolio summary to source evidence without leaving the workspace.</strong>
+              <p>Each initiative can be reviewed against the underlying PDF, supporting challenge and validation.</p>
             </article>
             <article class="home-feature-card">
               <span class="home-card-kicker">Portfolio prioritisation</span>
-              <strong>Focus on relevance, timing, ownership and change movement.</strong>
-              <p>Bring the FCA grid into a format that supports triage, challenge and follow-up action.</p>
+              <strong>Bring timing, ownership, relevance and movement into one working view.</strong>
+              <p>Turn the FCA grid into a format that supports triage, challenge, mobilisation and follow-up action.</p>
             </article>
             <article class="home-feature-card">
-              <span class="home-card-kicker">Committee-ready outputs</span>
-              <strong>Prepare board and owner packs from the live review view.</strong>
-              <p>Use the same workspace for analysis, portfolio view and formal reporting outputs.</p>
+              <span class="home-card-kicker">Reporting outputs</span>
+              <strong>Prepare board and owner packs from the same live review workspace.</strong>
+              <p>Use one environment for analysis, portfolio review and formal reporting outputs.</p>
             </article>
           </div>
         </div>
@@ -87,7 +95,7 @@
           </article>
 
           <article class="home-note-card">
-            <span class="home-card-kicker">How It Works</span>
+            <span class="home-card-kicker">Operating Approach</span>
             <ul class="home-step-list">
               <li>Open the review workspace and upload the FCA Initiatives Grid PDF.</li>
               <li>Prioritise items by relevance, timing, ownership, evidence coverage and change movement.</li>
@@ -148,7 +156,6 @@
       </div>
       <div class="segmented-control" id="dashboardModeButtons">
         <button class="segment-btn active" data-dashboard-mode="workspace" type="button">Analyst Workspace</button>
-        <button class="segment-btn" data-dashboard-mode="committee" type="button">Committee View</button>
         <button class="segment-btn" data-dashboard-mode="executive" type="button">Executive Summary</button>
         <button class="segment-btn" data-dashboard-mode="evidence" type="button">Evidence Review</button>
       </div>
@@ -499,12 +506,12 @@
         </aside>
       </main>
 
-      <footer class="app-footer card">
-        <div class="footer-topline">
-          <div>
-            <div class="section-kicker">Workspace Metadata</div>
-            <h2>FMRUK Regulatory Review Workspace</h2>
-          </div>
+      <footer class="app-footer">
+        <div class="footer-brand-block">
+          <div class="footer-brand-title">FMRUK Regulatory Review Workspace</div>
+          <p class="footer-copy" id="footerStorageNotice">
+            The workspace stores the current dataset, evidence trail and review settings locally in this browser.
+          </p>
         </div>
         <div class="footer-meta-grid">
           <div class="footer-meta-item">
@@ -524,13 +531,10 @@
             <strong id="footerDataset">No PDF loaded</strong>
           </div>
         </div>
-        <p class="footer-copy" id="footerStorageNotice">
-          The workspace stores the current dataset, evidence trail and review settings locally in this browser.
-        </p>
       </footer>
     </section>
   </div>
 
-  <script src="./app.js?v=13"></script>
+  <script src="./app.js?v=14"></script>
 </body>
 </html>
