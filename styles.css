@@ -223,28 +223,6 @@ body[data-page="review"] .home-page {
   font-size: 16px;
 }
 
-.home-proof-strip {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.home-proof-item {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(239, 247, 255, 0.9);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
 .home-cta-row {
   position: relative;
   z-index: 1;
@@ -1111,24 +1089,12 @@ textarea:focus {
 
 .app-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: flex-end;
   gap: 24px;
   margin-top: 28px;
   padding: 24px 4px 8px;
   border-top: 1px solid rgba(17, 59, 103, 0.12);
-}
-
-.footer-brand-block {
-  max-width: 520px;
-}
-
-.footer-brand-title {
-  font-family: "Newsreader", Georgia, serif;
-  font-size: 22px;
-  line-height: 1.1;
-  color: var(--navy-deep);
-  font-weight: 700;
 }
 
 .footer-meta-grid {
@@ -1157,12 +1123,6 @@ textarea:focus {
   color: var(--navy-deep);
   line-height: 1.5;
   font-size: 13px;
-}
-
-.footer-copy {
-  margin: 10px 0 0;
-  color: var(--text-soft);
-  line-height: 1.65;
 }
 
 body[data-dashboard-mode="executive"] .intake-panel,
