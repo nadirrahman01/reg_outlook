@@ -1092,8 +1092,7 @@ function mapEls() {
     "footerVersion",
     "footerUpdated",
     "footerParser",
-    "footerDataset",
-    "footerStorageNotice"
+    "footerDataset"
   ];
 
   ids.forEach(id => {
@@ -2634,8 +2633,6 @@ function updateMeta() {
   els.footerVersion.textContent = APP_VERSION;
   els.footerUpdated.textContent = APP_UPDATED_AT;
   els.landingVersion.textContent = `Version ${APP_VERSION}`;
-  els.footerStorageNotice.textContent =
-    "The workspace stores the current dataset, evidence trail and review settings locally in this browser.";
 
   if (!state.datasetMeta) {
     els.headerMeta.textContent = "No dataset loaded";
