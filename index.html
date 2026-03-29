@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FMRUK Regulatory Intelligence Workspace</title>
+  <title>FMRUK Regulatory Review</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -20,9 +20,9 @@
     <header class="app-header">
       <div class="header-copy">
         <div class="eyebrow">Fidelity Investments</div>
-        <h1>FMRUK Regulatory Intelligence Workspace</h1>
+        <h1>FMRUK Regulatory Review</h1>
         <p class="header-subtitle">
-          Disseminate the FCA initiatives PDF into evidence-linked briefs, ownership views, and action-led regulatory insight.
+          Structured review of the FCA Initiatives Grid, with source evidence, ownership mapping and action tracking for FMRUK.
         </p>
       </div>
       <div class="header-actions">
@@ -40,7 +40,7 @@
         <div class="summary-label">Dataset</div>
         <div class="summary-value" id="headerMeta">No dataset loaded</div>
         <div class="summary-copy" id="datasetInfo">No saved dataset found.</div>
-        <div class="summary-copy" id="comparisonInfo">Upload a PDF to build the first comparison story.</div>
+        <div class="summary-copy" id="comparisonInfo">Upload a PDF to establish the first comparison baseline.</div>
       </div>
       <div class="summary-card">
         <div class="summary-label">Total Items</div>
@@ -73,7 +73,7 @@
         <span class="section-note" id="currentRoleLabel">Compliance lens active</span>
       </div>
       <p class="story-copy" id="portfolioNarrative">
-        Upload an FCA initiatives PDF to generate the portfolio-level narrative.
+        Upload the FCA Initiatives Grid PDF to populate the portfolio summary.
       </p>
     </section>
 
@@ -91,7 +91,7 @@
             <button class="primary-btn" id="uploadBtn" type="button">Upload &amp; Analyse PDF</button>
           </div>
           <p class="support-copy">
-            PDF-only mode is enabled. The workspace stores evidence, comparison state, analyst feedback, and the current PDF preview in the browser.
+            PDF-only mode. Source evidence, comparison history, analyst notes and the PDF preview are stored in the browser.
           </p>
           <div class="status-banner" id="uploadStatus">No upload in progress.</div>
         </section>
@@ -299,7 +299,7 @@
             <span class="section-note" id="listMeta">0 items in scope</span>
           </div>
           <div class="initiative-list" id="initiativeList">
-            <div class="empty-list">Upload a PDF to populate the review queue.</div>
+            <div class="empty-list">Upload a PDF to populate the initiative list.</div>
           </div>
         </section>
 
@@ -320,7 +320,7 @@
           <div class="section-heading">
             <div>
               <div class="section-kicker">Ask The Portfolio</div>
-              <h2>Ask This PDF</h2>
+              <h2>Portfolio Search</h2>
             </div>
           </div>
           <div class="ask-controls">
@@ -328,7 +328,7 @@
             <button class="secondary-btn" id="askBtn" type="button">Run Query</button>
           </div>
           <p class="support-copy" id="askAnswer">
-            Ask a search-style question and the workspace will generate a portfolio answer from the parsed initiatives and evidence.
+            Enter a search query to scan initiatives, obligations and source evidence.
           </p>
           <ul class="stack-list" id="askResults"></ul>
         </section>
@@ -353,7 +353,7 @@
             </div>
           </div>
           <p class="support-copy" id="pdfPreviewStatus">
-            Upload a PDF to unlock side-by-side evidence review.
+            Upload a PDF to enable side-by-side source review.
           </p>
           <div class="evidence-trail" id="evidenceTrail"></div>
           <div class="pdf-preview" id="pdfPreview"></div>
@@ -362,6 +362,6 @@
     </main>
   </div>
 
-  <script src="./app.js?v=10"></script>
+  <script src="./app.js?v=11"></script>
 </body>
 </html>
