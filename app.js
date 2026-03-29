@@ -42,11 +42,6 @@ const DASHBOARD_MODES = {
     summary:
       "Analyst workspace keeps the full intake, filtering, review and evidence toolset visible."
   },
-  committee: {
-    label: "Committee View",
-    summary:
-      "Committee view reduces lower-value controls and keeps the narrative, priority items, timing and evidence in clearer focus."
-  },
   executive: {
     label: "Executive Summary",
     summary:
