@@ -1260,7 +1260,7 @@ async function handleUpload() {
 
   const ext = file.name.split(".").pop().toLowerCase();
   if (ext !== "pdf") {
-    els.uploadStatus.textContent = "PDF-only mode is enabled in this workspace.";
+    els.uploadStatus.textContent = "PDF-only mode is enabled.";
     return;
   }
 
@@ -2044,7 +2044,7 @@ function mapObligations(item, classification, stage) {
 
   return scored.map(entry => ({
     name: entry.name,
-    reason: entry.reasons[0] || `${entry.name} appears in scope based on the source text and stage.`
+    reason: entry.reasons[0] || `${entry.name} is in scope based on the source text and stage.`
   }));
 }
 
@@ -2105,14 +2105,14 @@ function evaluateFmrukRelevance(item, classification, stage, obligations) {
     ...positive.reasons,
     ...profileMatch.reasons,
     ...(RELEVANCE_SIGNAL_GROUPS.sectionAdjustments[item.sectionName] > 0
-      ? [`Section boost: ${item.sectionName}.`]
+      ? [`Section weighting: ${item.sectionName}.`]
       : [])
   ]);
 
   const negativeReasons = dedupeStrings([
     ...negative.reasons,
     ...(RELEVANCE_SIGNAL_GROUPS.sectionAdjustments[item.sectionName] < 0
-      ? [`Section drag: ${item.sectionName}.`]
+      ? [`Section weighting reduces relevance: ${item.sectionName}.`]
       : [])
   ]);
 
@@ -2120,7 +2120,7 @@ function evaluateFmrukRelevance(item, classification, stage, obligations) {
   const band = score >= 80 ? "High" : score >= 58 ? "Medium" : "Low";
   const whyNotRelevant =
     !isRelevant && negativeReasons.length
-      ? `This item currently looks low relevance for FMRUK because ${negativeReasons.join(" ")}`
+      ? `Current view: low FMRUK relevance because ${negativeReasons.join(" ")}`
       : "";
 
   return {
@@ -2173,7 +2173,7 @@ function determineUncertainty(item, classification, stage, relevance) {
   if ((stage.confidence || 0) < 58) flags.push("Initiative stage is uncertain.");
   if (!item.expectedKeyMilestones) flags.push("Milestones were not clearly extracted.");
   if (relevance.score >= 45 && relevance.score <= 65) {
-    flags.push("Relevance sits in the judgement zone and should be checked manually.");
+    flags.push("Relevance sits in the judgement range and needs manual review.");
   }
   if (relevance.positiveReasons.length && relevance.negativeReasons.length) {
     flags.push("The initiative shows both FMRUK and non-FMRUK relevance signals.");
@@ -2193,7 +2193,7 @@ function buildPotentialBusinessImpact(item, classification, stage, obligations) 
     consultation:
       " The main near-term need is understanding scope, shaping response and avoiding late delivery surprises.",
     final_rules:
-      " Because this appears close to implementation, the focus should move quickly from interpretation into change delivery and control readiness.",
+      " The item is close to implementation, so the focus should move quickly from interpretation into delivery and control readiness.",
     supervisory:
       " The main exposure is evidencing current-state compliance and fixing weak controls before supervisory scrutiny increases.",
     reporting:
@@ -2213,11 +2213,11 @@ function buildSuggestedActions(item, classification, stage, impact, relevance, o
 
   if (relevance.isRelevant) {
     actions.push(
-      `${classification.primaryOwner} should own initial triage with ${classification.secondaryOwner} support.`
+      `Lead review: ${classification.primaryOwner}, with ${classification.secondaryOwner} support.`
     );
   } else {
     actions.push(
-      `Keep this with ${classification.primaryOwner} as a watchlist item unless FMRUK scope becomes clearer.`
+      `Keep this with ${classification.primaryOwner} on the watchlist until FMRUK scope is clearer.`
     );
   }
 
@@ -2254,64 +2254,64 @@ function buildRationale(item, classification, stage, relevance, obligations) {
     ? ` Obligation map: ${obligations.map(obligation => obligation.name).join(", ")}.`
     : "";
 
-  return `Mapped to ${classification.theme} / ${classification.subTheme}. Treated as ${stage.label}. ${positives}${negatives}${obligationText}`;
+  return `Classification: ${classification.theme} / ${classification.subTheme}. Stage: ${stage.label}. ${positives}${negatives}${obligationText}`;
 }
 
 function buildBriefBlocks(item, classification, stage, obligations, relevance, actions, uncertainty) {
   const whatIsThis =
-    `This initiative appears to be an ${stage.label.toLowerCase()} item in ${classification.theme}, led by ${item.leadRegulator || "the relevant regulator"} and captured under ${item.sectionName || "the FCA grid"}.`;
+    `${stage.label} item in ${classification.theme}, led by ${item.leadRegulator || "the relevant regulator"} and listed under ${item.sectionName || "the FCA grid"}.`;
   const whatIsChanging =
     item.initiativeDescription
-      ? `The source suggests the change affects ${truncateText(item.initiativeDescription, 220)}`
+      ? `The source text covers ${truncateText(item.initiativeDescription, 220)}`
       : classification.impactStatement;
   const whyNow =
     item.expectedKeyMilestones
-      ? `The current timing signal is ${item.timingBucket.toLowerCase()}, with milestone text reading: ${truncateText(item.expectedKeyMilestones, 190)}`
-      : `The timing is ${item.timingBucket.toLowerCase()} and the item is being treated as ${stage.label.toLowerCase()}.`;
+      ? `Timing is ${item.timingBucket.toLowerCase()}. Milestone reference: ${truncateText(item.expectedKeyMilestones, 190)}`
+      : `Timing is ${item.timingBucket.toLowerCase()}. The item is currently tracked as ${stage.label.toLowerCase()}.`;
   const whyFmrukMayCare =
     relevance.isRelevant
-      ? `FMRUK may care because ${truncateText(relevance.positiveReasons.join(" "), 220)}`
-      : item.whyNotRelevant || "The current model does not see strong FMRUK relevance yet.";
+      ? `Main relevance drivers: ${truncateText(relevance.positiveReasons.join(" "), 220)}`
+      : item.whyNotRelevant || "No strong FMRUK relevance drivers are currently recorded.";
   const whoOwnsIt =
-    `${classification.primaryOwner} is the lead owner, with ${classification.secondaryOwner} as the main support function. The key obligation domains are ${obligations.map(obligation => obligation.name).join(", ")}.`;
+    `Lead owner: ${classification.primaryOwner}. Support: ${classification.secondaryOwner}. Control areas: ${obligations.map(obligation => obligation.name).join(", ")}.`;
   const whatNeedsToHappenNext = actions.slice(0, 3).join(" ");
   const whatIsStillUnclear = uncertainty.flags.length
     ? uncertainty.flags.join(" ")
-    : "No major uncertainty flags were generated from the current parse and scoring model.";
+    : "No material open points are currently flagged.";
 
   return [
     {
-      title: "What is this?",
+      title: "Summary",
       copy: whatIsThis,
       evidenceFields: ["title", "lead", "general"]
     },
     {
-      title: "What is changing?",
+      title: "Regulatory change",
       copy: whatIsChanging,
       evidenceFields: ["description", "impact", "general"]
     },
     {
-      title: "Why now?",
+      title: "Timing",
       copy: whyNow,
       evidenceFields: ["milestones", "timing", "isNew"]
     },
     {
-      title: "Why FMRUK may care",
+      title: "FMRUK relevance",
       copy: whyFmrukMayCare,
       evidenceFields: ["description", "milestones", "general"]
     },
     {
-      title: "Who owns it?",
+      title: "Ownership",
       copy: whoOwnsIt,
       evidenceFields: ["title", "description"]
     },
     {
-      title: "What needs to happen next?",
+      title: "Required actions",
       copy: whatNeedsToHappenNext,
       evidenceFields: ["milestones", "description", "general"]
     },
     {
-      title: "What is still unclear?",
+      title: "Open points",
       copy: whatIsStillUnclear,
       evidenceFields: ["general", "milestones", "description"]
     }
@@ -2376,7 +2376,7 @@ function applyFeedbackOverrides(item) {
     next.isFmrukRelevant = false;
     next.relevanceScore = Math.min(next.relevanceScore || 0, 35);
     next.relevanceBand = "Low";
-    next.whyNotRelevant = "Analyst override has marked this initiative as not relevant to FMRUK at present.";
+    next.whyNotRelevant = "Analyst review has marked this initiative as out of scope for FMRUK at present.";
   }
 
   if (feedback.markUrgent) {
@@ -2489,8 +2489,8 @@ function determineDeltaType(previous, next) {
 
 function buildChangeNarrative(previous, next, deltaType) {
   if (deltaType === "New") return "New initiative compared with the previous upload.";
-  if (deltaType === "Accelerated") return "Milestone timing appears to have moved earlier relative to the previous upload.";
-  if (deltaType === "Delayed") return "Milestone timing appears to have moved later relative to the previous upload.";
+  if (deltaType === "Accelerated") return "Milestone timing is earlier than in the previous upload.";
+  if (deltaType === "Delayed") return "Milestone timing is later than in the previous upload.";
   if (deltaType === "Changed") return "Description, staging or triage outcome differs from the previous upload.";
   return "No material delta detected against the previous upload.";
 }
@@ -2506,7 +2506,7 @@ function reanalyseCurrentDataset() {
       item.canonicalKey,
       {
         changeStatus: item.changeStatus || "Existing",
-        changeNarrative: item.changeNarrative || "No delta story is currently available."
+        changeNarrative: item.changeNarrative || "No comparison note is currently available."
       }
     ])
   );
@@ -2516,7 +2516,7 @@ function reanalyseCurrentDataset() {
       ...item,
       ...(deltaMap.get(item.canonicalKey) || {
         changeStatus: "Existing",
-        changeNarrative: "No delta story is currently available."
+        changeNarrative: "No comparison note is currently available."
       })
     }))
   );
@@ -2541,7 +2541,7 @@ function updateMeta() {
   if (!state.datasetMeta) {
     els.headerMeta.textContent = "No dataset loaded";
     els.datasetInfo.textContent = "No saved dataset found.";
-    els.comparisonInfo.textContent = "Upload a PDF to build the first comparison story.";
+    els.comparisonInfo.textContent = "Upload a PDF to establish the first comparison baseline.";
     return;
   }
 
@@ -2557,9 +2557,9 @@ function updateMeta() {
       `${summary.delayedCount} delayed`,
       `${summary.removedCount} removed`
     ];
-    els.comparisonInfo.textContent = `Comparison story: ${comparisonBits.join(", ")}.`;
+    els.comparisonInfo.textContent = `Comparison summary: ${comparisonBits.join(", ")}.`;
   } else {
-    els.comparisonInfo.textContent = "No comparison history is available yet.";
+    els.comparisonInfo.textContent = "No comparison baseline is available yet.";
   }
 }
 
@@ -2741,7 +2741,7 @@ function buildPortfolioNarrative(items) {
   const delta = items.filter(item => item.changeStatus !== "Existing").length;
   const roleView = ROLE_VIEWS[state.roleView];
 
-  return `${roleView.summary} Within the current filtered scope there are ${items.length} initiatives, with ${highPriority} requiring immediate action and ${delta} carrying a visible delta from the previous upload. The strongest programme themes are ${topThemes || "not yet available"}, with ownership leaning toward ${topOwners || "no owner pattern yet"}.`;
+  return `${roleView.summary} ${items.length} initiatives are in scope. ${highPriority} require immediate action and ${delta} show movement against the previous upload. Leading themes: ${topThemes || "none recorded"}. Main owners: ${topOwners || "no clear ownership pattern"}.`;
 }
 
 function renderClusterList(items) {
@@ -2749,13 +2749,13 @@ function renderClusterList(items) {
   els.clusterList.innerHTML = "";
 
   if (!clusters.length) {
-    els.clusterList.innerHTML = "<li>No clusters available yet.</li>";
+    els.clusterList.innerHTML = "<li>No cluster summary is available yet.</li>";
     return;
   }
 
   clusters.forEach(cluster => {
     const li = document.createElement("li");
-    li.innerHTML = `<strong>${escapeHtml(cluster.name)}</strong><br />${cluster.count} initiatives currently align to this programme.`;
+    li.innerHTML = `<strong>${escapeHtml(cluster.name)}</strong><br />${cluster.count} initiatives are grouped in this programme.`;
     els.clusterList.appendChild(li);
   });
 }
@@ -2765,15 +2765,15 @@ function renderDeltaList(items) {
   els.deltaList.innerHTML = "";
 
   if (!summary) {
-    els.deltaList.innerHTML = "<li>No comparison story is available yet.</li>";
+    els.deltaList.innerHTML = "<li>No comparison baseline is available yet.</li>";
     return;
   }
 
   const lines = [
-    `${summary.newCount} new initiatives were detected in the latest upload.`,
+    `${summary.newCount} initiatives are new in the latest upload.`,
     `${summary.changedCount} initiatives changed in wording, stage or triage outcome.`,
-    `${summary.acceleratedCount} initiatives appear to have accelerated.`,
-    `${summary.delayedCount} initiatives appear to have moved later.`,
+    `${summary.acceleratedCount} initiatives have earlier timing than the previous upload.`,
+    `${summary.delayedCount} initiatives have later timing than the previous upload.`,
     summary.removedItems?.length
       ? `Removed from the latest upload: ${summary.removedItems.join(", ")}.`
       : `${summary.removedCount} initiatives no longer appear in the latest upload.`
@@ -2864,7 +2864,7 @@ function renderDetail(item) {
   if (!item) {
     els.detailMeta.textContent = "No initiative selected";
     els.detailPanel.innerHTML =
-      "Upload the FCA Grid PDF, then select an initiative to generate a structured brief.";
+      "Upload the FCA Grid PDF, then select an initiative to review the briefing note.";
     return;
   }
 
@@ -2893,7 +2893,7 @@ function renderDetail(item) {
     ["Secondary owner", item.secondaryOwner || "N/A"],
     ["Timing", item.timeline?.label || item.timingBucket || "N/A"],
     ["Source pages", sourcePages],
-    ["Change story", item.changeNarrative || "N/A"]
+    ["Change note", item.changeNarrative || "N/A"]
   ]
     .map(
       ([label, value]) => `
@@ -2907,10 +2907,10 @@ function renderDetail(item) {
 
   const uncertaintyList = item.uncertaintyFlags?.length
     ? `<ul class="detail-list">${item.uncertaintyFlags.map(flag => `<li>${escapeHtml(flag)}</li>`).join("")}</ul>`
-    : `<p>No major uncertainty flags were generated.</p>`;
+    : `<p>No material review points are currently flagged.</p>`;
 
   const whyNotRelevant = item.whyNotRelevant
-    ? `<div class="support-card"><h4>Why This May Not Be Relevant</h4><p>${escapeHtml(item.whyNotRelevant)}</p></div>`
+    ? `<div class="support-card"><h4>Current Relevance View</h4><p>${escapeHtml(item.whyNotRelevant)}</p></div>`
     : "";
 
   els.detailPanel.innerHTML = `
@@ -2933,12 +2933,12 @@ function renderDetail(item) {
     </section>
 
     <section class="support-card">
-      <h4>Confidence And Uncertainty</h4>
+      <h4>Confidence and review points</h4>
       ${uncertaintyList}
     </section>
 
     <section class="support-card">
-      <h4>Evidence-Led Relevance Story</h4>
+      <h4>Relevance basis</h4>
       <div class="chip-column">
         <div class="list-caption">Positive signals</div>
         <div class="signal-grid">${renderSignalSet(item.relevanceSignals, "chip-high")}</div>
@@ -2952,9 +2952,9 @@ function renderDetail(item) {
     ${whyNotRelevant}
 
     <section class="feedback-panel">
-      <h4>Analyst Feedback Loop</h4>
+      <h4>Analyst review</h4>
       <p class="feedback-note">
-        Mark urgent items, flag parsing issues, override ownership or classification, and add notes. These analyst corrections are saved and reused when the same initiative appears again.
+        Record urgency, parsing issues, ownership changes, classification changes and review notes. Saved review decisions are reused when the same initiative appears again.
       </p>
       <div class="feedback-actions">
         <button class="feedback-chip ${feedback.markUrgent ? "active" : ""}" id="feedbackUrgentBtn" type="button">Mark Urgent</button>
@@ -3080,7 +3080,7 @@ function renderPdfEvidence(item) {
 
   const evidence = getEvidenceForFields(item, ["title", "lead", "description", "milestones", "impact", "timing", "isNew"], 20);
   if (!evidence.length) {
-    els.pdfPreviewStatus.textContent = "No evidence entries were captured for the selected initiative.";
+    els.pdfPreviewStatus.textContent = "No evidence references were captured for the selected initiative.";
     return;
   }
 
@@ -3113,7 +3113,7 @@ async function renderPdfPreview(item, evidence) {
 
   if (!state.pdfDocument) {
     els.pdfPreviewStatus.textContent =
-      "The current session does not have the PDF preview document loaded. Upload the PDF again to restore the live preview.";
+      "The PDF preview is not loaded in this browser session. Upload the PDF again to restore the live preview.";
     return;
   }
 
@@ -3123,7 +3123,7 @@ async function renderPdfPreview(item, evidence) {
     return;
   }
 
-  els.pdfPreviewStatus.textContent = `Showing source pages ${pages.join(", ")} with evidence-linked highlight bands.`;
+  els.pdfPreviewStatus.textContent = `Showing source pages ${pages.join(", ")} with linked highlight bands.`;
   const activeEvidence = evidence.find(entry => entry.key === state.currentPdfHighlightKey);
   const token = ++state.pdfRenderToken;
 
@@ -3183,7 +3183,7 @@ function runAskQuery() {
 
   if (!query) {
     state.ask.answer =
-      "Ask a search-style question and the workspace will generate a portfolio answer from the parsed initiatives and evidence.";
+      "Enter a search query to scan initiatives, obligations and source evidence.";
     state.ask.results = [];
     renderAskResults();
     return;
@@ -3224,7 +3224,7 @@ function runAskQuery() {
   state.ask.results = scored.map(result => result.item);
 
   if (!state.ask.results.length) {
-    state.ask.answer = `No initiatives matched "${query}" strongly enough in the current dataset.`;
+    state.ask.answer = `No initiatives matched "${query}" in the current filtered set.`;
     renderAskResults();
     return;
   }
@@ -3236,16 +3236,16 @@ function runAskQuery() {
     .map(entry => entry.name)
     .join(" and ");
 
-  state.ask.answer = `I found ${state.ask.results.length} initiatives aligned to "${query}". The strongest matches cluster around ${topThemes || "the current search scope"}, with likely ownership in ${topOwners || "the filtered owner set"}.`;
+  state.ask.answer = `${state.ask.results.length} initiatives match "${query}". Main themes: ${topThemes || "none"}. Main owners: ${topOwners || "none"}.`;
   renderAskResults();
 }
 
 function renderAskResults() {
-  els.askAnswer.textContent = state.ask.answer || "Ask a question to search across the portfolio.";
+  els.askAnswer.textContent = state.ask.answer || "Enter a search query to scan the filtered portfolio.";
   els.askResults.innerHTML = "";
 
   if (!state.ask.results.length) {
-    els.askResults.innerHTML = "<li>No ask-results are currently available.</li>";
+    els.askResults.innerHTML = "<li>No search results are available.</li>";
     return;
   }
 
@@ -3331,7 +3331,7 @@ function exportBoardBrief() {
   const doc = buildReportPdf({
     kind: "board",
     title: "FMRUK Regulatory Board Brief",
-    subtitle: "Board-ready regulatory intelligence, portfolio movement, and audit-focused points.",
+    subtitle: "Regulatory developments, management actions and assurance points for FMRUK.",
     audience: `${state.roleView} lens`,
     items,
     summaryText: buildPortfolioNarrative(items)
@@ -3361,7 +3361,7 @@ function exportOwnerPack() {
   const doc = buildReportPdf({
     kind: "owner",
     title: "FMRUK Owner Pack",
-    subtitle: "Operational owner pack with actions, assurance checks, and evidence-aware follow-up points.",
+    subtitle: "Owner actions, control implications and review points by function.",
     audience: `${role} lens`,
     items: relevantItems,
     summaryText: buildPortfolioNarrative(relevantItems)
@@ -3424,7 +3424,7 @@ function createPdfContext(doc, config) {
       panel: [245, 248, 252],
       white: [255, 255, 255]
     },
-    datasetLabel: state.datasetMeta?.fileName || "Current filtered workspace",
+    datasetLabel: state.datasetMeta?.fileName || "Current filtered review set",
     audience: config.audience,
     activeHeader: config.title
   };
@@ -3461,10 +3461,10 @@ function drawReportCover(ctx, config) {
   doc.roundedRect(margin, summaryTop, pageWidth - margin * 2, summaryHeight, 18, 18, "S");
 
   const metaLines = [
-    `Generated: ${formatDate(new Date().toISOString())}`,
+    `Prepared: ${formatDate(new Date().toISOString())}`,
     `Source PDF: ${state.datasetMeta?.fileName || "Current browser session"}`,
     `Audience: ${config.audience}`,
-    `Parser: ${state.datasetMeta?.parserVersion || "Current model"}`
+    `Parsing engine: ${state.datasetMeta?.parserVersion || "Current version"}`
   ];
 
   doc.setTextColor(...colors.text);
@@ -3488,7 +3488,7 @@ function drawReportCover(ctx, config) {
   doc.setFontSize(11);
   doc.setTextColor(...colors.soft);
   doc.text(
-    "This report is generated from the current filtered dataset in the FMRUK Regulatory Intelligence Workspace.",
+    "Prepared from the current filtered dataset in the FMRUK Regulatory Review.",
     margin,
     pageHeight - 38
   );
@@ -3636,10 +3636,10 @@ function addMovementSection(ctx, config) {
     ? [
         `${summary.newCount} initiatives are new in the current upload.`,
         `${summary.changedCount} initiatives changed in wording, stage or triage outcome.`,
-        `${summary.acceleratedCount} initiatives appear to have accelerated and ${summary.delayedCount} appear to have moved later.`,
+        `${summary.acceleratedCount} initiatives have earlier timing and ${summary.delayedCount} have later timing than in the previous upload.`,
         `${summary.removedCount} initiatives no longer appear in the latest upload.`
       ]
-    : ["No prior upload comparison is available for movement analysis."];
+    : ["No prior upload comparison is available."];
 
   addPdfBulletList(ctx, bullets, { color: ctx.colors.text });
 
@@ -3659,7 +3659,7 @@ function addMovementSection(ctx, config) {
 }
 
 function addMaterialInitiativeSection(ctx, items) {
-  addPdfSectionTitle(ctx, "Material initiatives", "Board-ready briefing notes");
+  addPdfSectionTitle(ctx, "Material initiatives", "Board briefing notes");
   items.forEach((item, index) => {
     addInitiativeCard(ctx, item, index + 1, "board");
   });
@@ -3669,7 +3669,7 @@ function addOwnerSummarySection(ctx, items) {
   addPdfSectionTitle(ctx, "Owner summary", "Action coverage");
   addPdfParagraph(
     ctx,
-    "This owner pack is grouped by primary owner so each function can see its initiative queue, expected actions, control domains, evidence confidence, and assurance follow-up points.",
+    "This pack is grouped by primary owner so each function can review its queue, required actions, control areas and key review points.",
     { color: ctx.colors.text, size: 11.5 }
   );
 
@@ -3694,7 +3694,7 @@ function addOwnerDetailSections(ctx, items) {
       addPdfSectionTitle(ctx, owner, "Owner action pack");
       addPdfParagraph(
         ctx,
-        `${owner} currently owns ${ownerItems.length} initiatives in the filtered scope. The table and detailed notes below are designed to support action tracking, challenge, and audit readiness.`,
+        `${owner} currently owns ${ownerItems.length} initiatives in the filtered scope. The table and notes below support action tracking, review and assurance.`,
         { color: ctx.colors.text, size: 11.5 }
       );
 
@@ -3759,9 +3759,9 @@ function addMethodologySection(ctx, config) {
   addPdfBulletList(
     ctx,
     [
-      "The report is generated from the currently filtered dataset in the workspace and inherits the active role lens and profile engine assumptions.",
-      "Every initiative summary is based on parsed FCA PDF content, evidence-linked source rows, rule-based classification, and current analyst feedback overrides.",
-      "Audit and assurance points surface parsing confidence, uncertainty flags, missing milestones, and scope signals that require human validation.",
+      "This report is based on the current filtered dataset and reflects the active role lens and profile settings.",
+      "Each initiative summary uses parsed FCA PDF content, linked source rows, rule-based classification and any saved analyst overrides.",
+      "Audit and review points highlight parsing confidence, open items, missing milestones and scope questions that require human review.",
       ...profileSummary.slice(0, 4)
     ],
     { color: ctx.colors.text }
@@ -3770,8 +3770,8 @@ function addMethodologySection(ctx, config) {
   addPdfParagraph(
     ctx,
     config.kind === "board"
-      ? "Board interpretation note: this report is designed for leadership awareness and challenge. It should support decisions, not replace legal or compliance judgement."
-      : "Owner interpretation note: this pack is designed to help teams mobilise, evidence judgement, and prepare for challenge from compliance, legal, risk, and audit.",
+      ? "Board note: this report supports management discussion and challenge. It does not replace legal or compliance judgement."
+      : "Owner note: this pack supports mobilisation, documented judgement and review by compliance, legal, risk and audit.",
     { color: ctx.colors.soft, size: 10.5 }
   );
 }
@@ -3857,16 +3857,16 @@ function buildItemAuditPoints(item, mode) {
     `Source evidence captured on PDF pages ${item.sourcePages.join(", ")}.`,
     `Parse confidence is ${item.parseConfidence} (${item.parseConfidenceBand}).`,
     `Change signal is ${item.changeStatus}: ${item.changeNarrative}`,
-    `Primary review flags: ${(item.uncertaintyFlags || []).slice(0, 2).join(" ") || "No major uncertainty flags."}`
+    `Primary review points: ${(item.uncertaintyFlags || []).slice(0, 2).join(" ") || "No material review points flagged."}`
   ];
 
   if (mode === "owner") {
     points.push(
-      `Primary owner challenge: confirm ${item.primaryOwner} has accepted the action and agrees the obligation map.`
+      `Owner check: confirm ${item.primaryOwner} has accepted the action and agrees the obligation map.`
     );
   } else {
     points.push(
-      `Board challenge point: confirm whether the current action, timing, and ownership are proportionate for this level of relevance and impact.`
+      "Board check: confirm that timing, ownership and actions remain proportionate to the assessed relevance and impact."
     );
   }
 
@@ -3882,14 +3882,14 @@ function buildPortfolioAuditPoints(items) {
   const urgentCount = items.filter(item => item.immediateActionRequired).length;
 
   return [
-    `${reviewCount} initiatives currently carry manual review flags and should not be actioned without source validation.`,
-    `${lowParseCount} initiatives have lower parsing confidence and should be challenged back to the original PDF.`,
+    `${reviewCount} initiatives currently carry manual review flags and require source validation before action is closed.`,
+    `${lowParseCount} initiatives have lower parsing confidence and should be checked against the original PDF.`,
     `${missingMilestoneCount} initiatives do not yet have clear milestone extraction, creating timing uncertainty.`,
-    `${changedCount} initiatives show visible movement compared with the previous upload, which should be challenged for business impact and prioritisation.`,
+    `${changedCount} initiatives show movement compared with the previous upload and should be reviewed for business impact and priority.`,
     `${urgentCount} initiatives currently require immediate action based on impact, timing, and relevance.`,
     summary?.removedCount
-      ? `${summary.removedCount} initiatives no longer appear in the latest upload and should be checked for whether they were completed, moved, or dropped from the grid.`
-      : "No removed initiatives were detected in the current comparison story."
+      ? `${summary.removedCount} initiatives no longer appear in the latest upload and should be checked for completion, movement or removal from the grid.`
+      : "No removed initiatives were detected in the current comparison set."
   ];
 }
 
