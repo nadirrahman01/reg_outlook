@@ -3000,11 +3000,6 @@ function renderBriefCard(item, block) {
   `;
 }
 
-function renderSignalSet(values, chipClass) {
-  if (!values?.length) return chipHtml("None", "chip-neutral");
-  return values.map(value => chipHtml(value, chipClass)).join("");
-}
-
 function attachDetailEvents(item) {
   els.detailPanel.querySelectorAll("[data-evidence-key]").forEach(button => {
     button.addEventListener("click", () => {
