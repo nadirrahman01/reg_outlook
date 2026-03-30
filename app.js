@@ -6,7 +6,6 @@ const PDF_STORE_NAME = "pdfs";
 const PDF_RECORD_KEY = "current_pdf";
 const APP_VERSION = "1.3.0";
 const APP_UPDATED_AT = "30 March 2026";
-const APP_ENVIRONMENT_LABEL = "Browser";
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -23,7 +22,6 @@ const state = {
   feedback: {},
   currentPage: "home",
   roleView: "Compliance",
-  dashboardMode: "workspace",
   activePreset: "all",
   pdfBuffer: null,
   pdfDocument: null,
@@ -33,21 +31,6 @@ const state = {
     query: "",
     answer: "",
     results: []
-  }
-};
-
-const DASHBOARD_MODES = {
-  workspace: {
-    label: "Analyst Workspace",
-    summary: "All panels visible."
-  },
-  executive: {
-    label: "Executive Summary",
-    summary: "Priority items only."
-  },
-  evidence: {
-    label: "Evidence Review",
-    summary: "PDF-led review."
   }
 };
 
@@ -1057,16 +1040,7 @@ function mapEls() {
     "landingDatasetCopy",
     "homeLastScan",
     "homeComparisonStatus",
-    "utilityEnvironment",
-    "utilityMode",
-    "utilityViewer",
-    "utilityPdfStatus",
-    "utilityLastScan",
-    "utilityComparison",
-    "utilityEvidenceCoverage",
-    "dashboardModeButtons",
     "dashboardModeLabel",
-    "dashboardModeSummary",
     "headerMeta",
     "datasetInfo",
     "comparisonInfo",
@@ -1141,7 +1115,6 @@ function bindEvents() {
   els.exportBoardBriefBtn.addEventListener("click", exportBoardBrief);
   els.exportOwnerPackBtn.addEventListener("click", exportOwnerPack);
   els.clearStorageBtn.addEventListener("click", clearSavedData);
-  els.dashboardModeButtons.addEventListener("click", handleDashboardModeClick);
   els.roleViewButtons.addEventListener("click", handleRoleViewClick);
   els.presetButtons.addEventListener("click", handlePresetClick);
   document.querySelectorAll("[data-page-target]").forEach(button => {
@@ -1200,14 +1173,6 @@ function navigateToPage(page) {
   state.currentPage = page;
   renderPageState();
   window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function handleDashboardModeClick(event) {
-  const button = event.target.closest("[data-dashboard-mode]");
-  if (!button) return;
-
-  state.dashboardMode = button.dataset.dashboardMode;
-  renderAll();
 }
 
 function handleRoleViewClick(event) {
@@ -2632,7 +2597,6 @@ function reanalyseCurrentDataset() {
 
 function renderAll() {
   renderPageState();
-  renderDashboardModeButtons();
   updateMeta();
   renderRoleButtons();
   renderPresetButtons();
@@ -2649,12 +2613,9 @@ function renderPageState() {
 
 function updateMeta() {
   const roleView = ROLE_VIEWS[state.roleView];
-  const dashboardMode = DASHBOARD_MODES[state.dashboardMode] || DASHBOARD_MODES.workspace;
+  els.dashboardModeLabel.textContent = "Analyst View";
   els.currentRoleLabel.textContent = `View: ${state.roleView}`;
   els.roleSummary.textContent = roleView.summary;
-  els.utilityEnvironment.textContent = APP_ENVIRONMENT_LABEL;
-  els.utilityMode.textContent = dashboardMode.label;
-  els.utilityViewer.textContent = state.roleView;
   els.footerVersion.textContent = APP_VERSION;
   els.footerUpdated.textContent = APP_UPDATED_AT;
   els.landingVersion.textContent = `v${APP_VERSION}`;
@@ -2667,10 +2628,6 @@ function updateMeta() {
     els.landingDatasetCopy.textContent = "Load the FCA initiatives PDF.";
     els.homeLastScan.textContent = "Not run";
     els.homeComparisonStatus.textContent = "No baseline";
-    els.utilityPdfStatus.textContent = "Not loaded";
-    els.utilityLastScan.textContent = "Not run";
-    els.utilityComparison.textContent = "No baseline";
-    els.utilityEvidenceCoverage.textContent = "0%";
     els.footerParser.textContent = "Awaiting dataset";
     els.footerDataset.textContent = "No PDF loaded";
     return;
@@ -2679,10 +2636,7 @@ function updateMeta() {
   els.headerMeta.textContent = `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items · ${formatDate(state.datasetMeta.uploadedAt)}`;
   els.datasetInfo.textContent = `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items`;
   els.landingDatasetStatus.textContent = `${state.datasetMeta.rowCount} items loaded`;
-  els.utilityPdfStatus.textContent = truncateText(state.datasetMeta.fileName, 34);
   els.homeLastScan.textContent = formatDate(state.datasetMeta.uploadedAt);
-  els.utilityLastScan.textContent = formatDate(state.datasetMeta.uploadedAt);
-  els.utilityEvidenceCoverage.textContent = formatPercent(calculateEvidenceCoverage(state.raw));
   els.footerParser.textContent = state.datasetMeta.parserVersion || "Current parser";
   els.footerDataset.textContent = `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items`;
 
@@ -2698,28 +2652,14 @@ function updateMeta() {
     const movedCount = state.raw.filter(item => item.changeStatus !== "Existing").length;
     els.comparisonInfo.textContent = comparisonBits.join(" · ");
     els.homeComparisonStatus.textContent = `${movedCount} moved`;
-    els.utilityComparison.textContent = `${movedCount} moved`;
     els.landingDatasetCopy.textContent =
       `${state.datasetMeta.fileName} · ${formatDate(state.datasetMeta.uploadedAt)}`;
   } else {
     els.comparisonInfo.textContent = "No comparison";
     els.homeComparisonStatus.textContent = "No baseline";
-    els.utilityComparison.textContent = "No baseline";
     els.landingDatasetCopy.textContent =
       `${state.datasetMeta.fileName} · ${formatDate(state.datasetMeta.uploadedAt)}`;
   }
-}
-
-function renderDashboardModeButtons() {
-  const mode = DASHBOARD_MODES[state.dashboardMode] || DASHBOARD_MODES.workspace;
-  document.body.dataset.dashboardMode = state.dashboardMode;
-  els.dashboardModeLabel.textContent = mode.label;
-  els.dashboardModeSummary.textContent = mode.summary;
-
-  const buttons = els.dashboardModeButtons.querySelectorAll("[data-dashboard-mode]");
-  buttons.forEach(button => {
-    button.classList.toggle("active", button.dataset.dashboardMode === state.dashboardMode);
-  });
 }
 
 function renderRoleButtons() {
