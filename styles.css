@@ -225,6 +225,8 @@ body[data-page="review"] .home-page {
   color: var(--text-faint);
   font-size: 12px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .app-header {
@@ -911,5 +913,3 @@ textarea:focus {
 
   .home-hero-copy h1 {
     font-size: 34px;
-  }
-}
