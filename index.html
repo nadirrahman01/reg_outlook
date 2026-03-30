@@ -2,15 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FMRUK Regulatory Review</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,500;6..72,700&display=swap"
-    rel="stylesheet"
-  />
-  <link rel="stylesheet" href="./styles.css?v=11" />
+  <link rel="stylesheet" href="./styles.css?v=13" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -22,81 +16,44 @@
         <div class="home-brand">
           <div class="eyebrow">Fidelity Investments</div>
           <div class="home-brand-title">FMRUK Regulatory Review</div>
-          <p class="home-brand-copy">
-            Regulatory intelligence workspace for FCA initiatives analysis, prioritisation and governance reporting.
-          </p>
         </div>
         <nav class="home-nav" aria-label="Primary">
           <button class="ghost-btn page-switch is-current" data-page-target="home" type="button">Home</button>
-          <button class="primary-btn page-switch" data-page-target="review" type="button">Review Workspace</button>
+          <button class="primary-btn page-switch" data-page-target="review" type="button">Open Workspace</button>
         </nav>
       </header>
 
       <section class="home-hero card">
-        <div class="home-hero-main">
-          <div class="home-kicker">Regulatory Intelligence Workspace</div>
-          <h1>Review the FCA Initiatives.</h1>
-          <p class="home-subtitle">
-              Bring the FCA grid into a cleaner workflow with structured review, FMRUK checks, and export-ready outputs.
-          </p>
+        <div class="home-hero-copy">
+          <div class="home-kicker">FCA Initiatives Grid</div>
+          <h1>Open the review workspace.</h1>
+          <p class="home-subtitle">Upload the PDF, review items, and export outputs.</p>
           <div class="home-cta-row">
-            <button class="primary-btn" data-page-target="review" type="button">Enter Review Workspace</button>
-            <button class="ghost-btn home-secondary-btn" data-page-target="review" type="button">View Latest Portfolio</button>
+            <button class="primary-btn" data-page-target="review" type="button">Open Workspace</button>
+            <button class="ghost-btn" data-page-target="review" type="button">Resume Review</button>
           </div>
-          <div class="home-feature-grid">
-            <article class="home-feature-card">
-              <span class="home-card-kicker">Evidence-linked review</span>
-              <strong>Move from portfolio summary to source evidence without leaving the workspace.</strong>
-              <p>Each initiative can be reviewed against the underlying PDF, supporting challenge and validation.</p>
-            </article>
-            <article class="home-feature-card">
-              <span class="home-card-kicker">Portfolio prioritisation</span>
-              <strong>Bring timing, ownership, relevance and movement into one working view.</strong>
-              <p>Turn the FCA grid into a format that supports triage, challenge, mobilisation and follow-up action.</p>
-            </article>
-            <article class="home-feature-card">
-              <span class="home-card-kicker">Reporting outputs</span>
-              <strong>Prepare board and owner packs from the same live review workspace.</strong>
-              <p>Use one environment for analysis, portfolio review and formal reporting outputs.</p>
-            </article>
-          </div>
+          <div class="home-status-line" id="landingDatasetCopy">No PDF loaded.</div>
         </div>
 
-        <aside class="home-hero-aside">
-          <article class="home-status-panel">
-            <span class="home-card-kicker">Latest Workspace Position</span>
-            <h2 id="landingDatasetStatus">Awaiting PDF upload</h2>
-            <p id="landingDatasetCopy">
-              Open the review workspace to load a PDF and generate the current portfolio view.
-            </p>
-            <div class="home-status-grid">
-              <div class="home-status-item">
-                <span class="home-status-label">Current build</span>
-                <strong id="landingVersion">Version 1.2.0</strong>
-              </div>
-              <div class="home-status-item">
-                <span class="home-status-label">Last scan</span>
-                <strong id="homeLastScan">Not run</strong>
-              </div>
-              <div class="home-status-item">
-                <span class="home-status-label">Comparison</span>
-                <strong id="homeComparisonStatus">No baseline</strong>
-              </div>
-              <div class="home-status-item">
-                <span class="home-status-label">Environment</span>
-                <strong>Browser workspace</strong>
-              </div>
+        <aside class="home-status-panel">
+          <div class="home-status-grid">
+            <div class="home-status-item">
+              <span class="home-status-label">Dataset</span>
+              <strong id="landingDatasetStatus">No dataset</strong>
             </div>
-          </article>
-
-          <article class="home-note-card">
-            <span class="home-card-kicker">Operating Approach</span>
-            <ul class="home-step-list">
-              <li>Open the review workspace and upload the FCA Initiatives Grid PDF.</li>
-              <li>Prioritise items by relevance, timing, ownership, evidence coverage and change movement.</li>
-              <li>Use the active view to prepare board and owner outputs.</li>
-            </ul>
-          </article>
+            <div class="home-status-item">
+              <span class="home-status-label">Last scan</span>
+              <strong id="homeLastScan">Not run</strong>
+            </div>
+            <div class="home-status-item">
+              <span class="home-status-label">Comparison</span>
+              <strong id="homeComparisonStatus">No baseline</strong>
+            </div>
+            <div class="home-status-item">
+              <span class="home-status-label">Version</span>
+              <strong id="landingVersion">v1.3.0</strong>
+            </div>
+          </div>
         </aside>
       </section>
     </section>
@@ -105,92 +62,83 @@
       <div class="review-page-topbar">
         <div class="review-page-nav">
           <button class="ghost-btn page-switch" data-page-target="home" type="button">Home</button>
-          <button class="ghost-btn page-switch is-current" data-page-target="review" type="button">Review Workspace</button>
+          <button class="ghost-btn page-switch is-current" data-page-target="review" type="button">Workspace</button>
         </div>
-        <div class="review-page-meta">FCA initiatives grid analysis and review</div>
+        <div class="review-page-meta">Operational review</div>
       </div>
 
+      <header class="app-header">
+        <div class="header-copy">
+          <div class="eyebrow">FMRUK</div>
+          <h1>Review Workspace</h1>
+          <div class="header-meta-line" id="headerMeta">No dataset loaded</div>
+        </div>
+        <div class="header-actions">
+          <button class="ghost-btn" id="reloadBtn" type="button">Refresh</button>
+          <button class="ghost-btn" id="exportJsonBtn" type="button">JSON</button>
+          <button class="ghost-btn" id="exportCsvBtn" type="button">CSV</button>
+          <button class="ghost-btn" id="exportBoardBriefBtn" type="button">Board Brief</button>
+          <button class="ghost-btn" id="exportOwnerPackBtn" type="button">Owner Pack</button>
+          <button class="ghost-btn danger-btn" id="clearStorageBtn" type="button">Clear Data</button>
+        </div>
+      </header>
+
       <div class="utility-bar">
-      <div class="utility-item">
-        <span class="utility-label">Environment</span>
-        <strong id="utilityEnvironment">Browser workspace</strong>
-      </div>
-      <div class="utility-item">
-        <span class="utility-label">Mode</span>
-        <strong id="utilityMode">Analyst Workspace</strong>
-      </div>
-      <div class="utility-item">
-        <span class="utility-label">Viewer</span>
-        <strong id="utilityViewer">Compliance</strong>
-      </div>
-      <div class="utility-item">
-        <span class="utility-label">PDF loaded</span>
-        <strong id="utilityPdfStatus">Awaiting upload</strong>
-      </div>
-      <div class="utility-item">
-        <span class="utility-label">Last scan</span>
-        <strong id="utilityLastScan">Not run</strong>
-      </div>
-      <div class="utility-item">
-        <span class="utility-label">Comparison</span>
-        <strong id="utilityComparison">No baseline</strong>
-      </div>
-      <div class="utility-item">
-        <span class="utility-label">Evidence coverage</span>
-        <strong id="utilityEvidenceCoverage">0%</strong>
-      </div>
+        <div class="utility-item">
+          <span class="utility-label">Environment</span>
+          <strong id="utilityEnvironment">Browser</strong>
+        </div>
+        <div class="utility-item">
+          <span class="utility-label">View</span>
+          <strong id="utilityMode">Analyst Workspace</strong>
+        </div>
+        <div class="utility-item">
+          <span class="utility-label">Role</span>
+          <strong id="utilityViewer">Compliance</strong>
+        </div>
+        <div class="utility-item">
+          <span class="utility-label">PDF</span>
+          <strong id="utilityPdfStatus">Not loaded</strong>
+        </div>
+        <div class="utility-item">
+          <span class="utility-label">Scan</span>
+          <strong id="utilityLastScan">Not run</strong>
+        </div>
+        <div class="utility-item">
+          <span class="utility-label">Comparison</span>
+          <strong id="utilityComparison">No baseline</strong>
+        </div>
+        <div class="utility-item">
+          <span class="utility-label">Evidence</span>
+          <strong id="utilityEvidenceCoverage">0%</strong>
+        </div>
       </div>
 
       <section class="mode-ribbon card">
-      <div class="section-heading compact-heading">
-        <div>
-          <div class="section-kicker">Workspace View</div>
-          <h2>Dashboard Mode</h2>
+        <div class="section-heading compact-heading">
+          <h2>View</h2>
+          <span class="section-note" id="dashboardModeLabel">Analyst Workspace</span>
         </div>
-        <span class="section-note" id="dashboardModeLabel">Analyst Workspace</span>
-      </div>
-      <div class="segmented-control" id="dashboardModeButtons">
-        <button class="segment-btn active" data-dashboard-mode="workspace" type="button">Analyst Workspace</button>
-        <button class="segment-btn" data-dashboard-mode="executive" type="button">Executive Summary</button>
-        <button class="segment-btn" data-dashboard-mode="evidence" type="button">Evidence Review</button>
-      </div>
-      <p class="support-copy" id="dashboardModeSummary">
-        Analyst workspace keeps the full intake, filtering, review and evidence toolset visible.
-      </p>
+        <div class="segmented-control" id="dashboardModeButtons">
+          <button class="segment-btn active" data-dashboard-mode="workspace" type="button">Analyst</button>
+          <button class="segment-btn" data-dashboard-mode="executive" type="button">Executive</button>
+          <button class="segment-btn" data-dashboard-mode="evidence" type="button">Evidence</button>
+        </div>
+        <div class="inline-meta" id="dashboardModeSummary">All panels visible.</div>
       </section>
-
-      <div id="reviewDashboard">
-      <header class="app-header">
-        <div class="header-copy">
-          <div class="eyebrow">Fidelity Investments</div>
-          <h1>FMRUK Regulatory Review</h1>
-          <p class="header-subtitle">
-            An easier way to analyse the FCA Initiatives Grid.
-          </p>
-        </div>
-        <div class="header-actions">
-          <button class="ghost-btn" id="reloadBtn" type="button">Refresh View</button>
-          <button class="ghost-btn" id="exportJsonBtn" type="button">Export JSON</button>
-          <button class="ghost-btn" id="exportCsvBtn" type="button">Export CSV</button>
-          <button class="ghost-btn" id="exportBoardBriefBtn" type="button">Board Brief</button>
-          <button class="ghost-btn" id="exportOwnerPackBtn" type="button">Owner Pack</button>
-          <button class="ghost-btn danger-btn" id="clearStorageBtn" type="button">Clear Saved Data</button>
-        </div>
-      </header>
 
       <section class="summary-ribbon">
         <div class="summary-card primary-card">
           <div class="summary-label">Dataset</div>
-          <div class="summary-value" id="headerMeta">No dataset loaded</div>
-          <div class="summary-copy" id="datasetInfo">No saved dataset found.</div>
-          <div class="summary-copy" id="comparisonInfo">Upload a PDF to run scan.</div>
+          <div class="summary-value" id="datasetInfo">No PDF loaded</div>
+          <div class="summary-copy" id="comparisonInfo">No comparison</div>
         </div>
         <div class="summary-card">
-          <div class="summary-label">Total Items</div>
+          <div class="summary-label">Items</div>
           <div class="summary-number" id="kpiTotal">0</div>
         </div>
         <div class="summary-card">
-          <div class="summary-label">Immediate Action</div>
+          <div class="summary-label">Action</div>
           <div class="summary-number" id="kpiImmediateAction">0</div>
         </div>
         <div class="summary-card">
@@ -198,305 +146,255 @@
           <div class="summary-number" id="kpiHighRelevance">0</div>
         </div>
         <div class="summary-card">
-          <div class="summary-label">Needs Review</div>
+          <div class="summary-label">Review</div>
           <div class="summary-number" id="kpiNeedsReview">0</div>
         </div>
         <div class="summary-card">
-          <div class="summary-label">New / Changed</div>
+          <div class="summary-label">Changed</div>
           <div class="summary-number" id="kpiChanges">0</div>
         </div>
       </section>
 
       <section class="portfolio-story card">
-        <div class="section-heading">
-          <div>
-            <div class="section-kicker">Portfolio Story</div>
-            <h2>Regulatory Narrative</h2>
-          </div>
-          <span class="section-note" id="currentRoleLabel">Compliance lens active</span>
+        <div class="section-heading compact-heading">
+          <h2>Summary</h2>
+          <span class="section-note" id="currentRoleLabel">View: Compliance</span>
         </div>
-        <p class="story-copy" id="portfolioNarrative">
-          Upload the FCA Initiatives Grid PDF to populate the portfolio summary.
-        </p>
+        <p class="story-copy" id="portfolioNarrative">No items in scope.</p>
       </section>
 
       <main class="workspace">
         <aside class="sidebar-column">
           <section class="card intake-panel">
-          <div class="section-heading compact-heading">
-            <div>
-              <div class="section-kicker">Source Intake</div>
-              <h2>Upload PDF</h2>
+            <div class="section-heading compact-heading">
+              <h2>Intake</h2>
             </div>
-          </div>
-          <div class="upload-stack">
-            <input type="file" id="fileInput" accept=".pdf,application/pdf" />
-            <button class="primary-btn" id="uploadBtn" type="button">Upload &amp; Analyse PDF</button>
-          </div>
-          <div class="status-banner" id="uploadStatus">No upload in progress.</div>
+            <div class="upload-stack">
+              <input type="file" id="fileInput" accept=".pdf,application/pdf" />
+              <button class="primary-btn" id="uploadBtn" type="button">Upload PDF</button>
+            </div>
+            <div class="status-banner" id="uploadStatus">No upload</div>
           </section>
 
           <section class="card role-panel">
-          <div class="section-heading compact-heading">
-            <div>
-              <div class="section-kicker">Role Lens</div>
-              <h2>Viewer Context</h2>
+            <div class="section-heading compact-heading">
+              <h2>View</h2>
             </div>
-          </div>
-          <div class="segmented-control" id="roleViewButtons">
-            <button class="segment-btn active" data-role-view="Compliance" type="button">Compliance</button>
-            <button class="segment-btn" data-role-view="COO" type="button">COO</button>
-            <button class="segment-btn" data-role-view="Legal" type="button">Legal</button>
-            <button class="segment-btn" data-role-view="Executive" type="button">Executive</button>
-          </div>
-          <p class="support-copy" id="roleSummary">
-            Compliance view prioritises policy interpretation, governance, surveillance, and regulatory delivery readiness.
-          </p>
+            <div class="segmented-control" id="roleViewButtons">
+              <button class="segment-btn active" data-role-view="Compliance" type="button">Compliance</button>
+              <button class="segment-btn" data-role-view="COO" type="button">COO</button>
+              <button class="segment-btn" data-role-view="Legal" type="button">Legal</button>
+              <button class="segment-btn" data-role-view="Executive" type="button">Executive</button>
+            </div>
+            <div class="inline-meta" id="roleSummary">Policy, governance and conduct.</div>
           </section>
 
           <section class="card preset-panel">
-          <div class="section-heading compact-heading">
-            <div>
-              <div class="section-kicker">Saved Presets</div>
-              <h2>Quick Focus</h2>
+            <div class="section-heading compact-heading">
+              <h2>Presets</h2>
+              <span class="section-note" id="activePresetLabel">All Items</span>
             </div>
-            <span class="section-note" id="activePresetLabel">Preset: All Items</span>
-          </div>
-          <div class="preset-grid" id="presetButtons">
-            <button class="preset-btn active" data-preset="all" type="button">All Items</button>
-            <button class="preset-btn" data-preset="high_priority" type="button">High Priority</button>
-            <button class="preset-btn" data-preset="needs_review" type="button">Needs Review</button>
-            <button class="preset-btn" data-preset="delta" type="button">New This Upload</button>
-            <button class="preset-btn" data-preset="reporting" type="button">Reporting Items</button>
-          </div>
+            <div class="preset-grid" id="presetButtons">
+              <button class="preset-btn active" data-preset="all" type="button">All</button>
+              <button class="preset-btn" data-preset="high_priority" type="button">Priority</button>
+              <button class="preset-btn" data-preset="needs_review" type="button">Review</button>
+              <button class="preset-btn" data-preset="delta" type="button">Changed</button>
+              <button class="preset-btn" data-preset="reporting" type="button">Reporting</button>
+            </div>
           </section>
 
           <section class="card filter-panel">
-          <div class="section-heading compact-heading">
-            <div>
-              <div class="section-kicker">Analyst Filters</div>
-              <h2>Refine Portfolio</h2>
+            <div class="section-heading compact-heading">
+              <h2>Filters</h2>
             </div>
-          </div>
-          <div class="filter-grid">
-            <label>
-              <span>Search</span>
-              <input type="text" id="searchInput" placeholder="Search summary, obligations, evidence..." />
-            </label>
-            <label>
-              <span>Section</span>
-              <select id="sectionFilter">
-                <option value="">All</option>
-              </select>
-            </label>
-            <label>
-              <span>Theme</span>
-              <select id="themeFilter">
-                <option value="">All</option>
-              </select>
-            </label>
-            <label>
-              <span>Owner</span>
-              <select id="ownerFilter">
-                <option value="">All</option>
-              </select>
-            </label>
-            <label>
-              <span>Stage</span>
-              <select id="stageFilter">
-                <option value="">All</option>
-              </select>
-            </label>
-            <label>
-              <span>Change</span>
-              <select id="changeFilter">
-                <option value="">All</option>
-                <option value="New">New</option>
-                <option value="Changed">Changed</option>
-                <option value="Accelerated">Accelerated</option>
-                <option value="Delayed">Delayed</option>
-                <option value="Existing">Existing</option>
-              </select>
-            </label>
-            <label>
-              <span>Cluster</span>
-              <select id="clusterFilter">
-                <option value="">All</option>
-              </select>
-            </label>
-            <label>
-              <span>Minimum Relevance</span>
-              <select id="relevanceFilter">
-                <option value="0">0+</option>
-                <option value="40">40+</option>
-                <option value="55">55+</option>
-                <option value="70" selected>70+</option>
-                <option value="85">85+</option>
-              </select>
-            </label>
-            <label>
-              <span>Minimum Parse Confidence</span>
-              <select id="parseConfidenceFilter">
-                <option value="0">0+</option>
-                <option value="50">50+</option>
-                <option value="70" selected>70+</option>
-                <option value="85">85+</option>
-              </select>
-            </label>
-            <label class="toggle-row">
-              <input type="checkbox" id="fmrukOnlyFilter" checked />
-              <span>Only FMRUK-relevant items</span>
-            </label>
-            <label class="toggle-row">
-              <input type="checkbox" id="excludeAnnexFilter" checked />
-              <span>Exclude completed/stopped annex</span>
-            </label>
-            <label class="toggle-row">
-              <input type="checkbox" id="needsReviewFilter" />
-              <span>Only items needing manual review</span>
-            </label>
-          </div>
+            <div class="filter-grid">
+              <label>
+                <span>Search</span>
+                <input type="text" id="searchInput" placeholder="Search" />
+              </label>
+              <label>
+                <span>Section</span>
+                <select id="sectionFilter">
+                  <option value="">All</option>
+                </select>
+              </label>
+              <label>
+                <span>Theme</span>
+                <select id="themeFilter">
+                  <option value="">All</option>
+                </select>
+              </label>
+              <label>
+                <span>Owner</span>
+                <select id="ownerFilter">
+                  <option value="">All</option>
+                </select>
+              </label>
+              <label>
+                <span>Stage</span>
+                <select id="stageFilter">
+                  <option value="">All</option>
+                </select>
+              </label>
+              <label>
+                <span>Change</span>
+                <select id="changeFilter">
+                  <option value="">All</option>
+                  <option value="New">New</option>
+                  <option value="Changed">Changed</option>
+                  <option value="Accelerated">Accelerated</option>
+                  <option value="Delayed">Delayed</option>
+                  <option value="Existing">Existing</option>
+                </select>
+              </label>
+              <label>
+                <span>Cluster</span>
+                <select id="clusterFilter">
+                  <option value="">All</option>
+                </select>
+              </label>
+              <label>
+                <span>Min relevance</span>
+                <select id="relevanceFilter">
+                  <option value="0">0+</option>
+                  <option value="40">40+</option>
+                  <option value="55">55+</option>
+                  <option value="70" selected>70+</option>
+                  <option value="85">85+</option>
+                </select>
+              </label>
+              <label>
+                <span>Min parse</span>
+                <select id="parseConfidenceFilter">
+                  <option value="0">0+</option>
+                  <option value="50">50+</option>
+                  <option value="70" selected>70+</option>
+                  <option value="85">85+</option>
+                </select>
+              </label>
+              <label class="toggle-row">
+                <input type="checkbox" id="fmrukOnlyFilter" checked />
+                <span>FMRUK only</span>
+              </label>
+              <label class="toggle-row">
+                <input type="checkbox" id="excludeAnnexFilter" checked />
+                <span>Exclude annex</span>
+              </label>
+              <label class="toggle-row">
+                <input type="checkbox" id="needsReviewFilter" />
+                <span>Review only</span>
+              </label>
+            </div>
           </section>
 
           <section class="card profile-panel">
-          <div class="section-heading compact-heading">
-            <div>
-              <div class="section-kicker">FMRUK Profile Engine</div>
-              <h2>Relevance Assumptions</h2>
+            <div class="section-heading compact-heading">
+              <h2>FMRUK Profile</h2>
             </div>
-          </div>
-          <div class="profile-grid">
-            <label>
-              <span>Business Lines</span>
-              <textarea id="businessLinesProfile" rows="2"></textarea>
-            </label>
-            <label>
-              <span>Permissions</span>
-              <textarea id="permissionsProfile" rows="2"></textarea>
-            </label>
-            <label>
-              <span>Products</span>
-              <textarea id="productsProfile" rows="2"></textarea>
-            </label>
-            <label>
-              <span>Distribution Model</span>
-              <textarea id="distributionProfile" rows="2"></textarea>
-            </label>
-            <label>
-              <span>Outsourced Providers</span>
-              <textarea id="outsourcingProfile" rows="2"></textarea>
-            </label>
-            <label>
-              <span>Reporting Obligations</span>
-              <textarea id="reportingProfile" rows="2"></textarea>
-            </label>
-            <label>
-              <span>Committees</span>
-              <textarea id="committeesProfile" rows="2"></textarea>
-            </label>
-            <label>
-              <span>Regulatory Touchpoints</span>
-              <textarea id="touchpointsProfile" rows="2"></textarea>
-            </label>
-          </div>
-          <div class="inline-actions">
-            <button class="secondary-btn" id="saveProfileBtn" type="button">Save Profile</button>
-            <button class="ghost-btn" id="resetProfileBtn" type="button">Reset Default</button>
-          </div>
-          <p class="support-copy">
-            Use comma-separated phrases. The relevance model will favour initiatives that align to these facts rather than relying on generic FCA keywords alone.
-          </p>
+            <div class="profile-grid">
+              <label>
+                <span>Business lines</span>
+                <textarea id="businessLinesProfile" rows="2"></textarea>
+              </label>
+              <label>
+                <span>Permissions</span>
+                <textarea id="permissionsProfile" rows="2"></textarea>
+              </label>
+              <label>
+                <span>Products</span>
+                <textarea id="productsProfile" rows="2"></textarea>
+              </label>
+              <label>
+                <span>Distribution</span>
+                <textarea id="distributionProfile" rows="2"></textarea>
+              </label>
+              <label>
+                <span>Outsourcing</span>
+                <textarea id="outsourcingProfile" rows="2"></textarea>
+              </label>
+              <label>
+                <span>Reporting</span>
+                <textarea id="reportingProfile" rows="2"></textarea>
+              </label>
+              <label>
+                <span>Committees</span>
+                <textarea id="committeesProfile" rows="2"></textarea>
+              </label>
+              <label>
+                <span>Touchpoints</span>
+                <textarea id="touchpointsProfile" rows="2"></textarea>
+              </label>
+            </div>
+            <div class="inline-actions">
+              <button class="secondary-btn" id="saveProfileBtn" type="button">Save</button>
+              <button class="ghost-btn" id="resetProfileBtn" type="button">Reset</button>
+            </div>
           </section>
 
           <section class="card cluster-panel">
-          <div class="section-heading compact-heading">
-            <div>
-              <div class="section-kicker">Theme Programs</div>
+            <div class="section-heading compact-heading">
               <h2>Clusters</h2>
             </div>
-          </div>
-          <ul class="stack-list" id="clusterList"></ul>
+            <ul class="stack-list" id="clusterList"></ul>
           </section>
 
           <section class="card delta-panel">
-          <div class="section-heading compact-heading">
-            <div>
-              <div class="section-kicker">Change Intelligence</div>
-              <h2>Delta Story</h2>
+            <div class="section-heading compact-heading">
+              <h2>Changes</h2>
             </div>
-          </div>
-          <ul class="stack-list" id="deltaList"></ul>
+            <ul class="stack-list" id="deltaList"></ul>
           </section>
         </aside>
 
         <section class="content-column">
           <section class="card inbox-card">
-          <div class="section-heading">
-            <div>
-              <div class="section-kicker">Review Queue</div>
-              <h2>Initiative Inbox</h2>
+            <div class="section-heading compact-heading">
+              <h2>Items</h2>
+              <span class="section-note" id="listMeta">0 items</span>
             </div>
-            <span class="section-note" id="listMeta">0 items in scope</span>
-          </div>
-          <div class="initiative-list" id="initiativeList">
-            <div class="empty-list">Upload a PDF to populate the initiative list.</div>
-          </div>
+            <div class="initiative-list" id="initiativeList">
+              <div class="empty-list">No items</div>
+            </div>
           </section>
 
           <section class="card detail-card">
-          <div class="section-heading">
-            <div>
-              <div class="section-kicker">Initiative Brief</div>
-              <h2>Structured Decision Note</h2>
+            <div class="section-heading compact-heading">
+              <h2>Detail</h2>
+              <span class="section-note" id="detailMeta">No selection</span>
             </div>
-            <span class="section-note" id="detailMeta">No initiative selected</span>
-          </div>
-          <div id="detailPanel" class="detail-panel empty-state">
-            Upload the FCA Grid PDF, then select an initiative to generate a structured brief.
-          </div>
+            <div id="detailPanel" class="detail-panel empty-state">
+              Select an item.
+            </div>
           </section>
 
           <section class="card ask-card">
-          <div class="section-heading">
-            <div>
-              <div class="section-kicker">Ask The Portfolio</div>
-              <h2>Portfolio Search</h2>
+            <div class="section-heading compact-heading">
+              <h2>Search</h2>
             </div>
-          </div>
-          <div class="ask-controls">
-            <input type="text" id="askInput" placeholder="Example: show initiatives affecting reporting or outsourcing" />
-            <button class="secondary-btn" id="askBtn" type="button">Run Query</button>
-          </div>
-          <p class="support-copy" id="askAnswer">
-            Enter a search query to scan initiatives, obligations and source evidence.
-          </p>
-          <ul class="stack-list" id="askResults"></ul>
+            <div class="ask-controls">
+              <input type="text" id="askInput" placeholder="Search initiatives or evidence" />
+              <button class="secondary-btn" id="askBtn" type="button">Search</button>
+            </div>
+            <div class="inline-meta" id="askAnswer">No search run.</div>
+            <ul class="stack-list" id="askResults"></ul>
           </section>
         </section>
 
         <aside class="preview-column">
           <section class="card timeline-panel">
-          <div class="section-heading">
-            <div>
-              <div class="section-kicker">Timeline</div>
-              <h2>Upcoming Milestones</h2>
+            <div class="section-heading compact-heading">
+              <h2>Timeline</h2>
             </div>
-          </div>
-          <ul class="timeline-list" id="timelineList"></ul>
+            <ul class="timeline-list" id="timelineList"></ul>
           </section>
 
           <section class="card pdf-card evidence-panel">
-          <div class="section-heading">
-            <div>
-              <div class="section-kicker">Source Evidence</div>
-              <h2>PDF Review Drawer</h2>
+            <div class="section-heading compact-heading">
+              <h2>PDF</h2>
             </div>
-          </div>
-          <p class="support-copy" id="pdfPreviewStatus">
-            Upload a PDF to enable side-by-side source review.
-          </p>
-          <div class="evidence-trail" id="evidenceTrail"></div>
-          <div class="pdf-preview" id="pdfPreview"></div>
+            <div class="inline-meta" id="pdfPreviewStatus">No PDF preview.</div>
+            <div class="evidence-trail" id="evidenceTrail"></div>
+            <div class="pdf-preview" id="pdfPreview"></div>
           </section>
         </aside>
       </main>
@@ -505,18 +403,18 @@
         <div class="footer-meta-grid">
           <div class="footer-meta-item">
             <span class="footer-label">Version</span>
-            <strong id="footerVersion">1.2.0</strong>
+            <strong id="footerVersion">1.3.0</strong>
           </div>
           <div class="footer-meta-item">
             <span class="footer-label">Updated</span>
-            <strong id="footerUpdated">29 March 2026</strong>
+            <strong id="footerUpdated">30 March 2026</strong>
           </div>
           <div class="footer-meta-item">
             <span class="footer-label">Parser</span>
             <strong id="footerParser">Awaiting dataset</strong>
           </div>
           <div class="footer-meta-item">
-            <span class="footer-label">Current dataset</span>
+            <span class="footer-label">Dataset</span>
             <strong id="footerDataset">No PDF loaded</strong>
           </div>
         </div>
@@ -524,6 +422,6 @@
     </section>
   </div>
 
-  <script src="./app.js?v=14"></script>
+  <script src="./app.js?v=16"></script>
 </body>
 </html>
