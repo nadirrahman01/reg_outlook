@@ -4,9 +4,9 @@ const FEEDBACK_KEY = "fmruk_feedback_v8";
 const PDF_DB_NAME = "fmruk_pdf_workspace";
 const PDF_STORE_NAME = "pdfs";
 const PDF_RECORD_KEY = "current_pdf";
-const APP_VERSION = "1.2.0";
-const APP_UPDATED_AT = "29 March 2026";
-const APP_ENVIRONMENT_LABEL = "Browser workspace";
+const APP_VERSION = "1.3.0";
+const APP_UPDATED_AT = "30 March 2026";
+const APP_ENVIRONMENT_LABEL = "Browser";
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -39,18 +39,15 @@ const state = {
 const DASHBOARD_MODES = {
   workspace: {
     label: "Analyst Workspace",
-    summary:
-      "Analyst workspace keeps the full intake, filtering, review and evidence toolset visible."
+    summary: "All panels visible."
   },
   executive: {
     label: "Executive Summary",
-    summary:
-      "Executive summary strips the workspace back to portfolio position, material items, movement, ownership and near-term decisions."
+    summary: "Priority items only."
   },
   evidence: {
     label: "Evidence Review",
-    summary:
-      "Evidence review gives more room to the source PDF and evidence trail for challenge, verification and line-by-line checking."
+    summary: "PDF-led review."
   }
 };
 
@@ -119,32 +116,64 @@ const DEFAULT_PROFILE = {
 
 const ROLE_VIEWS = {
   Compliance: {
-    summary:
-      "Compliance view prioritises policy interpretation, governance, surveillance, supervisory exposure, and implementation readiness.",
+    summary: "Policy, governance and conduct.",
     ownerBoosts: ["Compliance", "Risk", "Legal"],
-    obligationBoosts: ["Policy & Procedures", "Governance & Accountability", "Market Conduct & Surveillance", "Training & Communications"],
-    stageBoosts: ["Final Rules / Implementation", "Supervisory / Thematic Review", "Consultation / Policy Development"]
+    obligationBoosts: [
+      "Policy & Procedures",
+      "Governance & Accountability",
+      "Market Conduct & Surveillance",
+      "Training & Communications"
+    ],
+    stageBoosts: [
+      "Final Rules / Implementation",
+      "Supervisory / Thematic Review",
+      "Consultation / Policy Development"
+    ]
   },
   COO: {
-    summary:
-      "COO view surfaces operational delivery risk, outsourcing dependencies, reporting readiness, data quality, and programme mobilisation.",
+    summary: "Operations, reporting and delivery.",
     ownerBoosts: ["Operations", "Risk", "Technology", "Finance"],
-    obligationBoosts: ["Reporting & MI", "Outsourcing & Third Parties", "Operational Resilience", "Operating Model"],
-    stageBoosts: ["Reporting / Data Request", "Final Rules / Implementation", "Supervisory / Thematic Review"]
+    obligationBoosts: [
+      "Reporting & MI",
+      "Outsourcing & Third Parties",
+      "Operational Resilience",
+      "Operating Model"
+    ],
+    stageBoosts: [
+      "Reporting / Data Request",
+      "Final Rules / Implementation",
+      "Supervisory / Thematic Review"
+    ]
   },
   Legal: {
-    summary:
-      "Legal view emphasises perimeter changes, disclosures, interpretation questions, contractual implications, and governance obligations.",
+    summary: "Perimeter, disclosure and interpretation.",
     ownerBoosts: ["Legal", "Compliance"],
-    obligationBoosts: ["Legal Entity Perimeter", "Disclosure & Communications", "Policy & Procedures", "Governance & Accountability"],
-    stageBoosts: ["Legislative / Perimeter Change", "Consultation / Policy Development", "Final Rules / Implementation"]
+    obligationBoosts: [
+      "Legal Entity Perimeter",
+      "Disclosure & Communications",
+      "Policy & Procedures",
+      "Governance & Accountability"
+    ],
+    stageBoosts: [
+      "Legislative / Perimeter Change",
+      "Consultation / Policy Development",
+      "Final Rules / Implementation"
+    ]
   },
   Executive: {
-    summary:
-      "Executive view compresses the portfolio into material items, change themes, near-term decisions, and the few issues that need leadership attention.",
+    summary: "Material items, ownership and timing.",
     ownerBoosts: ["Compliance", "Risk", "Operations", "Legal"],
-    obligationBoosts: ["Governance & Accountability", "Operational Resilience", "Reporting & MI", "Legal Entity Perimeter"],
-    stageBoosts: ["Final Rules / Implementation", "Reporting / Data Request", "Supervisory / Thematic Review"]
+    obligationBoosts: [
+      "Governance & Accountability",
+      "Operational Resilience",
+      "Reporting & MI",
+      "Legal Entity Perimeter"
+    ],
+    stageBoosts: [
+      "Final Rules / Implementation",
+      "Reporting / Data Request",
+      "Supervisory / Thematic Review"
+    ]
   }
 };
 
@@ -254,8 +283,8 @@ const CLASSIFICATION_RULES = [
       "Investment management": 3
     },
     coreActions: [
-      "Confirm whether the proposal affects in-scope instruments, desks, venues or reporting entities.",
-      "Review field mapping, reconciliations, exception MI and any ARM or vendor dependency."
+      "Confirm scope across desks, venues and reporting entities.",
+      "Review field mapping, reconciliations, exception MI and vendor dependency."
     ]
   },
   {
@@ -284,8 +313,8 @@ const CLASSIFICATION_RULES = [
       "Investment management": 4
     },
     coreActions: [
-      "Assess whether execution policy wording, venue oversight or client disclosures would need to change.",
-      "Check whether execution monitoring MI, committee reporting or broker oversight need to be refreshed."
+      "Check execution policy, venue oversight and client disclosures.",
+      "Review monitoring MI, committee reporting and broker oversight."
     ]
   },
   {
@@ -314,8 +343,8 @@ const CLASSIFICATION_RULES = [
       "Investment management": 3
     },
     coreActions: [
-      "Check surveillance scenarios, alert governance and escalation processes against the proposed change.",
-      "Reconfirm training, insider list or employee dealing controls if the change broadens scope."
+      "Check surveillance scenarios, alert governance and escalation.",
+      "Reconfirm training, insider list and employee dealing controls."
     ]
   },
   {
@@ -344,8 +373,8 @@ const CLASSIFICATION_RULES = [
       "Multi-sector": 3
     },
     coreActions: [
-      "Assess ICARA assumptions, thresholds, governance and monitoring changes that may be required.",
-      "Confirm whether prudential reporting, capital modelling or board packs need to be updated."
+      "Assess ICARA assumptions, thresholds and governance.",
+      "Check prudential reporting, modelling and board packs."
     ]
   },
   {
@@ -369,8 +398,8 @@ const CLASSIFICATION_RULES = [
       "Multi-sector": 3
     },
     coreActions: [
-      "Check whether remuneration policy wording, governance approvals or identified staff population need to change.",
-      "Assess any impact on pay design, deferral mechanics or attestations."
+      "Check remuneration policy, governance approvals and identified staff scope.",
+      "Assess pay design, deferral mechanics and attestations."
     ]
   },
   {
@@ -399,8 +428,8 @@ const CLASSIFICATION_RULES = [
       "Investment management": 4
     },
     coreActions: [
-      "Review impacted business services, dependency mapping and scenario testing requirements.",
-      "Check whether board reporting, self-assessment content or remediation governance would need updating."
+      "Review impacted services, dependency mapping and scenario testing.",
+      "Check board reporting, self-assessment content and remediation governance."
     ]
   },
   {
@@ -429,8 +458,8 @@ const CLASSIFICATION_RULES = [
       "Investment management": 4
     },
     coreActions: [
-      "Confirm whether any critical or material outsourcing arrangement falls into scope.",
-      "Review contracts, registers, due diligence and exit or concentration controls against the change."
+      "Confirm whether any material outsourcing arrangement is in scope.",
+      "Review contracts, registers, due diligence and exit or concentration controls."
     ]
   },
   {
@@ -459,8 +488,8 @@ const CLASSIFICATION_RULES = [
       "Multi-sector": 3
     },
     coreActions: [
-      "Check whether any FMRUK products, disclosures or distribution arrangements are in scope.",
-      "Review fair value, target market, communications and monitoring evidence if retail exposure exists."
+      "Check whether any FMRUK products, disclosures or distribution are in scope.",
+      "Review fair value, target market, communications and monitoring evidence."
     ]
   },
   {
@@ -489,8 +518,8 @@ const CLASSIFICATION_RULES = [
       "Investment management": 3
     },
     coreActions: [
-      "Assess whether onboarding, screening, investigations or monitoring scenarios need to change.",
-      "Check whether policy documents, training or legal escalation paths require an update."
+      "Assess onboarding, screening, investigations and monitoring scenarios.",
+      "Check policy documents, training and escalation paths."
     ]
   },
   {
@@ -519,8 +548,8 @@ const CLASSIFICATION_RULES = [
       "Investment management": 3
     },
     coreActions: [
-      "Check whether accountabilities, terms of reference, committee packs or certification processes need to change.",
-      "Assess whether senior manager statements of responsibility or attestations are affected."
+      "Check accountabilities, terms of reference and certification processes.",
+      "Assess statements of responsibility, attestations and committee packs."
     ]
   },
   {
@@ -549,8 +578,8 @@ const CLASSIFICATION_RULES = [
       "Multi-sector": 4
     },
     coreActions: [
-      "Review product disclosures, marketing materials and approval controls for any sustainability claims in scope.",
-      "Confirm whether governance, evidence packs or label eligibility assessments need to be refreshed."
+      "Review product disclosures, marketing materials and approval controls.",
+      "Check governance, evidence packs and label eligibility assessments."
     ]
   },
   {
@@ -579,8 +608,8 @@ const CLASSIFICATION_RULES = [
       "Investment management": 3
     },
     coreActions: [
-      "Assess whether internal AI, cyber or data governance frameworks need to change.",
-      "Check whether inventories, controls, model governance, cyber testing or technology oversight are affected."
+      "Assess whether internal AI, cyber or data governance needs to change.",
+      "Check inventories, controls, testing and oversight."
     ]
   },
   {
@@ -609,8 +638,8 @@ const CLASSIFICATION_RULES = [
       "Retail investments": 3
     },
     coreActions: [
-      "Confirm which products, mandates or fund structures are in scope for FMRUK.",
-      "Assess changes to disclosures, delegated oversight, product governance or fund operating model."
+      "Confirm which products, mandates or fund structures are in scope.",
+      "Assess disclosures, delegated oversight and product governance."
     ]
   },
   {
@@ -639,8 +668,8 @@ const CLASSIFICATION_RULES = [
       "Multi-sector": 3
     },
     coreActions: [
-      "Check whether custody model, CASS oversight, reconciliations or recordkeeping controls are impacted.",
-      "Assess whether governance forums, attestations or third-party oversight need to be updated."
+      "Check whether custody model, CASS oversight or reconciliations are impacted.",
+      "Assess governance forums, attestations and third-party oversight."
     ]
   },
   {
@@ -669,8 +698,8 @@ const CLASSIFICATION_RULES = [
       "Investment management": 3
     },
     coreActions: [
-      "Confirm ownership for data, reconciliations, controls and submission sign-off.",
-      "Assess whether system changes, data sourcing or testing are needed before live reporting."
+      "Confirm ownership for data, controls and sign-off.",
+      "Assess system changes, sourcing and testing before live reporting."
     ]
   },
   {
@@ -694,8 +723,8 @@ const CLASSIFICATION_RULES = [
       "Payment services and cryptoassets": 10
     },
     coreActions: [
-      "Confirm whether the topic is genuinely in scope for FMRUK or should remain a watchlist item only.",
-      "If relevant, assess perimeter, client proposition and outsourced provider impacts before deeper mobilisation."
+      "Confirm whether the topic is in scope for FMRUK.",
+      "If relevant, assess perimeter, client proposition and outsourced provider impacts."
     ]
   }
 ];
@@ -711,7 +740,7 @@ const SECTION_FALLBACKS = {
       "Likely to affect investment management products, disclosures, delegated oversight or implementation planning.",
     coreActions: [
       "Confirm which products or mandates are in scope.",
-      "Assess whether disclosures, governance or operating model controls need an update."
+      "Assess disclosures, governance and operating model controls."
     ]
   },
   "Wholesale financial markets": {
@@ -736,7 +765,7 @@ const SECTION_FALLBACKS = {
     impactStatement:
       "May require entity-wide triage across governance, controls, policy interpretation or implementation planning.",
     coreActions: [
-      "Identify impacted control domains and coordinate cross-functional triage.",
+      "Identify the control domains in scope.",
       "Confirm whether the change is group-led, entity-led or shared."
     ]
   },
@@ -750,7 +779,7 @@ const SECTION_FALLBACKS = {
       "Requires initial triage to determine whether FMRUK policy, controls, governance or monitoring should change.",
     coreActions: [
       "Validate whether the topic is in scope for FMRUK.",
-      "Keep it on the watchlist until scope and timing become clearer."
+      "Keep it on the watchlist until scope and timing are clearer."
     ]
   }
 };
@@ -904,22 +933,22 @@ const RELEVANCE_SIGNAL_GROUPS = {
     },
     {
       weight: 15,
-      reason: "Touches cross-cutting governance, resilience or outsourcing controls.",
+      reason: "Touches governance, resilience or outsourcing controls.",
       terms: ["operational resilience", "outsourcing", "third party", "governance", "smcr", "dear ceo"]
     },
     {
       weight: 14,
-      reason: "Touches regulatory reporting, data or submissions that often land on the UK entity.",
+      reason: "Touches reporting or submissions likely to sit with the UK entity.",
       terms: ["regulatory reporting", "reporting", "data collection", "return", "attestation", "notification"]
     },
     {
       weight: 12,
-      reason: "Touches financial crime, sanctions or client onboarding controls.",
+      reason: "Touches financial crime or onboarding controls.",
       terms: ["aml", "anti-money laundering", "sanctions", "kyc", "financial crime"]
     },
     {
       weight: 10,
-      reason: "Touches sustainability, disclosures or technology change with cross-cutting UK impact.",
+      reason: "Touches sustainability, disclosures or technology change with UK impact.",
       terms: ["sustainability", "sdr", "greenwashing", "cyber", "ai", "data"]
     }
   ],
@@ -961,28 +990,28 @@ const RELEVANCE_SIGNAL_GROUPS = {
 
 const GENERIC_STAGE_ACTIONS = {
   consultation: [
-    "Review the consultation scope, identify impacted business lines and decide whether FMRUK should respond or feed into a group response.",
-    "Capture policy interpretation points and implementation risks early so they can shape the eventual delivery plan."
+    "Decide scope and whether FMRUK should respond or feed a group response.",
+    "Capture policy points and delivery risks early."
   ],
   final_rules: [
-    "Run a rule-to-control gap assessment against the final position and assign a delivery owner with dates.",
-    "Confirm whether policy documents, procedures, governance packs, training or MI need to be updated before go-live."
+    "Run a rule-to-control gap review and assign delivery dates.",
+    "Confirm policy, procedure, training and MI updates before go-live."
   ],
   supervisory: [
-    "Benchmark current controls against the supervisory expectation and gather evidence before any thematic or multi-firm engagement.",
-    "Prepare management reporting on current-state compliance, open gaps and remediation ownership."
+    "Benchmark current controls against the supervisory expectation.",
+    "Prepare management reporting on current state, gaps and remediation."
   ],
   reporting: [
-    "Confirm the reporting perimeter, data lineage, control owners and sign-off model for any new or amended submission.",
-    "Plan test cycles for data completeness, exceptions and reconciliations before the first live return or attestation."
+    "Confirm perimeter, data lineage, control owners and sign-off.",
+    "Plan testing for completeness, exceptions and reconciliations."
   ],
   legislation: [
-    "Assess whether the legislative or perimeter change affects permissions, legal entity scope or delegated arrangements.",
-    "Coordinate legal interpretation, implementation planning and downstream policy updates before rules crystallise."
+    "Assess whether permissions, entity scope or delegated arrangements change.",
+    "Coordinate legal interpretation and downstream policy updates."
   ],
   monitoring: [
-    "Retain the item on the regulatory watchlist and refresh the assessment when scope, timing or FCA messaging changes.",
-    "Keep a light owner assigned so the business is not surprised if the initiative accelerates."
+    "Keep the item on the watchlist and refresh the assessment when timing or scope changes.",
+    "Keep an owner assigned so the business is not surprised if the item accelerates."
   ]
 };
 
@@ -1227,7 +1256,7 @@ function saveToStorage() {
   } catch (err) {
     console.error(err);
     els.uploadStatus.textContent =
-      "Dataset is too large for browser storage. The current session will still work, but persistence may be limited.";
+      "Storage limit reached. The current session still works, but the dataset may not persist.";
   }
 }
 
@@ -1249,7 +1278,7 @@ function clearSavedData() {
     .finally(() => {
       state.pdfBuffer = null;
       state.pdfDocument = null;
-      els.uploadStatus.textContent = "Saved browser data cleared.";
+      els.uploadStatus.textContent = "Saved data cleared.";
       renderAll();
     });
 }
@@ -1275,7 +1304,7 @@ function saveProfileFromForm() {
 
   state.profile = mergeProfile(nextProfile);
   localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profile));
-  els.uploadStatus.textContent = "FMRUK profile saved. Re-scoring the current dataset.";
+  els.uploadStatus.textContent = "Profile saved. Re-scoring current dataset.";
   reanalyseCurrentDataset();
 }
 
@@ -1283,7 +1312,7 @@ function resetProfile() {
   state.profile = structuredClone(DEFAULT_PROFILE);
   localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profile));
   renderProfileForm();
-  els.uploadStatus.textContent = "FMRUK profile reset to the default model.";
+  els.uploadStatus.textContent = "Profile reset.";
   reanalyseCurrentDataset();
 }
 
@@ -1334,18 +1363,18 @@ async function hydratePdfFromStorage() {
 async function handleUpload() {
   const file = els.fileInput.files[0];
   if (!file) {
-    els.uploadStatus.textContent = "Please select the FCA initiatives PDF first.";
+    els.uploadStatus.textContent = "Select a PDF.";
     return;
   }
 
   const ext = file.name.split(".").pop().toLowerCase();
   if (ext !== "pdf") {
-    els.uploadStatus.textContent = "PDF-only mode is enabled.";
+    els.uploadStatus.textContent = "PDF only.";
     return;
   }
 
   if (!window.pdfjsLib) {
-    els.uploadStatus.textContent = "PDF.js failed to load.";
+    els.uploadStatus.textContent = "PDF library unavailable.";
     return;
   }
 
@@ -1353,14 +1382,13 @@ async function handleUpload() {
   const previousMeta = state.datasetMeta;
 
   try {
-    els.uploadStatus.textContent = `Reading PDF: ${file.name}...`;
+    els.uploadStatus.textContent = `Reading ${file.name}...`;
     const buffer = await file.arrayBuffer();
     const parsedItems = await parsePdfFile(buffer, file.name);
     const deduped = dedupeItems(parsedItems);
 
     if (!deduped.length) {
-      els.uploadStatus.textContent =
-        "No initiatives were detected in the PDF. Review the source formatting or parser assumptions.";
+      els.uploadStatus.textContent = "No initiatives detected. Check the PDF or parser settings.";
       return;
     }
 
@@ -1368,7 +1396,7 @@ async function handleUpload() {
     state.pdfBuffer = buffer;
     state.pdfDocument = await loadPdfDocumentFromBuffer(buffer);
 
-    els.uploadStatus.textContent = `Analysing ${deduped.length} extracted initiatives...`;
+    els.uploadStatus.textContent = `Scoring ${deduped.length} items...`;
     const analysed = analyseRows(deduped);
     const comparison = compareWithPreviousDataset(previousItems, analysed);
 
@@ -1387,7 +1415,7 @@ async function handleUpload() {
     state.currentPdfHighlightKey = "";
 
     saveToStorage();
-    els.uploadStatus.textContent = `Loaded ${state.raw.length} initiatives from ${file.name}.`;
+    els.uploadStatus.textContent = `Loaded ${state.raw.length} items from ${file.name}.`;
     renderAll();
   } catch (err) {
     console.error(err);
@@ -1885,20 +1913,20 @@ function assessParseQuality(accumulator, context) {
   const warnings = [];
 
   if (accumulator.sectionName) score += 10;
-  else warnings.push("Section was not cleanly extracted from the PDF.");
+  else warnings.push("Section not cleanly extracted.");
 
   if (accumulator.subcategory) score += 4;
   if (isLeadToken(accumulator.leadRegulator)) score += 12;
-  else warnings.push("Lead regulator was not cleanly isolated.");
+  else warnings.push("Lead regulator not cleanly extracted.");
 
   if (accumulator.initiativeTitle && accumulator.initiativeTitle.length >= 12) score += 16;
-  else warnings.push("Initiative title may be incomplete.");
+  else warnings.push("Title may be incomplete.");
 
   if (context.description && context.description.length >= 40) score += 10;
-  else warnings.push("Description is thin and may need manual validation.");
+  else warnings.push("Description is thin.");
 
   if (context.milestones) score += 8;
-  else warnings.push("Milestones were not clearly separated from the PDF.");
+  else warnings.push("Milestones not clearly separated.");
 
   if (context.impactFlag) score += 6;
   if (accumulator.pageNumbers.length) score += 4;
@@ -2068,7 +2096,7 @@ function determineStage(item) {
     id: "monitoring",
     label: "Monitoring",
     confidence: 50,
-    signals: ["No strong stage markers were detected, so the item is being treated as watchlist monitoring."]
+    signals: ["No strong stage marker detected."]
   };
 }
 
@@ -2117,14 +2145,14 @@ function mapObligations(item, classification, stage) {
     return [
       {
         name: "Policy & Procedures",
-        reason: "Default obligation map when the initiative has not yet been tied to a more specific control domain."
+        reason: "Default control domain."
       }
     ];
   }
 
   return scored.map(entry => ({
     name: entry.name,
-    reason: entry.reasons[0] || `${entry.name} is in scope based on the source text and stage.`
+    reason: entry.reasons[0] || `${entry.name} is in scope.`
   }));
 }
 
@@ -2166,9 +2194,16 @@ function evaluateFmrukRelevance(item, classification, stage, obligations) {
   score += RELEVANCE_SIGNAL_GROUPS.sectionAdjustments[item.sectionName] || 0;
 
   if (
-    ["Transaction Reporting", "Best Execution", "Market Abuse / Surveillance", "Capital / Liquidity", "Operational Resilience", "Outsourcing / Third Party Risk", "SMCR / Governance", "Regulatory Reporting / Data Collection"].includes(
-      classification.subTheme
-    )
+    [
+      "Transaction Reporting",
+      "Best Execution",
+      "Market Abuse / Surveillance",
+      "Capital / Liquidity",
+      "Operational Resilience",
+      "Outsourcing / Third Party Risk",
+      "SMCR / Governance",
+      "Regulatory Reporting / Data Collection"
+    ].includes(classification.subTheme)
   ) {
     score += 8;
   }
@@ -2200,7 +2235,7 @@ function evaluateFmrukRelevance(item, classification, stage, obligations) {
   const band = score >= 80 ? "High" : score >= 58 ? "Medium" : "Low";
   const whyNotRelevant =
     !isRelevant && negativeReasons.length
-      ? `Current view: low FMRUK relevance because ${negativeReasons.join(" ")}`
+      ? `Low relevance: ${negativeReasons.join(" ")}`
       : "";
 
   return {
@@ -2217,13 +2252,13 @@ function evaluateFmrukRelevance(item, classification, stage, obligations) {
 function scoreProfileMatch(item, profile) {
   const blob = buildBlob(item);
   const categories = [
-    ["businessLines", 16, "Matches FMRUK business line"],
-    ["permissions", 14, "Matches FMRUK permission set"],
-    ["products", 12, "Matches FMRUK product scope"],
-    ["distributionModel", 10, "Matches FMRUK distribution model"],
+    ["businessLines", 16, "Matches business line"],
+    ["permissions", 14, "Matches permission"],
+    ["products", 12, "Matches product scope"],
+    ["distributionModel", 10, "Matches distribution model"],
     ["outsourcedProviders", 10, "Matches outsourced provider exposure"],
     ["reportingObligations", 14, "Matches reporting obligation"],
-    ["committees", 8, "Matches governance committee touchpoint"],
+    ["committees", 8, "Matches committee touchpoint"],
     ["regulatoryTouchpoints", 12, "Matches regulatory touchpoint"]
   ];
 
@@ -2247,16 +2282,16 @@ function scoreProfileMatch(item, profile) {
 
 function determineUncertainty(item, classification, stage, relevance) {
   const flags = [];
-  if ((item.parseConfidence || 0) < 70) flags.push("PDF extraction confidence is low.");
-  if ((classification.confidence || 0) < 60) flags.push("Classification confidence is modest.");
+  if ((item.parseConfidence || 0) < 70) flags.push("Low parse confidence.");
+  if ((classification.confidence || 0) < 60) flags.push("Moderate classification confidence.");
   if (classification.ambiguity) flags.push(classification.ambiguity);
-  if ((stage.confidence || 0) < 58) flags.push("Initiative stage is uncertain.");
-  if (!item.expectedKeyMilestones) flags.push("Milestones were not clearly extracted.");
+  if ((stage.confidence || 0) < 58) flags.push("Stage uncertain.");
+  if (!item.expectedKeyMilestones) flags.push("No clear milestones extracted.");
   if (relevance.score >= 45 && relevance.score <= 65) {
-    flags.push("Relevance sits in the judgement range and needs manual review.");
+    flags.push("Relevance needs judgement.");
   }
   if (relevance.positiveReasons.length && relevance.negativeReasons.length) {
-    flags.push("The initiative shows both FMRUK and non-FMRUK relevance signals.");
+    flags.push("Mixed relevance signals.");
   }
   return {
     flags: dedupeStrings([...flags, ...(item.parseWarnings || [])]),
@@ -2267,21 +2302,15 @@ function determineUncertainty(item, classification, stage, relevance) {
 function buildPotentialBusinessImpact(item, classification, stage, obligations) {
   const obligationNames = obligations.map(obligation => obligation.name).slice(0, 3);
   const obligationText = obligationNames.length
-    ? ` The main control domains in scope are ${obligationNames.join(", ")}.`
+    ? ` Control domains: ${obligationNames.join(", ")}.`
     : "";
   const stageNote = {
-    consultation:
-      " The main near-term need is understanding scope, shaping response and avoiding late delivery surprises.",
-    final_rules:
-      " The item is close to implementation, so the focus should move quickly from interpretation into delivery and control readiness.",
-    supervisory:
-      " The main exposure is evidencing current-state compliance and fixing weak controls before supervisory scrutiny increases.",
-    reporting:
-      " The practical risk sits in data quality, ownership, reconciliation and readiness to make accurate submissions.",
-    legislation:
-      " The key question is whether the perimeter or legal interpretation changes the entity obligations that sit underneath implementation.",
-    monitoring:
-      " This currently looks more like a watchlist item than an immediate delivery programme."
+    consultation: " Main task: scope and response planning.",
+    final_rules: " Main task: delivery and control readiness.",
+    supervisory: " Main task: evidence current-state compliance.",
+    reporting: " Main task: data, ownership and submission readiness.",
+    legislation: " Main task: confirm perimeter and legal effect.",
+    monitoring: " Main task: keep on watchlist."
   }[stage.id] || "";
 
   return `${classification.impactStatement}${obligationText}${stageNote}`;
@@ -2292,13 +2321,9 @@ function buildSuggestedActions(item, classification, stage, impact, relevance, o
   const stageActions = GENERIC_STAGE_ACTIONS[stage.id] || GENERIC_STAGE_ACTIONS.monitoring;
 
   if (relevance.isRelevant) {
-    actions.push(
-      `Lead review: ${classification.primaryOwner}, with ${classification.secondaryOwner} support.`
-    );
+    actions.push(`Lead: ${classification.primaryOwner}. Support: ${classification.secondaryOwner}.`);
   } else {
-    actions.push(
-      `Keep this with ${classification.primaryOwner} on the watchlist until FMRUK scope is clearer.`
-    );
+    actions.push(`Keep with ${classification.primaryOwner} on watchlist until scope is clearer.`);
   }
 
   actions.push(stageActions[0]);
@@ -2309,90 +2334,90 @@ function buildSuggestedActions(item, classification, stage, impact, relevance, o
   }
 
   if (obligations.length) {
-    actions.push(`Focus the first review on ${obligations.slice(0, 2).map(itemObligation => itemObligation.name).join(" and ")}.`);
+    actions.push(`Start with ${obligations.slice(0, 2).map(itemObligation => itemObligation.name).join(" and ")}.`);
   }
 
   if (item.expectedKeyMilestones) {
-    actions.push(`Track milestone text captured from the PDF: ${truncateText(item.expectedKeyMilestones, 160)}.`);
+    actions.push(`Track: ${truncateText(item.expectedKeyMilestones, 140)}.`);
   }
 
   if (uncertainty.needsReview) {
-    actions.push("Validate the extracted row against the source PDF before relying on the detail for delivery planning.");
+    actions.push("Check the extracted row against the PDF before acting.");
   }
 
   return dedupeStrings(actions).slice(0, 5);
 }
 
 function buildRationale(item, classification, stage, relevance, obligations) {
-  const positives = relevance.positiveReasons.length
-    ? `Positive signals: ${relevance.positiveReasons.join(" ")}`
-    : "No strong positive relevance signals were detected.";
-  const negatives = relevance.negativeReasons.length
-    ? ` Counter-signals: ${relevance.negativeReasons.join(" ")}`
+  const positiveText = relevance.positiveReasons.length
+    ? `Positive: ${relevance.positiveReasons.join(" ")}`
+    : "No strong positive signals.";
+  const negativeText = relevance.negativeReasons.length
+    ? ` Negative: ${relevance.negativeReasons.join(" ")}`
     : "";
   const obligationText = obligations.length
-    ? ` Obligation map: ${obligations.map(obligation => obligation.name).join(", ")}.`
+    ? ` Domains: ${obligations.map(obligation => obligation.name).join(", ")}.`
     : "";
 
-  return `Classification: ${classification.theme} / ${classification.subTheme}. Stage: ${stage.label}. ${positives}${negatives}${obligationText}`;
+  return `Theme: ${classification.theme} / ${classification.subTheme}. Stage: ${stage.label}. ${positiveText}${negativeText}${obligationText}`;
 }
 
 function buildBriefBlocks(item, classification, stage, obligations, relevance, actions, uncertainty) {
-  const whatIsThis =
-    `${stage.label} item in ${classification.theme}, led by ${item.leadRegulator || "the relevant regulator"} and listed under ${item.sectionName || "the FCA grid"}.`;
-  const whatIsChanging =
+  const type =
+    `${stage.label}. ${classification.theme}. ${item.leadRegulator || "Lead regulator not isolated"}.`;
+  const change =
     item.initiativeDescription
-      ? `The source text covers ${truncateText(item.initiativeDescription, 220)}`
+      ? truncateText(item.initiativeDescription, 220)
       : classification.impactStatement;
-  const whyNow =
+  const timing =
     item.expectedKeyMilestones
-      ? `Timing is ${item.timingBucket.toLowerCase()}. Milestone reference: ${truncateText(item.expectedKeyMilestones, 190)}`
-      : `Timing is ${item.timingBucket.toLowerCase()}. The item is currently tracked as ${stage.label.toLowerCase()}.`;
-  const whyFmrukMayCare =
+      ? `${item.timingBucket}. ${truncateText(item.expectedKeyMilestones, 180)}`
+      : `${item.timingBucket}.`;
+  const fmrukView =
     relevance.isRelevant
-      ? `Main relevance drivers: ${truncateText(relevance.positiveReasons.join(" "), 220)}`
-      : item.whyNotRelevant || "No strong FMRUK relevance drivers are currently recorded.";
-  const whoOwnsIt =
-    `Lead owner: ${classification.primaryOwner}. Support: ${classification.secondaryOwner}. Control areas: ${obligations.map(obligation => obligation.name).join(", ")}.`;
-  const whatNeedsToHappenNext = actions.slice(0, 3).join(" ");
-  const whatIsStillUnclear = uncertainty.flags.length
+      ? truncateText(relevance.positiveReasons.join(" "), 220) || "Matches the current FMRUK profile."
+      : item.whyNotRelevant || "No strong FMRUK trigger recorded.";
+  const owner =
+    `Lead: ${classification.primaryOwner}. Support: ${classification.secondaryOwner}. Domains: ${obligations.map(obligation => obligation.name).join(", ") || "Not mapped"}.`;
+  const nextSteps = actions.slice(0, 3).join(" ");
+  const checks = uncertainty.flags.length
     ? uncertainty.flags.join(" ")
-    : "No material open points are currently flagged.";
+    : "No open issues flagged.";
 
   return [
     {
-      title: "What this is",
-      copy: whatIsThis,
+      title: "Type",
+      copy: type,
       evidenceFields: ["title", "lead", "general"]
     },
     {
-      title: "What is changing",
-      copy: whatIsChanging,
+      title: "Change",
+      copy: change,
       evidenceFields: ["description", "impact", "general"]
     },
     {
-      title: "Why now",
-      copy: whyNow,
+      title: "Timing",
+      copy: timing,
       evidenceFields: ["milestones", "timing", "isNew"]
     },
     {
-      title: "Why FMRUK may care",
-      copy: whyFmrukMayCare,
+      title: "FMRUK View",
+      copy: fmrukView,
       evidenceFields: ["description", "milestones", "general"]
     },
     {
-      title: "Who owns it",
-      copy: whoOwnsIt,
+      title: "Owner",
+      copy: owner,
       evidenceFields: ["title", "description"]
     },
     {
-      title: "What needs to happen next",
-      copy: whatNeedsToHappenNext,
+      title: "Actions",
+      copy: nextSteps,
       evidenceFields: ["milestones", "description", "general"]
     },
     {
-      title: "What is still unclear",
-      copy: whatIsStillUnclear,
+      title: "Checks",
+      copy: checks,
       evidenceFields: ["general", "milestones", "description"]
     }
   ];
@@ -2456,7 +2481,7 @@ function applyFeedbackOverrides(item) {
     next.isFmrukRelevant = false;
     next.relevanceScore = Math.min(next.relevanceScore || 0, 35);
     next.relevanceBand = "Low";
-    next.whyNotRelevant = "Analyst review has marked this initiative as out of scope for FMRUK at present.";
+    next.whyNotRelevant = "Marked out of scope for FMRUK on analyst review.";
   }
 
   if (feedback.markUrgent) {
@@ -2470,7 +2495,7 @@ function applyFeedbackOverrides(item) {
     next.parseConfidenceBand = next.parseConfidence >= 85 ? "High" : next.parseConfidence >= 70 ? "Medium" : "Low";
     next.parseWarnings = dedupeStrings([
       ...(next.parseWarnings || []),
-      "Analyst feedback indicates a parsing issue."
+      "Analyst flagged a parsing issue."
     ]);
   }
 
@@ -2508,7 +2533,7 @@ function compareWithPreviousDataset(previousItems, newItems) {
       return {
         ...item,
         changeStatus: "New",
-        changeNarrative: "New initiative compared with the previous upload."
+        changeNarrative: "New in the latest upload."
       };
     }
 
@@ -2568,11 +2593,11 @@ function determineDeltaType(previous, next) {
 }
 
 function buildChangeNarrative(previous, next, deltaType) {
-  if (deltaType === "New") return "New initiative compared with the previous upload.";
-  if (deltaType === "Accelerated") return "Milestone timing is earlier than in the previous upload.";
-  if (deltaType === "Delayed") return "Milestone timing is later than in the previous upload.";
-  if (deltaType === "Changed") return "Description, staging or triage outcome differs from the previous upload.";
-  return "No material delta detected against the previous upload.";
+  if (deltaType === "New") return "New in the latest upload.";
+  if (deltaType === "Accelerated") return "Timing is earlier than in the previous upload.";
+  if (deltaType === "Delayed") return "Timing is later than in the previous upload.";
+  if (deltaType === "Changed") return "Description, stage or triage outcome changed.";
+  return "No material change.";
 }
 
 function reanalyseCurrentDataset() {
@@ -2586,7 +2611,7 @@ function reanalyseCurrentDataset() {
       item.canonicalKey,
       {
         changeStatus: item.changeStatus || "Existing",
-        changeNarrative: item.changeNarrative || "No comparison note is currently available."
+        changeNarrative: item.changeNarrative || "No comparison note."
       }
     ])
   );
@@ -2596,7 +2621,7 @@ function reanalyseCurrentDataset() {
       ...item,
       ...(deltaMap.get(item.canonicalKey) || {
         changeStatus: "Existing",
-        changeNarrative: "No comparison note is currently available."
+        changeNarrative: "No comparison note."
       })
     }))
   );
@@ -2625,25 +2650,24 @@ function renderPageState() {
 function updateMeta() {
   const roleView = ROLE_VIEWS[state.roleView];
   const dashboardMode = DASHBOARD_MODES[state.dashboardMode] || DASHBOARD_MODES.workspace;
-  els.currentRoleLabel.textContent = `${state.roleView} lens active`;
+  els.currentRoleLabel.textContent = `View: ${state.roleView}`;
   els.roleSummary.textContent = roleView.summary;
   els.utilityEnvironment.textContent = APP_ENVIRONMENT_LABEL;
   els.utilityMode.textContent = dashboardMode.label;
   els.utilityViewer.textContent = state.roleView;
   els.footerVersion.textContent = APP_VERSION;
   els.footerUpdated.textContent = APP_UPDATED_AT;
-  els.landingVersion.textContent = `Version ${APP_VERSION}`;
+  els.landingVersion.textContent = `v${APP_VERSION}`;
 
   if (!state.datasetMeta) {
     els.headerMeta.textContent = "No dataset loaded";
-    els.datasetInfo.textContent = "No saved dataset found.";
-    els.comparisonInfo.textContent = "Upload a PDF to establish the first comparison baseline.";
-    els.landingDatasetStatus.textContent = "Awaiting PDF upload";
-    els.landingDatasetCopy.textContent =
-      "Open the review workspace to load a PDF and generate the current portfolio view.";
+    els.datasetInfo.textContent = "No PDF loaded";
+    els.comparisonInfo.textContent = "No comparison";
+    els.landingDatasetStatus.textContent = "No dataset";
+    els.landingDatasetCopy.textContent = "Load the FCA initiatives PDF.";
     els.homeLastScan.textContent = "Not run";
     els.homeComparisonStatus.textContent = "No baseline";
-    els.utilityPdfStatus.textContent = "Awaiting upload";
+    els.utilityPdfStatus.textContent = "Not loaded";
     els.utilityLastScan.textContent = "Not run";
     els.utilityComparison.textContent = "No baseline";
     els.utilityEvidenceCoverage.textContent = "0%";
@@ -2652,37 +2676,37 @@ function updateMeta() {
     return;
   }
 
-  els.headerMeta.textContent = `${state.datasetMeta.fileName} | ${state.datasetMeta.rowCount} initiatives | uploaded ${formatDate(state.datasetMeta.uploadedAt)}`;
-  els.datasetInfo.textContent = `Stored in this browser only. File type: ${state.datasetMeta.fileType}. Parser: ${state.datasetMeta.parserVersion}.`;
-  els.landingDatasetStatus.textContent = `${state.datasetMeta.rowCount} initiatives in scope`;
+  els.headerMeta.textContent = `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items · ${formatDate(state.datasetMeta.uploadedAt)}`;
+  els.datasetInfo.textContent = `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items`;
+  els.landingDatasetStatus.textContent = `${state.datasetMeta.rowCount} items loaded`;
   els.utilityPdfStatus.textContent = truncateText(state.datasetMeta.fileName, 34);
   els.homeLastScan.textContent = formatDate(state.datasetMeta.uploadedAt);
   els.utilityLastScan.textContent = formatDate(state.datasetMeta.uploadedAt);
   els.utilityEvidenceCoverage.textContent = formatPercent(calculateEvidenceCoverage(state.raw));
   els.footerParser.textContent = state.datasetMeta.parserVersion || "Current parser";
-  els.footerDataset.textContent = `${state.datasetMeta.fileName} | ${state.datasetMeta.rowCount} items`;
+  els.footerDataset.textContent = `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items`;
 
   const summary = state.datasetMeta.comparisonSummary;
   if (summary) {
     const comparisonBits = [
       `${summary.newCount} new`,
       `${summary.changedCount} changed`,
-      `${summary.acceleratedCount} accelerated`,
-      `${summary.delayedCount} delayed`,
+      `${summary.acceleratedCount} earlier`,
+      `${summary.delayedCount} later`,
       `${summary.removedCount} removed`
     ];
     const movedCount = state.raw.filter(item => item.changeStatus !== "Existing").length;
-    els.comparisonInfo.textContent = `Comparison summary: ${comparisonBits.join(", ")}.`;
-    els.homeComparisonStatus.textContent = `${movedCount} items moved`;
-    els.utilityComparison.textContent = `${movedCount} items moved`;
+    els.comparisonInfo.textContent = comparisonBits.join(" · ");
+    els.homeComparisonStatus.textContent = `${movedCount} moved`;
+    els.utilityComparison.textContent = `${movedCount} moved`;
     els.landingDatasetCopy.textContent =
-      `Latest scan uploaded ${formatDate(state.datasetMeta.uploadedAt)}. Comparison baseline available with ${comparisonBits.join(", ")}.`;
+      `${state.datasetMeta.fileName} · ${formatDate(state.datasetMeta.uploadedAt)}`;
   } else {
-    els.comparisonInfo.textContent = "No comparison baseline is available yet.";
-    els.homeComparisonStatus.textContent = "Baseline not set";
-    els.utilityComparison.textContent = "Baseline not set";
+    els.comparisonInfo.textContent = "No comparison";
+    els.homeComparisonStatus.textContent = "No baseline";
+    els.utilityComparison.textContent = "No baseline";
     els.landingDatasetCopy.textContent =
-      `Latest scan uploaded ${formatDate(state.datasetMeta.uploadedAt)}. No comparison baseline is available yet.`;
+      `${state.datasetMeta.fileName} · ${formatDate(state.datasetMeta.uploadedAt)}`;
   }
 }
 
@@ -2710,7 +2734,7 @@ function renderPresetButtons() {
   buttons.forEach(button => {
     button.classList.toggle("active", button.dataset.preset === state.activePreset);
   });
-  els.activePresetLabel.textContent = `Preset: ${presetLabel(state.activePreset)}`;
+  els.activePresetLabel.textContent = presetLabel(state.activePreset);
 }
 
 function populateFilters() {
@@ -2855,7 +2879,7 @@ function renderSummary(items) {
   els.kpiHighRelevance.textContent = items.filter(item => (item.relevanceScore || 0) >= 80).length;
   els.kpiNeedsReview.textContent = items.filter(item => item.needsReview).length;
   els.kpiChanges.textContent = items.filter(item => item.changeStatus !== "Existing").length;
-  els.listMeta.textContent = `${items.length} items in scope`;
+  els.listMeta.textContent = `${items.length} items`;
   els.portfolioNarrative.textContent = buildPortfolioNarrative(items);
   renderClusterList(items);
   renderDeltaList(items);
@@ -2863,7 +2887,7 @@ function renderSummary(items) {
 
 function buildPortfolioNarrative(items) {
   if (!items.length) {
-    return "No initiatives match the current filters.";
+    return "No items in scope.";
   }
 
   const topThemes = topCounts(items.map(item => item.theme), 3)
@@ -2871,12 +2895,11 @@ function buildPortfolioNarrative(items) {
     .join(", ");
   const topOwners = topCounts(items.map(item => item.primaryOwner), 2)
     .map(entry => entry.name)
-    .join(" and ");
+    .join(", ");
   const highPriority = items.filter(item => item.immediateActionRequired).length;
   const delta = items.filter(item => item.changeStatus !== "Existing").length;
-  const roleView = ROLE_VIEWS[state.roleView];
 
-  return `${roleView.summary} ${items.length} initiatives are in scope. ${highPriority} require immediate action and ${delta} show movement against the previous upload. Leading themes: ${topThemes || "none recorded"}. Main owners: ${topOwners || "no clear ownership pattern"}.`;
+  return `${items.length} items in scope. ${highPriority} need immediate action. ${delta} changed. Themes: ${topThemes || "none"}. Owners: ${topOwners || "none"}.`;
 }
 
 function renderClusterList(items) {
@@ -2884,13 +2907,13 @@ function renderClusterList(items) {
   els.clusterList.innerHTML = "";
 
   if (!clusters.length) {
-    els.clusterList.innerHTML = "<li>No cluster summary is available yet.</li>";
+    els.clusterList.innerHTML = "<li>No cluster data.</li>";
     return;
   }
 
   clusters.forEach(cluster => {
     const li = document.createElement("li");
-    li.innerHTML = `<strong>${escapeHtml(cluster.name)}</strong><br />${cluster.count} initiatives are grouped in this programme.`;
+    li.textContent = `${cluster.name} · ${cluster.count}`;
     els.clusterList.appendChild(li);
   });
 }
@@ -2900,18 +2923,18 @@ function renderDeltaList(items) {
   els.deltaList.innerHTML = "";
 
   if (!summary) {
-    els.deltaList.innerHTML = "<li>No comparison baseline is available yet.</li>";
+    els.deltaList.innerHTML = "<li>No comparison.</li>";
     return;
   }
 
   const lines = [
-    `${summary.newCount} initiatives are new in the latest upload.`,
-    `${summary.changedCount} initiatives changed in wording, stage or triage outcome.`,
-    `${summary.acceleratedCount} initiatives have earlier timing than the previous upload.`,
-    `${summary.delayedCount} initiatives have later timing than the previous upload.`,
+    `${summary.newCount} new`,
+    `${summary.changedCount} changed`,
+    `${summary.acceleratedCount} earlier`,
+    `${summary.delayedCount} later`,
     summary.removedItems?.length
-      ? `Removed from the latest upload: ${summary.removedItems.join(", ")}.`
-      : `${summary.removedCount} initiatives no longer appear in the latest upload.`
+      ? `Removed: ${summary.removedItems.join(", ")}`
+      : `${summary.removedCount} removed`
   ];
 
   const topChanged = items
@@ -2935,7 +2958,7 @@ function renderTimelineList(items) {
     .slice(0, 8);
 
   if (!nextItems.length) {
-    els.timelineList.innerHTML = "<li>No milestone timeline is available for the current filter set.</li>";
+    els.timelineList.innerHTML = "<li>No milestones in scope.</li>";
     return;
   }
 
@@ -2944,7 +2967,7 @@ function renderTimelineList(items) {
     li.innerHTML = `
       <span class="timeline-date">${escapeHtml(item.timeline.label || item.timingBucket)}</span>
       <strong>${escapeHtml(item.initiativeTitle)}</strong><br />
-      ${escapeHtml(truncateText(item.expectedKeyMilestones || item.stageLabel, 160))}
+      ${escapeHtml(truncateText(item.expectedKeyMilestones || item.stageLabel, 140))}
     `;
     els.timelineList.appendChild(li);
   });
@@ -2954,7 +2977,7 @@ function renderInitiativeList(items) {
   els.initiativeList.innerHTML = "";
 
   if (!items.length) {
-    els.initiativeList.innerHTML = `<div class="empty-list">No initiatives match the current filters.</div>`;
+    els.initiativeList.innerHTML = `<div class="empty-list">No items match the current filters.</div>`;
     return;
   }
 
@@ -2966,18 +2989,18 @@ function renderInitiativeList(items) {
     card.innerHTML = `
       <div class="initiative-topline">
         <div class="chip-row">
-          ${chipHtml(item.relevanceBand, item.relevanceBand)}
+          ${chipHtml(item.relevanceBand, chipClassForBand(item.relevanceBand))}
           ${chipHtml(item.stageLabel, stageChipClass(item.stageLabel))}
           ${chipHtml(item.changeStatus, changeChipClass(item.changeStatus))}
         </div>
         <span class="section-note">${escapeHtml(item.primaryOwner)}</span>
       </div>
       <h3 class="initiative-title">${escapeHtml(item.initiativeTitle)}</h3>
-      <p class="initiative-copy">${escapeHtml(truncateText(item.briefBlocks?.[1]?.copy || item.initiativeDescription, 190))}</p>
+      <p class="initiative-copy">${escapeHtml(truncateText(item.briefBlocks?.[1]?.copy || item.initiativeDescription, 180))}</p>
       <div class="chip-row">
         ${chipHtml(`Parse ${item.parseConfidence || 0}`, parseChipClass(item.parseConfidence || 0))}
         ${chipHtml(item.clusterLabel, "chip-neutral")}
-        ${item.immediateActionRequired ? chipHtml("Immediate action", "chip-high") : ""}
+        ${item.immediateActionRequired ? chipHtml("Action", "chip-high") : ""}
       </div>
       <div class="chip-row">
         ${(item.obligations || []).slice(0, 3).map(obligation => chipHtml(obligation.name, "chip-neutral")).join("")}
@@ -2997,14 +3020,13 @@ function renderInitiativeList(items) {
 
 function renderDetail(item) {
   if (!item) {
-    els.detailMeta.textContent = "No initiative selected";
-    els.detailPanel.innerHTML =
-      "Upload the FCA Grid PDF, then select an initiative to review the briefing note.";
+    els.detailMeta.textContent = "No selection";
+    els.detailPanel.innerHTML = "Select an item.";
     return;
   }
 
   const sourcePages = item.sourcePages?.length ? item.sourcePages.join(", ") : "N/A";
-  els.detailMeta.textContent = `${item.primaryOwner} lead | ${item.stageLabel} | pages ${sourcePages}`;
+  els.detailMeta.textContent = `${item.primaryOwner} · ${item.stageLabel} · pages ${sourcePages}`;
   const feedback = state.feedback[item.canonicalKey] || {};
   const evidenceCount = flattenEvidence(item.evidence).length;
 
@@ -3013,7 +3035,7 @@ function renderDetail(item) {
     chipHtml(item.impactLevel, chipClassForBand(item.impactLevel)),
     chipHtml(`${item.parseConfidence} parse`, parseChipClass(item.parseConfidence)),
     chipHtml(item.changeStatus, changeChipClass(item.changeStatus)),
-    item.isFmrukRelevant ? chipHtml("FMRUK relevant", "chip-high") : chipHtml("Low FMRUK relevance", "chip-low")
+    item.isFmrukRelevant ? chipHtml("FMRUK", "chip-high") : chipHtml("Low relevance", "chip-low")
   ].join("");
 
   const briefCards = item.briefBlocks
@@ -3022,37 +3044,37 @@ function renderDetail(item) {
 
   const decisionStrip = [
     buildDecisionStripCard(
-      "Lead and ownership",
-      `${item.primaryOwner || "TBC"} lead with ${item.secondaryOwner || "no secondary owner recorded"} support.`
+      "Owner",
+      `${item.primaryOwner || "TBC"} lead with ${item.secondaryOwner || "no support owner"} support.`
     ),
     buildDecisionStripCard(
-      "Timing and movement",
-      `${item.timeline?.label || item.timingBucket || "Timing to be confirmed"} | ${item.changeStatus || "Existing"}`
+      "Timing",
+      `${item.timeline?.label || item.timingBucket || "Timing to be confirmed"} · ${item.changeStatus || "Existing"}`
     ),
     buildDecisionStripCard(
-      "Evidence basis",
-      `Pages ${sourcePages} | Parse confidence ${item.parseConfidence || 0} | ${evidenceCount} evidence anchor${evidenceCount === 1 ? "" : "s"}`
+      "Evidence",
+      `Pages ${sourcePages} · Parse ${item.parseConfidence || 0} · ${evidenceCount} anchors`
     )
   ].join("");
 
   const decisionCards = [
     buildDecisionCard(
-      "FMRUK read-through",
-      item.briefBlocks?.[3]?.copy || item.rationale || "No FMRUK read-through is currently recorded."
+      "FMRUK view",
+      item.briefBlocks?.[3]?.copy || item.rationale || "No FMRUK read-through recorded."
     ),
-    buildDecisionCard("Decision required", buildDecisionRequiredCopy(item)),
-    buildDecisionCard("Governance route", buildGovernanceRoute(item))
+    buildDecisionCard("Decision", buildDecisionRequiredCopy(item)),
+    buildDecisionCard("Route", buildGovernanceRoute(item))
   ].join("");
 
   const metaCards = [
     ["Section", item.sectionName || "N/A"],
     ["Subcategory", item.subcategory || "N/A"],
-    ["Lead regulator", item.leadRegulator || "N/A"],
+    ["Lead", item.leadRegulator || "N/A"],
     ["Primary owner", item.primaryOwner || "N/A"],
     ["Secondary owner", item.secondaryOwner || "N/A"],
     ["Timing", item.timeline?.label || item.timingBucket || "N/A"],
     ["Source pages", sourcePages],
-    ["Change note", item.changeNarrative || "N/A"]
+    ["Change", item.changeNarrative || "N/A"]
   ]
     .map(
       ([label, value]) => `
@@ -3066,10 +3088,10 @@ function renderDetail(item) {
 
   const uncertaintyList = item.uncertaintyFlags?.length
     ? `<ul class="detail-list">${item.uncertaintyFlags.map(flag => `<li>${escapeHtml(flag)}</li>`).join("")}</ul>`
-    : `<p>No material review points are currently flagged.</p>`;
+    : `<p>No open issues flagged.</p>`;
 
   const whyNotRelevant = item.whyNotRelevant
-    ? `<div class="support-card"><h4>Current relevance view</h4><p>${escapeHtml(item.whyNotRelevant)}</p></div>`
+    ? `<div class="support-card"><h4>Relevance</h4><p>${escapeHtml(item.whyNotRelevant)}</p></div>`
     : "";
 
   els.detailPanel.innerHTML = `
@@ -3085,8 +3107,8 @@ function renderDetail(item) {
 
     <section class="support-card">
       <div class="detail-section-heading">
-        <h4>Structured brief</h4>
-        <span class="section-note">Evidence-linked summary</span>
+        <h4>Brief</h4>
+        <span class="section-note">Linked to source</span>
       </div>
       <div class="brief-grid">${briefCards}</div>
     </section>
@@ -3098,22 +3120,22 @@ function renderDetail(item) {
       <div class="obligation-grid">
         ${(item.obligations || []).map(obligation => chipHtml(obligation.name, "chip-neutral")).join("")}
       </div>
-      <p class="support-copy">${escapeHtml(item.potentialBusinessImpact || "N/A")}</p>
+      <p class="inline-meta">${escapeHtml(item.potentialBusinessImpact || "N/A")}</p>
     </section>
 
     <section class="support-card">
-      <h4>Outstanding checks</h4>
+      <h4>Checks</h4>
       ${uncertaintyList}
     </section>
 
     <section class="support-card">
-      <h4>Basis for prioritisation</h4>
+      <h4>Prioritisation</h4>
       <div class="chip-column">
-        <div class="list-caption">Positive signals</div>
+        <div class="list-caption">Positive</div>
         <div class="signal-grid">${renderSignalSet(item.relevanceSignals, "chip-high")}</div>
-        <div class="list-caption">Counter-signals</div>
+        <div class="list-caption">Counter</div>
         <div class="signal-grid">${renderSignalSet(item.relevanceNegativeSignals, "chip-low")}</div>
-        <div class="list-caption">Profile matches</div>
+        <div class="list-caption">Profile</div>
         <div class="signal-grid">${renderSignalSet(item.profileReasons, "chip-neutral")}</div>
       </div>
     </section>
@@ -3121,32 +3143,30 @@ function renderDetail(item) {
     ${whyNotRelevant}
 
     <section class="feedback-panel">
-      <h4>Analyst review controls</h4>
-      <p class="feedback-note">
-        Record urgency, parsing issues, ownership changes, classification changes and review notes. Saved review decisions are reused when the same initiative appears again.
-      </p>
+      <h4>Analyst review</h4>
+      <p class="feedback-note">Saved feedback is reused when the same item appears again.</p>
       <div class="feedback-actions">
-        <button class="feedback-chip ${feedback.markUrgent ? "active" : ""}" id="feedbackUrgentBtn" type="button">Mark Urgent</button>
-        <button class="feedback-chip ${feedback.markNotRelevant ? "active" : ""}" id="feedbackNotRelevantBtn" type="button">Mark Not Relevant</button>
+        <button class="feedback-chip ${feedback.markUrgent ? "active" : ""}" id="feedbackUrgentBtn" type="button">Urgent</button>
+        <button class="feedback-chip ${feedback.markNotRelevant ? "active" : ""}" id="feedbackNotRelevantBtn" type="button">Not Relevant</button>
         <button class="feedback-chip ${feedback.markParseIssue ? "active" : ""}" id="feedbackParseBtn" type="button">Parsing Issue</button>
-        <button class="feedback-chip" id="clearFeedbackBtn" type="button">Clear Feedback</button>
+        <button class="feedback-chip" id="clearFeedbackBtn" type="button">Clear</button>
       </div>
       <div class="filter-grid">
         <label>
-          <span>Theme Override</span>
+          <span>Theme override</span>
           <select id="themeOverrideSelect">${buildThemeOptions(item.theme, feedback.themeOverride)}</select>
         </label>
         <label>
-          <span>Owner Override</span>
+          <span>Owner override</span>
           <select id="ownerOverrideSelect">${buildOwnerOptions(item.primaryOwner, feedback.ownerOverride)}</select>
         </label>
       </div>
       <label>
-        <span>Analyst Note</span>
+        <span>Note</span>
         <textarea id="feedbackNoteInput" rows="3">${escapeHtml(feedback.note || "")}</textarea>
       </label>
       <div class="inline-actions">
-        <button class="secondary-btn" id="saveFeedbackBtn" type="button">Save Feedback</button>
+        <button class="secondary-btn" id="saveFeedbackBtn" type="button">Save</button>
       </div>
     </section>
   `;
@@ -3174,36 +3194,36 @@ function buildDecisionCard(title, copy) {
 
 function buildDecisionRequiredCopy(item) {
   if (item.immediateActionRequired) {
-    return `Immediate triage is recommended. Confirm applicability, assign delivery ownership under ${item.primaryOwner || "the lead owner"}, and set an implementation response against the next milestone.`;
+    return `Start triage now. Confirm scope, owner and delivery dates.`;
   }
 
   if (item.needsReview) {
-    return `Manual review is recommended before formal mobilisation. Confirm scope, ownership, evidence quality and timing against the source text.`;
+    return `Check scope, owner, timing and source text before actioning.`;
   }
 
   if (!item.isFmrukRelevant) {
-    return `No immediate mobilisation is indicated on the current read-through. Keep the item visible for monitoring in case timing, scope or business impact changes.`;
+    return `Keep on watchlist. No immediate action needed.`;
   }
 
-  return `Keep the item in active review with ${item.primaryOwner || "the lead owner"}. Confirm whether a policy, governance or delivery response is needed before the next milestone.`;
+  return `Keep in active review and confirm the next step before the next milestone.`;
 }
 
 function buildGovernanceRoute(item) {
   const committee = selectGovernanceCommittee(item);
 
   if (item.immediateActionRequired) {
-    return `Take the item through ${committee} with ${item.primaryOwner || "the lead owner"} as sponsor and provide an executive update if implementation risk or timing escalates.`;
+    return `Route through ${committee} with ${item.primaryOwner || "the lead owner"} as sponsor.`;
   }
 
   if (item.stageLabel === "Reporting / Data Request") {
-    return `Route through ${committee} and the relevant delivery forum so reporting readiness, control ownership and resourcing can be confirmed early.`;
+    return `Route through ${committee} and the delivery forum for reporting readiness.`;
   }
 
   if (item.needsReview) {
-    return `Keep the item within ${committee} until scope, relevance and ownership are confirmed. Escalate more widely if the review identifies a material change for FMRUK.`;
+    return `Keep within ${committee} until scope, relevance and ownership are confirmed.`;
   }
 
-  return `Maintain oversight through ${committee}, led by ${item.primaryOwner || "the primary owner"}, and revisit escalation if the initiative moves closer or broadens in scope.`;
+  return `Maintain oversight through ${committee} and revisit if timing or scope changes.`;
 }
 
 function selectGovernanceCommittee(item) {
@@ -3219,18 +3239,18 @@ function selectGovernanceCommittee(item) {
     lowerCommittees.find(entry => entry.toLowerCase().includes(hint));
 
   if (item.immediateActionRequired) {
-    return choose("board") || choose("risk") || choose("compliance") || lowerCommittees[0] || "the relevant governance forum";
+    return choose("board") || choose("risk") || choose("compliance") || lowerCommittees[0] || "the relevant forum";
   }
 
   if (hasObligation("Operational Resilience") || hasObligation("Outsourcing & Third Parties")) {
-    return choose("risk") || choose("oversight") || lowerCommittees[0] || "the relevant governance forum";
+    return choose("risk") || choose("oversight") || lowerCommittees[0] || "the relevant forum";
   }
 
   if (hasObligation("Disclosure & Communications") || item.primaryOwner === "Legal") {
-    return choose("compliance") || choose("board") || lowerCommittees[0] || "the relevant governance forum";
+    return choose("compliance") || choose("board") || lowerCommittees[0] || "the relevant forum";
   }
 
-  return choose("compliance") || choose("oversight") || lowerCommittees[0] || "the relevant governance forum";
+  return choose("compliance") || choose("oversight") || lowerCommittees[0] || "the relevant forum";
 }
 
 function renderBriefCard(item, block) {
@@ -3241,7 +3261,7 @@ function renderBriefCard(item, block) {
       <p class="brief-copy">${escapeHtml(block.copy)}</p>
       <div class="brief-evidence">
         <div class="chip-row">
-          ${evidence.length ? evidence.map(entry => evidenceButtonHtml(entry)).join("") : chipHtml("No direct evidence link", "chip-neutral")}
+          ${evidence.length ? evidence.map(entry => evidenceButtonHtml(entry)).join("") : chipHtml("No direct link", "chip-neutral")}
         </div>
       </div>
     </article>
@@ -3304,7 +3324,7 @@ function saveDetailFeedback(item) {
 
   state.feedback[item.canonicalKey] = next;
   saveFeedback();
-  els.uploadStatus.textContent = "Analyst feedback saved and applied to the dataset.";
+  els.uploadStatus.textContent = "Feedback saved.";
   reanalyseCurrentDataset();
   preserveSelection(item.canonicalKey);
 }
@@ -3322,13 +3342,13 @@ function renderPdfEvidence(item) {
   els.pdfPreview.innerHTML = "";
 
   if (!item) {
-    els.pdfPreviewStatus.textContent = "Select an initiative to review its linked evidence.";
+    els.pdfPreviewStatus.textContent = "Select an item.";
     return;
   }
 
   const evidence = getEvidenceForFields(item, ["title", "lead", "description", "milestones", "impact", "timing", "isNew"], 20);
   if (!evidence.length) {
-    els.pdfPreviewStatus.textContent = "No evidence references were captured for the selected initiative.";
+    els.pdfPreviewStatus.textContent = "No evidence links captured.";
     return;
   }
 
@@ -3342,7 +3362,7 @@ function renderPdfEvidence(item) {
     button.className = "evidence-chip";
     if (entry.key === state.currentPdfHighlightKey) button.classList.add("active");
     button.dataset.evidenceKey = entry.key;
-    button.textContent = `P${entry.pageNumber} ${fieldLabel(entry.field)}: ${truncateText(entry.excerpt, 52)}`;
+    button.textContent = `P${entry.pageNumber} ${fieldLabel(entry.field)}: ${truncateText(entry.excerpt, 48)}`;
     button.addEventListener("click", () => {
       state.currentPdfHighlightKey = entry.key;
       renderPdfEvidence(item);
@@ -3352,7 +3372,7 @@ function renderPdfEvidence(item) {
 
   renderPdfPreview(item, evidence).catch(err => {
     console.error(err);
-    els.pdfPreviewStatus.textContent = "The PDF preview could not be rendered for this selection.";
+    els.pdfPreviewStatus.textContent = "Preview could not be rendered.";
   });
 }
 
@@ -3360,18 +3380,17 @@ async function renderPdfPreview(item, evidence) {
   els.pdfPreview.innerHTML = "";
 
   if (!state.pdfDocument) {
-    els.pdfPreviewStatus.textContent =
-      "The PDF preview is not loaded in this browser session. Upload the PDF again to restore the live preview.";
+    els.pdfPreviewStatus.textContent = "PDF preview not available in this session.";
     return;
   }
 
   const pages = item.sourcePages?.length ? item.sourcePages.slice(0, 4) : [];
   if (!pages.length) {
-    els.pdfPreviewStatus.textContent = "No source pages were captured for this initiative.";
+    els.pdfPreviewStatus.textContent = "No source pages captured.";
     return;
   }
 
-  els.pdfPreviewStatus.textContent = `Showing source pages ${pages.join(", ")} with linked highlight bands.`;
+  els.pdfPreviewStatus.textContent = `Pages ${pages.join(", ")}`;
   const activeEvidence = evidence.find(entry => entry.key === state.currentPdfHighlightKey);
   const token = ++state.pdfRenderToken;
 
@@ -3430,8 +3449,7 @@ function runAskQuery() {
   state.ask.query = query;
 
   if (!query) {
-    state.ask.answer =
-      "Enter a search query to scan initiatives, obligations and source evidence.";
+    state.ask.answer = "No search run.";
     state.ask.results = [];
     renderAskResults();
     return;
@@ -3472,7 +3490,7 @@ function runAskQuery() {
   state.ask.results = scored.map(result => result.item);
 
   if (!state.ask.results.length) {
-    state.ask.answer = `No initiatives matched "${query}" in the current filtered set.`;
+    state.ask.answer = `No results for "${query}".`;
     renderAskResults();
     return;
   }
@@ -3482,25 +3500,25 @@ function runAskQuery() {
     .join(", ");
   const topOwners = topCounts(state.ask.results.map(item => item.primaryOwner), 2)
     .map(entry => entry.name)
-    .join(" and ");
+    .join(", ");
 
-  state.ask.answer = `${state.ask.results.length} initiatives match "${query}". Main themes: ${topThemes || "none"}. Main owners: ${topOwners || "none"}.`;
+  state.ask.answer = `${state.ask.results.length} results. Themes: ${topThemes || "none"}. Owners: ${topOwners || "none"}.`;
   renderAskResults();
 }
 
 function renderAskResults() {
-  els.askAnswer.textContent = state.ask.answer || "Enter a search query to scan the filtered portfolio.";
+  els.askAnswer.textContent = state.ask.answer || "No search run.";
   els.askResults.innerHTML = "";
 
   if (!state.ask.results.length) {
-    els.askResults.innerHTML = "<li>No search results are available.</li>";
+    els.askResults.innerHTML = "<li>No results.</li>";
     return;
   }
 
   state.ask.results.forEach(item => {
     const li = document.createElement("li");
     li.innerHTML = `<strong>${escapeHtml(item.initiativeTitle)}</strong><br />${escapeHtml(
-      truncateText(item.briefBlocks?.[3]?.copy || item.rationale, 180)
+      truncateText(item.briefBlocks?.[3]?.copy || item.rationale, 160)
     )}`;
     li.addEventListener("click", () => {
       state.selectedItemId = item.id;
@@ -3514,7 +3532,7 @@ function renderAskResults() {
 
 function exportJson() {
   if (!state.filtered.length) {
-    els.uploadStatus.textContent = "There is no filtered dataset to export.";
+    els.uploadStatus.textContent = "No filtered dataset to export.";
     return;
   }
 
@@ -3527,7 +3545,7 @@ function exportJson() {
 
 function exportCsv() {
   if (!state.filtered.length) {
-    els.uploadStatus.textContent = "There is no filtered dataset to export.";
+    els.uploadStatus.textContent = "No filtered dataset to export.";
     return;
   }
 
@@ -3566,21 +3584,21 @@ function exportCsv() {
 function exportBoardBrief() {
   const items = state.filtered.slice(0, 12);
   if (!items.length) {
-    els.uploadStatus.textContent = "There are no filtered initiatives available for a board brief.";
+    els.uploadStatus.textContent = "No items available for a board brief.";
     return;
   }
 
   const JsPDF = getPdfConstructor();
   if (!JsPDF) {
-    els.uploadStatus.textContent = "The PDF export library did not load.";
+    els.uploadStatus.textContent = "PDF export library did not load.";
     return;
   }
 
   const doc = buildReportPdf({
     kind: "board",
     title: "FMRUK Regulatory Board Brief",
-    subtitle: "Regulatory developments, management actions and assurance points for FMRUK.",
-    audience: `${state.roleView} lens`,
+    subtitle: "Current items, actions and review points.",
+    audience: `${state.roleView} view`,
     items,
     summaryText: buildPortfolioNarrative(items)
   });
@@ -3596,21 +3614,21 @@ function exportOwnerPack() {
   );
 
   if (!relevantItems.length) {
-    els.uploadStatus.textContent = "There are no filtered initiatives available for an owner pack.";
+    els.uploadStatus.textContent = "No items available for an owner pack.";
     return;
   }
 
   const JsPDF = getPdfConstructor();
   if (!JsPDF) {
-    els.uploadStatus.textContent = "The PDF export library did not load.";
+    els.uploadStatus.textContent = "PDF export library did not load.";
     return;
   }
 
   const doc = buildReportPdf({
     kind: "owner",
     title: "FMRUK Owner Pack",
-    subtitle: "Owner actions, control implications and review points by function.",
-    audience: `${role} lens`,
+    subtitle: "Owner actions and review points.",
+    audience: `${role} view`,
     items: relevantItems,
     summaryText: buildPortfolioNarrative(relevantItems)
   });
@@ -3639,11 +3657,11 @@ function buildReportPdf(config) {
   if (config.kind === "board") {
     addMovementSection(ctx, config);
     addMaterialInitiativeSection(ctx, config.items);
-    addPortfolioAuditSection(ctx, config.items, "Board assurance and audit points");
+    addPortfolioAuditSection(ctx, config.items, "Board audit points");
   } else {
     addOwnerSummarySection(ctx, config.items);
     addOwnerDetailSections(ctx, config.items);
-    addPortfolioAuditSection(ctx, config.items, "Owner assurance and audit points");
+    addPortfolioAuditSection(ctx, config.items, "Owner audit points");
   }
 
   addMethodologySection(ctx, config);
@@ -3672,7 +3690,7 @@ function createPdfContext(doc, config) {
       panel: [245, 248, 252],
       white: [255, 255, 255]
     },
-    datasetLabel: state.datasetMeta?.fileName || "Current filtered review set",
+    datasetLabel: state.datasetMeta?.fileName || "Current filtered dataset",
     audience: config.audience,
     activeHeader: config.title
   };
@@ -3692,7 +3710,7 @@ function drawReportCover(ctx, config) {
   doc.setFontSize(11);
   doc.text("FIDELITY INVESTMENTS", margin, 56);
 
-  doc.setFont("times", "bold");
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(28);
   doc.text(config.title, margin, 98);
 
@@ -3709,10 +3727,10 @@ function drawReportCover(ctx, config) {
   doc.roundedRect(margin, summaryTop, pageWidth - margin * 2, summaryHeight, 18, 18, "S");
 
   const metaLines = [
-    `Prepared: ${formatDate(new Date().toISOString())}`,
-    `Source PDF: ${state.datasetMeta?.fileName || "Current browser session"}`,
-    `Audience: ${config.audience}`,
-    `Parsing engine: ${state.datasetMeta?.parserVersion || "Current version"}`
+    `Created: ${formatDate(new Date().toISOString())}`,
+    `Source: ${state.datasetMeta?.fileName || "Current browser session"}`,
+    `View: ${config.audience}`,
+    `Parser: ${state.datasetMeta?.parserVersion || "Current version"}`
   ];
 
   doc.setTextColor(...colors.text);
@@ -3736,7 +3754,7 @@ function drawReportCover(ctx, config) {
   doc.setFontSize(11);
   doc.setTextColor(...colors.soft);
   doc.text(
-    "Prepared from the current filtered dataset in the FMRUK Regulatory Review.",
+    "Prepared from the current filtered dataset.",
     margin,
     pageHeight - 38
   );
@@ -3768,7 +3786,7 @@ function drawPdfMetrics(ctx, metrics, y, boxHeight, columns) {
     doc.setFontSize(11);
     doc.setTextColor(...colors.soft);
     doc.text(metric.label.toUpperCase(), x + 16, top + 24);
-    doc.setFont("times", "bold");
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(26);
     doc.setTextColor(...colors.navyDeep);
     doc.text(metric.value, x + 16, top + 66);
@@ -3791,7 +3809,7 @@ function startPdfPage(ctx, label) {
   doc.setTextColor(...colors.teal);
   doc.text(label.toUpperCase(), margin, 28);
 
-  doc.setFont("times", "bold");
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
   doc.setTextColor(...colors.navyDeep);
   doc.text(ctx.datasetLabel, margin, 48);
@@ -3815,7 +3833,7 @@ function addPdfSectionTitle(ctx, kicker, title) {
   doc.setTextColor(...colors.teal);
   doc.text(kicker.toUpperCase(), margin, ctx.y);
   ctx.y += 18;
-  doc.setFont("times", "bold");
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
   doc.setTextColor(...colors.navyDeep);
   doc.text(title, margin, ctx.y);
@@ -3856,7 +3874,7 @@ function addPdfBulletList(ctx, items, options = {}) {
 }
 
 function addOverviewSection(ctx, config) {
-  addPdfSectionTitle(ctx, "Portfolio overview", "Executive summary");
+  addPdfSectionTitle(ctx, "Portfolio overview", "Summary");
   addPdfParagraph(ctx, config.summaryText, { color: ctx.colors.text, size: 11.5 });
 
   const topThemes = topCounts(config.items.map(item => item.theme), 4);
@@ -3877,17 +3895,17 @@ function addOverviewSection(ctx, config) {
 }
 
 function addMovementSection(ctx, config) {
-  addPdfSectionTitle(ctx, "Change intelligence", "Movement snapshot");
+  addPdfSectionTitle(ctx, "Change", "Movement");
 
   const summary = state.datasetMeta?.comparisonSummary;
   const bullets = summary
     ? [
-        `${summary.newCount} initiatives are new in the current upload.`,
-        `${summary.changedCount} initiatives changed in wording, stage or triage outcome.`,
-        `${summary.acceleratedCount} initiatives have earlier timing and ${summary.delayedCount} have later timing than in the previous upload.`,
-        `${summary.removedCount} initiatives no longer appear in the latest upload.`
+        `${summary.newCount} new items.`,
+        `${summary.changedCount} changed items.`,
+        `${summary.acceleratedCount} earlier and ${summary.delayedCount} later than the previous upload.`,
+        `${summary.removedCount} no longer appear in the latest upload.`
       ]
-    : ["No prior upload comparison is available."];
+    : ["No prior upload comparison available."];
 
   addPdfBulletList(ctx, bullets, { color: ctx.colors.text });
 
@@ -3907,7 +3925,7 @@ function addMovementSection(ctx, config) {
 }
 
 function addMaterialInitiativeSection(ctx, items) {
-  addPdfSectionTitle(ctx, "Material initiatives", "Board briefing notes");
+  addPdfSectionTitle(ctx, "Material items", "Board notes");
   items.forEach((item, index) => {
     addInitiativeCard(ctx, item, index + 1, "board");
   });
@@ -3917,7 +3935,7 @@ function addOwnerSummarySection(ctx, items) {
   addPdfSectionTitle(ctx, "Owner summary", "Action coverage");
   addPdfParagraph(
     ctx,
-    "This pack is grouped by primary owner so each function can review its queue, required actions, control areas and key review points.",
+    "Grouped by primary owner for action review and follow-up.",
     { color: ctx.colors.text, size: 11.5 }
   );
 
@@ -3939,10 +3957,10 @@ function addOwnerDetailSections(ctx, items) {
   Object.entries(grouped)
     .sort((a, b) => b[1].length - a[1].length)
     .forEach(([owner, ownerItems]) => {
-      addPdfSectionTitle(ctx, owner, "Owner action pack");
+      addPdfSectionTitle(ctx, owner, "Owner pack");
       addPdfParagraph(
         ctx,
-        `${owner} currently owns ${ownerItems.length} initiatives in the filtered scope. The table and notes below support action tracking, review and assurance.`,
+        `${owner} owns ${ownerItems.length} items in the filtered scope.`,
         { color: ctx.colors.text, size: 11.5 }
       );
 
@@ -3967,7 +3985,7 @@ function addOwnerDetailSections(ctx, items) {
 }
 
 function addPortfolioAuditSection(ctx, items, title) {
-  addPdfSectionTitle(ctx, "Audit and assurance", title);
+  addPdfSectionTitle(ctx, "Audit", title);
 
   addPdfBulletList(ctx, buildPortfolioAuditPoints(items), {
     color: ctx.colors.text
@@ -3994,7 +4012,7 @@ function addPortfolioAuditSection(ctx, items, title) {
 }
 
 function addMethodologySection(ctx, config) {
-  addPdfSectionTitle(ctx, "Method and assumptions", "How to read this report");
+  addPdfSectionTitle(ctx, "Method", "How to read this report");
 
   const profileSummary = PROFILE_FIELDS.map(([field]) => {
     const label = field
@@ -4007,9 +4025,9 @@ function addMethodologySection(ctx, config) {
   addPdfBulletList(
     ctx,
     [
-      "This report is based on the current filtered dataset and reflects the active role lens and profile settings.",
-      "Each initiative summary uses parsed FCA PDF content, linked source rows, rule-based classification and any saved analyst overrides.",
-      "Audit and review points highlight parsing confidence, open items, missing milestones and scope questions that require human review.",
+      "Based on the current filtered dataset and the active role view.",
+      "Each item uses parsed PDF content, linked evidence, rule-based classification and saved analyst overrides.",
+      "Audit points highlight parsing confidence, open items, missing milestones and scope questions.",
       ...profileSummary.slice(0, 4)
     ],
     { color: ctx.colors.text }
@@ -4018,8 +4036,8 @@ function addMethodologySection(ctx, config) {
   addPdfParagraph(
     ctx,
     config.kind === "board"
-      ? "Board note: this report supports management discussion and challenge. It does not replace legal or compliance judgement."
-      : "Owner note: this pack supports mobilisation, documented judgement and review by compliance, legal, risk and audit.",
+      ? "This report supports management review. It does not replace legal or compliance judgement."
+      : "This pack supports review, action tracking and documented judgement.",
     { color: ctx.colors.soft, size: 10.5 }
   );
 }
@@ -4033,7 +4051,7 @@ function addInitiativeCard(ctx, item, index, mode) {
   const obligations = (item.obligations || []).map(obligation => obligation.name).join(", ");
   const auditPoints = buildItemAuditPoints(item, mode);
 
-  doc.setFont("times", "bold");
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   const titleLines = doc.splitTextToSize(title, contentWidth - 30);
   doc.setFont("helvetica", "bold");
@@ -4043,7 +4061,7 @@ function addInitiativeCard(ctx, item, index, mode) {
   doc.setFontSize(10.5);
   const summaryLines = doc.splitTextToSize(`Summary: ${summary}`, contentWidth - 30);
   const actionLines = doc.splitTextToSize(`Action: ${action}`, contentWidth - 30);
-  const obligationLines = doc.splitTextToSize(`Obligations: ${obligations || "Not yet mapped."}`, contentWidth - 30);
+  const obligationLines = doc.splitTextToSize(`Domains: ${obligations || "Not yet mapped."}`, contentWidth - 30);
   const auditHeight = auditPoints.length * 15 + 8;
   const boxHeight =
     28 +
@@ -4063,7 +4081,7 @@ function addInitiativeCard(ctx, item, index, mode) {
 
   let cursorY = ctx.y + 22;
   doc.setTextColor(...colors.navyDeep);
-  doc.setFont("times", "bold");
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.text(titleLines, margin + 16, cursorY);
   cursorY += titleLines.length * 18;
@@ -4086,7 +4104,7 @@ function addInitiativeCard(ctx, item, index, mode) {
 
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...colors.teal);
-  doc.text("Audit and assurance points", margin + 16, cursorY);
+  doc.text("Audit points", margin + 16, cursorY);
   cursorY += 14;
 
   doc.setFont("helvetica", "normal");
@@ -4110,11 +4128,11 @@ function buildItemAuditPoints(item, mode) {
 
   if (mode === "owner") {
     points.push(
-      `Owner check: confirm ${item.primaryOwner} has accepted the action and agrees the obligation map.`
+      `Owner check: confirm ${item.primaryOwner} accepts the action and the control mapping.`
     );
   } else {
     points.push(
-      "Board check: confirm that timing, ownership and actions remain proportionate to the assessed relevance and impact."
+      "Board check: confirm timing, ownership and actions remain proportionate."
     );
   }
 
@@ -4130,14 +4148,14 @@ function buildPortfolioAuditPoints(items) {
   const urgentCount = items.filter(item => item.immediateActionRequired).length;
 
   return [
-    `${reviewCount} initiatives currently carry manual review flags and require source validation before action is closed.`,
-    `${lowParseCount} initiatives have lower parsing confidence and should be checked against the original PDF.`,
-    `${missingMilestoneCount} initiatives do not yet have clear milestone extraction, creating timing uncertainty.`,
-    `${changedCount} initiatives show movement compared with the previous upload and should be reviewed for business impact and priority.`,
-    `${urgentCount} initiatives currently require immediate action based on impact, timing, and relevance.`,
+    `${reviewCount} items carry manual review flags.`,
+    `${lowParseCount} items have lower parsing confidence.`,
+    `${missingMilestoneCount} items do not yet have clear milestones.`,
+    `${changedCount} items show movement against the previous upload.`,
+    `${urgentCount} items currently require immediate action.`,
     summary?.removedCount
-      ? `${summary.removedCount} initiatives no longer appear in the latest upload and should be checked for completion, movement or removal from the grid.`
-      : "No removed initiatives were detected in the current comparison set."
+      ? `${summary.removedCount} items no longer appear in the latest upload.`
+      : "No removed items detected in the current comparison set."
   ];
 }
 
@@ -4351,7 +4369,7 @@ function fieldLabel(field) {
     impact: "impact",
     consumer: "consumer",
     timing: "timing",
-    isNew: "new flag",
+    isNew: "new",
     general: "source"
   }[field] || field;
 }
@@ -4387,12 +4405,12 @@ function parseChipClass(score) {
 
 function presetLabel(value) {
   return {
-    all: "All Items",
-    high_priority: "High Priority",
-    needs_review: "Needs Review",
-    delta: "New This Upload",
-    reporting: "Reporting Items"
-  }[value] || "All Items";
+    all: "All",
+    high_priority: "Priority",
+    needs_review: "Review",
+    delta: "Changed",
+    reporting: "Reporting"
+  }[value] || "All";
 }
 
 function topCounts(values, limit) {
