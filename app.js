@@ -22,7 +22,6 @@ const state = {
   feedback: {},
   currentPage: "home",
   roleView: "Compliance",
-  activePreset: "all",
   pdfBuffer: null,
   pdfDocument: null,
   pdfRenderToken: 0,
@@ -1029,6 +1028,8 @@ async function init() {
   state.feedback = loadFeedback();
   loadFromStorage();
   renderProfileForm();
+  updateReviewClock();
+  window.setInterval(updateReviewClock, 30000);
   await hydratePdfFromStorage();
   renderAll();
 }
@@ -1040,12 +1041,11 @@ function mapEls() {
     "landingDatasetCopy",
     "homeLastScan",
     "homeComparisonStatus",
-    "dashboardModeLabel",
+    "reviewPageMeta",
     "headerMeta",
     "datasetInfo",
     "comparisonInfo",
     "portfolioNarrative",
-    "currentRoleLabel",
     "reloadBtn",
     "exportJsonBtn",
     "exportCsvBtn",
@@ -1055,10 +1055,6 @@ function mapEls() {
     "fileInput",
     "uploadBtn",
     "uploadStatus",
-    "roleViewButtons",
-    "roleSummary",
-    "presetButtons",
-    "activePresetLabel",
     "searchInput",
     "sectionFilter",
     "themeFilter",
@@ -1083,7 +1079,6 @@ function mapEls() {
     "pdfPreviewStatus",
     "evidenceTrail",
     "pdfPreview",
-    "askInput",
     "askBtn",
     "askAnswer",
     "askResults",
@@ -1115,14 +1110,12 @@ function bindEvents() {
   els.exportBoardBriefBtn.addEventListener("click", exportBoardBrief);
   els.exportOwnerPackBtn.addEventListener("click", exportOwnerPack);
   els.clearStorageBtn.addEventListener("click", clearSavedData);
-  els.roleViewButtons.addEventListener("click", handleRoleViewClick);
-  els.presetButtons.addEventListener("click", handlePresetClick);
   document.querySelectorAll("[data-page-target]").forEach(button => {
     button.addEventListener("click", () => navigateToPage(button.dataset.pageTarget));
   });
   window.addEventListener("hashchange", syncPageFromHash);
   els.askBtn.addEventListener("click", runAskQuery);
-  els.askInput.addEventListener("keydown", event => {
+  els.searchInput.addEventListener("keydown", event => {
     if (event.key === "Enter") {
       event.preventDefault();
       runAskQuery();
@@ -1175,22 +1168,16 @@ function navigateToPage(page) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function handleRoleViewClick(event) {
-  const button = event.target.closest("[data-role-view]");
-  if (!button) return;
-
-  state.roleView = button.dataset.roleView;
-  renderRoleButtons();
-  renderAll();
-}
-
-function handlePresetClick(event) {
-  const button = event.target.closest("[data-preset]");
-  if (!button) return;
-
-  state.activePreset = button.dataset.preset;
-  renderPresetButtons();
-  applyFilters();
+function updateReviewClock() {
+  if (!els.reviewPageMeta) return;
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  els.reviewPageMeta.textContent = formatter.format(new Date());
 }
 
 function loadFromStorage() {
@@ -2598,8 +2585,6 @@ function reanalyseCurrentDataset() {
 function renderAll() {
   renderPageState();
   updateMeta();
-  renderRoleButtons();
-  renderPresetButtons();
   populateFilters();
   applyFilters();
 }
@@ -2612,10 +2597,6 @@ function renderPageState() {
 }
 
 function updateMeta() {
-  const roleView = ROLE_VIEWS[state.roleView];
-  els.dashboardModeLabel.textContent = "Analyst View";
-  els.currentRoleLabel.textContent = `View: ${state.roleView}`;
-  els.roleSummary.textContent = roleView.summary;
   els.footerVersion.textContent = APP_VERSION;
   els.footerUpdated.textContent = APP_UPDATED_AT;
   els.landingVersion.textContent = `v${APP_VERSION}`;
@@ -2660,21 +2641,6 @@ function updateMeta() {
     els.landingDatasetCopy.textContent =
       `${state.datasetMeta.fileName} · ${formatDate(state.datasetMeta.uploadedAt)}`;
   }
-}
-
-function renderRoleButtons() {
-  const buttons = els.roleViewButtons.querySelectorAll("[data-role-view]");
-  buttons.forEach(button => {
-    button.classList.toggle("active", button.dataset.roleView === state.roleView);
-  });
-}
-
-function renderPresetButtons() {
-  const buttons = els.presetButtons.querySelectorAll("[data-preset]");
-  buttons.forEach(button => {
-    button.classList.toggle("active", button.dataset.preset === state.activePreset);
-  });
-  els.activePresetLabel.textContent = presetLabel(state.activePreset);
 }
 
 function populateFilters() {
@@ -2751,8 +2717,7 @@ function applyFilters() {
       (item.parseConfidence || 0) >= minParseConfidence &&
       (!fmrukOnly || item.isFmrukRelevant === true) &&
       (!excludeAnnex || item.sectionName !== "Annex: initiatives completed/stopped") &&
-      (!needsReviewOnly || item.needsReview === true) &&
-      matchesActivePreset(item)
+      (!needsReviewOnly || item.needsReview === true)
     );
   });
 
@@ -2769,21 +2734,6 @@ function applyFilters() {
   renderTimelineList(state.filtered);
   renderPdfEvidence(selectedItem);
   renderAskResults();
-}
-
-function matchesActivePreset(item) {
-  switch (state.activePreset) {
-    case "high_priority":
-      return item.immediateActionRequired || (item.relevanceScore || 0) >= 80 || item.impactLevel === "High";
-    case "needs_review":
-      return item.needsReview === true;
-    case "delta":
-      return item.changeStatus !== "Existing";
-    case "reporting":
-      return item.obligations?.some(obligation => obligation.name === "Reporting & MI");
-    default:
-      return true;
-  }
 }
 
 function sortItems(items, roleView = state.roleView) {
@@ -3385,7 +3335,7 @@ async function renderPdfPreview(item, evidence) {
 }
 
 function runAskQuery() {
-  const query = normaliseWs(els.askInput.value);
+  const query = normaliseWs(els.searchInput.value);
   state.ask.query = query;
 
   if (!query) {
@@ -3449,6 +3399,10 @@ function runAskQuery() {
 function renderAskResults() {
   els.askAnswer.textContent = state.ask.answer || "No search run.";
   els.askResults.innerHTML = "";
+
+  if (!state.ask.query) {
+    return;
+  }
 
   if (!state.ask.results.length) {
     els.askResults.innerHTML = "<li>No results.</li>";
@@ -4341,16 +4295,6 @@ function parseChipClass(score) {
   if (score >= 85) return "chip-high";
   if (score >= 70) return "chip-medium";
   return "chip-low";
-}
-
-function presetLabel(value) {
-  return {
-    all: "All",
-    high_priority: "Priority",
-    needs_review: "Review",
-    delta: "Changed",
-    reporting: "Reporting"
-  }[value] || "All";
 }
 
 function topCounts(values, limit) {
