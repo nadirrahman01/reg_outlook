@@ -4,125 +4,51 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FMRUK Regulatory Review</title>
-  <link rel="stylesheet" href="./styles.css?v=13" />
+  <link rel="stylesheet" href="./styles.css?v=15" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
-<body data-page="home">
+<body>
   <div class="app-shell">
-    <section class="home-page" id="homePage">
-      <header class="home-header">
-        <div class="home-brand">
-          <div class="eyebrow">Fidelity Investments</div>
-          <div class="home-brand-title">FMRUK Regulatory Review</div>
-        </div>
-        <nav class="home-nav" aria-label="Primary">
-          <button class="ghost-btn page-switch is-current" data-page-target="home" type="button">Home</button>
-          <button class="primary-btn page-switch" data-page-target="review" type="button">Open Workspace</button>
-        </nav>
-      </header>
-
-      <section class="home-hero card">
-        <div class="home-hero-copy">
-          <div class="home-kicker">FCA Initiatives Grid</div>
-          <h1>Open the review workspace.</h1>
-          <p class="home-subtitle">Upload the PDF, review items, and export outputs.</p>
-          <div class="home-cta-row">
-            <button class="primary-btn" data-page-target="review" type="button">Open Workspace</button>
-            <button class="ghost-btn" data-page-target="review" type="button">Resume Review</button>
-          </div>
-          <div class="home-status-line" id="landingDatasetCopy">No PDF loaded.</div>
-        </div>
-
-        <aside class="home-status-panel">
-          <div class="home-status-grid">
-            <div class="home-status-item">
-              <span class="home-status-label">Dataset</span>
-              <strong id="landingDatasetStatus">No dataset</strong>
-            </div>
-            <div class="home-status-item">
-              <span class="home-status-label">Last scan</span>
-              <strong id="homeLastScan">Not run</strong>
-            </div>
-            <div class="home-status-item">
-              <span class="home-status-label">Comparison</span>
-              <strong id="homeComparisonStatus">No baseline</strong>
-            </div>
-            <div class="home-status-item">
-              <span class="home-status-label">Version</span>
-              <strong id="landingVersion">v1.3.0</strong>
-            </div>
-          </div>
-        </aside>
-      </section>
-    </section>
-
     <section class="review-page" id="reviewPage">
       <div class="review-page-topbar">
-        <div class="review-page-nav">
-          <button class="ghost-btn page-switch" data-page-target="home" type="button">Home</button>
-          <button class="ghost-btn page-switch is-current" data-page-target="review" type="button">Workspace</button>
+        <div class="topbar-brand">
+          <div class="eyebrow">Fidelity Investments</div>
+          <div class="topbar-title">FMRUK Regulatory Review</div>
         </div>
-        <div class="review-page-meta" id="reviewPageMeta">30 Mar 2026, 00:00</div>
+        <div class="review-page-meta" id="reviewPageMeta">01 Apr 2026, 15:14 · v1.5.0</div>
       </div>
 
       <header class="app-header">
         <div class="header-copy">
-          <div class="eyebrow">FMRUK</div>
-          <h1>Review Workspace</h1>
+          <div class="eyebrow">Regulatory Review Workspace</div>
+          <h1>FCA Initiatives Grid Review</h1>
           <div class="header-meta-line" id="headerMeta">No dataset loaded</div>
         </div>
         <div class="header-actions">
           <button class="ghost-btn" id="reloadBtn" type="button">Refresh</button>
           <button class="ghost-btn" id="exportJsonBtn" type="button">JSON</button>
           <button class="ghost-btn" id="exportCsvBtn" type="button">CSV</button>
-          <button class="ghost-btn" id="exportBoardBriefBtn" type="button">Board Brief</button>
+          <button class="ghost-btn" id="exportBoardBriefBtn" type="button">Board Pack</button>
           <button class="ghost-btn" id="exportOwnerPackBtn" type="button">Owner Pack</button>
           <button class="ghost-btn danger-btn" id="clearStorageBtn" type="button">Clear Data</button>
         </div>
       </header>
 
-      <section class="summary-ribbon">
-        <div class="summary-card primary-card">
-          <div class="summary-label">Dataset</div>
-          <div class="summary-value" id="datasetInfo">No PDF loaded</div>
-          <div class="summary-copy" id="comparisonInfo">No comparison</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">Items</div>
-          <div class="summary-number" id="kpiTotal">0</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">Action</div>
-          <div class="summary-number" id="kpiImmediateAction">0</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">High Relevance</div>
-          <div class="summary-number" id="kpiHighRelevance">0</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">Review</div>
-          <div class="summary-number" id="kpiNeedsReview">0</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">Changed</div>
-          <div class="summary-number" id="kpiChanges">0</div>
-        </div>
-      </section>
-
       <section class="portfolio-story card">
         <div class="section-heading compact-heading">
-          <h2>Summary</h2>
+          <h2>Portfolio position</h2>
+          <span class="section-note" id="listMeta">0 items</span>
         </div>
-        <p class="story-copy" id="portfolioNarrative">No items in scope.</p>
+        <p class="story-copy" id="portfolioNarrative">Load the FCA initiatives PDF to begin review.</p>
       </section>
 
       <main class="workspace">
         <aside class="sidebar-column">
           <section class="card intake-panel">
             <div class="section-heading compact-heading">
-              <h2>Intake</h2>
+              <h2>Source intake</h2>
             </div>
             <div class="upload-stack">
               <input type="file" id="fileInput" accept=".pdf,application/pdf" />
@@ -178,7 +104,13 @@
                 </select>
               </label>
               <label>
-                <span>Min relevance</span>
+                <span class="label-with-info">
+                  <span>Min relevance</span>
+                  <span class="info-help" tabindex="0">
+                    i
+                    <span class="info-tooltip">Relevance reflects how closely an initiative maps to FMRUK’s activities, permissions, obligations and chosen profile weighting. Raise the threshold to focus on the live operating queue rather than the wider watchlist.</span>
+                  </span>
+                </span>
                 <select id="relevanceFilter">
                   <option value="0">0+</option>
                   <option value="40">40+</option>
@@ -188,7 +120,13 @@
                 </select>
               </label>
               <label>
-                <span>Min parse</span>
+                <span class="label-with-info">
+                  <span>Min parse</span>
+                  <span class="info-help" tabindex="0">
+                    i
+                    <span class="info-tooltip">Parse confidence measures how reliably the PDF row, title, milestones and lead regulator were separated. Raise the threshold when you want a cleaner review set before export.</span>
+                  </span>
+                </span>
                 <select id="parseConfidenceFilter">
                   <option value="0">0+</option>
                   <option value="50">50+</option>
@@ -206,16 +144,26 @@
               </label>
               <label class="toggle-row">
                 <input type="checkbox" id="needsReviewFilter" />
-                <span>Review only</span>
+                <span>Needs review only</span>
               </label>
             </div>
           </section>
 
           <section class="card profile-panel">
             <div class="section-heading compact-heading">
-              <h2>FMRUK Profile</h2>
+              <h2>FMRUK profile</h2>
             </div>
             <div class="profile-grid">
+              <label>
+                <span>Priority weighting</span>
+                <select id="profilePriorityMode">
+                  <option value="balanced">Balanced</option>
+                  <option value="governance">Governance and policy</option>
+                  <option value="operations">Operations and reporting</option>
+                  <option value="markets">Markets and post-trade</option>
+                  <option value="executive">Executive escalation</option>
+                </select>
+              </label>
               <label>
                 <span>Business lines</span>
                 <textarea id="businessLinesProfile" rows="2"></textarea>
@@ -249,6 +197,9 @@
                 <textarea id="touchpointsProfile" rows="2"></textarea>
               </label>
             </div>
+            <div class="inline-meta">
+              The profile adjusts relevance weighting, routing emphasis and queue order for the same source dataset.
+            </div>
             <div class="inline-actions">
               <button class="secondary-btn" id="saveProfileBtn" type="button">Save</button>
               <button class="ghost-btn" id="resetProfileBtn" type="button">Reset</button>
@@ -270,83 +221,63 @@
           </section>
         </aside>
 
-        <section class="content-column">
-          <section class="card ask-card">
+        <section class="main-column">
+          <section class="card search-panel">
             <div class="section-heading compact-heading">
               <h2>Search</h2>
             </div>
             <div class="ask-controls">
-              <input type="text" id="searchInput" placeholder="Search initiatives or evidence" />
+              <input type="text" id="searchInput" placeholder="Search initiatives, owners, obligations or source evidence" />
               <button class="secondary-btn" id="askBtn" type="button">Search</button>
             </div>
             <div class="inline-meta" id="askAnswer">No search run.</div>
             <ul class="stack-list" id="askResults"></ul>
           </section>
 
-          <section class="card inbox-card">
-            <div class="section-heading compact-heading">
-              <h2>Items</h2>
-              <span class="section-note" id="listMeta">0 items</span>
-            </div>
-            <div class="initiative-list" id="initiativeList">
-              <div class="empty-list">No items</div>
+          <section class="review-grid">
+            <section class="card inbox-card">
+              <div class="section-heading compact-heading">
+                <h2>Items</h2>
+              </div>
+              <div class="initiative-list" id="initiativeList">
+                <div class="empty-list">No items</div>
+              </div>
+            </section>
+
+            <div class="detail-column">
+              <section class="card detail-card">
+                <div class="section-heading compact-heading">
+                  <h2>Detail</h2>
+                  <span class="section-note" id="detailMeta">No selection</span>
+                </div>
+                <div id="detailPanel" class="detail-panel empty-state">
+                  Select an item.
+                </div>
+              </section>
+
+              <section class="card pdf-card evidence-panel">
+                <div class="section-heading compact-heading">
+                  <h2>Source PDF</h2>
+                </div>
+                <div class="inline-meta" id="pdfPreviewStatus">No PDF preview.</div>
+                <div class="evidence-trail" id="evidenceTrail"></div>
+                <div class="pdf-preview" id="pdfPreview"></div>
+              </section>
             </div>
           </section>
 
-          <section class="card detail-card">
-            <div class="section-heading compact-heading">
-              <h2>Detail</h2>
-              <span class="section-note" id="detailMeta">No selection</span>
-            </div>
-            <div id="detailPanel" class="detail-panel empty-state">
-              Select an item.
-            </div>
-          </section>
-
-        </section>
-
-        <aside class="preview-column">
           <section class="card timeline-panel">
             <div class="section-heading compact-heading">
               <h2>Timeline</h2>
+              <span class="section-note" id="timelineMeta">No milestones</span>
             </div>
-            <ul class="timeline-list" id="timelineList"></ul>
+            <div class="timeline-shell" id="timelineList"></div>
           </section>
-
-          <section class="card pdf-card evidence-panel">
-            <div class="section-heading compact-heading">
-              <h2>PDF</h2>
-            </div>
-            <div class="inline-meta" id="pdfPreviewStatus">No PDF preview.</div>
-            <div class="evidence-trail" id="evidenceTrail"></div>
-            <div class="pdf-preview" id="pdfPreview"></div>
-          </section>
-        </aside>
+        </section>
       </main>
-
-      <footer class="app-footer">
-        <div class="footer-meta-grid">
-          <div class="footer-meta-item">
-            <span class="footer-label">Version</span>
-            <strong id="footerVersion">1.3.0</strong>
-          </div>
-          <div class="footer-meta-item">
-            <span class="footer-label">Updated</span>
-            <strong id="footerUpdated">30 March 2026</strong>
-          </div>
-          <div class="footer-meta-item">
-            <span class="footer-label">Parser</span>
-            <strong id="footerParser">Awaiting dataset</strong>
-          </div>
-          <div class="footer-meta-item">
-            <span class="footer-label">Dataset</span>
-            <strong id="footerDataset">No PDF loaded</strong>
-          </div>
-        </div>
-      </footer>
     </section>
   </div>
 
-  <script src="./app.js?v=16"></script>
+  <script src="./app.js?v=18"></script>
 </body>
 </html>
