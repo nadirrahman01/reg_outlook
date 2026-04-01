@@ -4,7 +4,7 @@ const FEEDBACK_KEY = "fmruk_feedback_v9";
 const PDF_DB_NAME = "fmruk_pdf_workspace";
 const PDF_STORE_NAME = "pdfs";
 const PDF_RECORD_KEY = "current_pdf";
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.5.1";
 const APP_UPDATED_AT = "01 April 2026";
 
 if (window.pdfjsLib) {
@@ -3087,7 +3087,7 @@ function renderTimelineList(items) {
   const nextItems = items
     .filter(item => Number.isFinite(item.timeline?.sortValue))
     .sort((a, b) => a.timeline.sortValue - b.timeline.sortValue)
-    .slice(0, 12);
+    .slice(0, 18);
 
   if (!nextItems.length) {
     els.timelineMeta.textContent = "No milestones";
@@ -3095,57 +3095,74 @@ function renderTimelineList(items) {
     return;
   }
 
-  els.timelineMeta.textContent = `${nextItems.length} dated items`;
+  const buckets = [];
+  nextItems.forEach(item => {
+    const label = item.timeline?.label || item.timingBucket || "Not set";
+    const sortValue = item.timeline?.sortValue || 0;
+    const key = `${label}|${sortValue}`;
+    const existing = buckets[buckets.length - 1];
+    if (existing && existing.key === key) {
+      existing.items.push(item);
+      return;
+    }
 
-  const track = document.createElement("div");
-  track.className = "timeline-track";
-
-  const axis = document.createElement("div");
-  axis.className = "timeline-axis";
-  track.appendChild(axis);
-
-  const finiteValues = nextItems
-    .map(item => item.timeline.sortValue)
-    .filter(value => Number.isFinite(value));
-  const min = Math.min(...finiteValues);
-  const max = Math.max(...finiteValues);
-  const spread = Math.max(max - min, 1);
-
-  nextItems.forEach((item, index) => {
-    const percent = finiteValues.length === 1
-      ? 50
-      : 8 + ((item.timeline.sortValue - min) / spread) * 84;
-    const wrapper = document.createElement("article");
-    wrapper.className = "timeline-item";
-    wrapper.classList.add(index % 2 === 0 ? "side-top" : "side-bottom");
-    if (item.id === state.selectedItemId) wrapper.classList.add("active");
-    wrapper.style.left = `${percent}%`;
-    wrapper.innerHTML = `
-      <div class="timeline-card" data-timeline-item="${escapeHtml(item.id)}">
-        <span class="timeline-date-pill">${escapeHtml(item.timeline.label || item.timingBucket)}</span>
-        <div class="timeline-title">${escapeHtml(item.initiativeTitle)}</div>
-        <div class="timeline-copy">${escapeHtml(truncateText(item.fmrukReadThrough || item.initiativeDescription, 110))}</div>
-        <div class="timeline-meta-row">
-          <span class="timeline-tag">${escapeHtml(item.priorityBand || "Low")} priority</span>
-          <span class="timeline-tag">${escapeHtml(item.primaryOwner || "Owner")}</span>
-        </div>
-      </div>
-      <div class="timeline-connector"></div>
-      <div class="timeline-node"></div>
-    `;
-
-    wrapper.querySelector("[data-timeline-item]")?.addEventListener("click", () => {
-      state.selectedItemId = item.id;
-      renderInitiativeList(state.filtered);
-      renderDetail(item);
-      renderPdfEvidence(item);
-      renderTimelineList(state.filtered);
+    buckets.push({
+      key,
+      label,
+      sortValue,
+      items: [item]
     });
-
-    track.appendChild(wrapper);
   });
 
-  els.timelineList.appendChild(track);
+  els.timelineMeta.textContent = `${nextItems.length} dated items · ${buckets.length} groups`;
+
+  const rail = document.createElement("div");
+  rail.className = "timeline-rail";
+
+  buckets.forEach(bucket => {
+    const wrapper = document.createElement("section");
+    wrapper.className = "timeline-bucket";
+
+    const itemsHtml = bucket.items
+      .map(item => {
+        const activeClass = item.id === state.selectedItemId ? " active" : "";
+        return `
+          <article class="timeline-entry${activeClass}" data-timeline-item="${escapeHtml(item.id)}">
+            <div class="timeline-entry-title">${escapeHtml(item.initiativeTitle)}</div>
+            <div class="timeline-entry-copy">${escapeHtml(truncateText(item.fmrukReadThrough || item.initiativeDescription, 96))}</div>
+            <div class="timeline-entry-meta">
+              <span class="timeline-tag">${escapeHtml(item.priorityBand || "Low")}</span>
+              <span class="timeline-tag">${escapeHtml(item.primaryOwner || "Owner")}</span>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+
+    wrapper.innerHTML = `
+      <div class="timeline-bucket-head">
+        <span class="timeline-date-pill">${escapeHtml(bucket.label)}</span>
+        <span class="timeline-bucket-count">${bucket.items.length} item${bucket.items.length === 1 ? "" : "s"}</span>
+      </div>
+      <div class="timeline-bucket-items">${itemsHtml}</div>
+    `;
+
+    wrapper.querySelectorAll("[data-timeline-item]").forEach(entry => {
+      entry.addEventListener("click", () => {
+        const selected = state.filtered.find(item => item.id === entry.dataset.timelineItem);
+        if (!selected) return;
+        state.selectedItemId = selected.id;
+        renderInitiativeList(state.filtered);
+        renderDetail(selected);
+        renderPdfEvidence(selected);
+        renderTimelineList(state.filtered);
+      });
+    });
+
+    rail.appendChild(wrapper);
+  });
+
+  els.timelineList.appendChild(rail);
 }
 
 function renderInitiativeList(items) {
@@ -3162,14 +3179,18 @@ function renderInitiativeList(items) {
     if (item.id === state.selectedItemId) card.classList.add("selected");
 
     card.innerHTML = `
-      <div class="initiative-card-main">
-        <h3 class="initiative-title">${escapeHtml(item.initiativeTitle)}</h3>
-        <p class="initiative-copy">${escapeHtml(truncateText(item.fmrukReadThrough || item.initiativeDescription, 170))}</p>
+      <div class="initiative-card-header">
+        <div class="initiative-headline">
+          <h3 class="initiative-title" title="${escapeHtml(item.initiativeTitle)}">${escapeHtml(item.initiativeTitle)}</h3>
+        </div>
+        <div class="initiative-owner-wrap">
+          <span class="owner-pill" title="${escapeHtml(item.primaryOwner || "Owner")}">${escapeHtml(item.primaryOwner || "Owner")}</span>
+        </div>
       </div>
-      <div class="initiative-card-side">
-        <span class="owner-pill">${escapeHtml(item.primaryOwner)}</span>
+      <p class="initiative-copy">${escapeHtml(truncateText(item.fmrukReadThrough || item.initiativeDescription, 220))}</p>
+      <div class="initiative-card-footer">
         <span class="priority-pill priority-${slugify(item.priorityBand || "low")}">${escapeHtml(item.priorityBand || "Low")} priority</span>
-        <span class="stage-pill">${escapeHtml(item.stageLabel)}</span>
+        <span class="stage-pill" title="${escapeHtml(item.stageLabel)}">${escapeHtml(item.stageLabel)}</span>
       </div>
     `;
 
@@ -3448,6 +3469,11 @@ async function renderPdfPreview(item, evidence) {
     const viewport = page.getViewport({ scale: 1.1 });
     const wrapper = document.createElement("div");
     wrapper.className = "pdf-page";
+    const header = document.createElement("div");
+    header.className = "pdf-page-header";
+    header.textContent = `Page ${pageNumber}`;
+    const canvasShell = document.createElement("div");
+    canvasShell.className = "pdf-canvas-shell";
 
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
@@ -3485,8 +3511,10 @@ async function renderPdfPreview(item, evidence) {
         overlay.appendChild(highlight);
       });
 
-    wrapper.appendChild(canvas);
-    wrapper.appendChild(overlay);
+    canvasShell.appendChild(canvas);
+    canvasShell.appendChild(overlay);
+    wrapper.appendChild(header);
+    wrapper.appendChild(canvasShell);
     els.pdfPreview.appendChild(wrapper);
   }
 }
