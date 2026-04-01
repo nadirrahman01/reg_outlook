@@ -266,7 +266,7 @@ textarea {
 
 .review-grid {
   display: grid;
-  grid-template-columns: 468px minmax(0, 1fr);
+  grid-template-columns: minmax(380px, 0.42fr) minmax(0, 0.58fr);
   gap: 18px;
   align-items: start;
 }
@@ -449,8 +449,68 @@ textarea:focus {
   background: var(--surface-muted);
 }
 
+.source-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.source-field {
+  display: grid;
+  gap: 6px;
+}
+
+.source-field-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
 .search-panel .stack-list {
   margin-top: 10px;
+}
+
+.workspace-switcher {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.workspace-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.workspace-tab {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.workspace-tab.is-active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.workspace-pane {
+  display: none;
+}
+
+.workspace-pane.is-active {
+  display: block;
 }
 
 .dense-list li {
@@ -468,7 +528,7 @@ textarea:focus {
 .initiative-list {
   display: grid;
   gap: 8px;
-  max-height: 780px;
+  max-height: 760px;
   overflow-y: auto;
   padding-right: 6px;
   scrollbar-gutter: stable;
@@ -767,7 +827,7 @@ textarea:focus {
 }
 
 .pdf-card {
-  min-height: 620px;
+  min-height: 700px;
   padding: 0;
   overflow: hidden;
 }
@@ -795,7 +855,7 @@ textarea:focus {
   display: grid;
   gap: 14px;
   margin-top: 0;
-  max-height: 820px;
+  max-height: 920px;
   overflow-y: auto;
   padding: 16px;
   background: linear-gradient(180deg, #eff4f8 0%, #f5f8fb 100%);
@@ -1039,7 +1099,7 @@ textarea:focus {
   }
 
   .review-grid {
-    grid-template-columns: 400px minmax(0, 1fr);
+    grid-template-columns: 360px minmax(0, 1fr);
   }
 }
 
