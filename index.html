@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FMRUK Regulatory Review</title>
-  <link rel="stylesheet" href="./styles.css?v=16" />
+  <link rel="stylesheet" href="./styles.css?v=17" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -17,141 +17,230 @@
           <div class="eyebrow">Fidelity Investments</div>
           <div class="topbar-title">FMRUK Regulatory Review</div>
         </div>
-        <div class="review-page-meta" id="reviewPageMeta">01 Apr 2026, 15:14 · v1.5.1</div>
+        <div class="topbar-meta">
+          <nav class="topbar-nav" aria-label="Primary">
+            <button class="topbar-tab is-active" id="navWorkspaceBtn" type="button">Workspace</button>
+            <button class="topbar-tab" id="navSettingsBtn" type="button">Settings / Admin</button>
+          </nav>
+          <div class="review-page-meta" id="reviewPageMeta">01 Apr 2026, 15:14 · v1.6.0</div>
+        </div>
       </div>
 
-      <header class="app-header">
-        <div class="header-copy">
-          <div class="eyebrow">Regulatory Review Workspace</div>
-          <h1>FCA Initiatives Grid Review</h1>
-          <div class="header-meta-line" id="headerMeta">No dataset loaded</div>
-        </div>
-        <div class="header-actions">
-          <button class="ghost-btn" id="reloadBtn" type="button">Refresh</button>
-          <button class="ghost-btn" id="exportJsonBtn" type="button">JSON</button>
-          <button class="ghost-btn" id="exportCsvBtn" type="button">CSV</button>
-          <button class="ghost-btn" id="exportBoardBriefBtn" type="button">Board Pack</button>
-          <button class="ghost-btn" id="exportOwnerPackBtn" type="button">Owner Pack</button>
-          <button class="ghost-btn danger-btn" id="clearStorageBtn" type="button">Clear Data</button>
-        </div>
-      </header>
+      <section class="page-view workspace-view is-active" id="workspacePage">
+        <header class="app-header">
+          <div class="header-copy">
+            <div class="eyebrow">Regulatory Review Workspace</div>
+            <h1>FCA Initiatives Grid Review</h1>
+            <div class="header-meta-line" id="headerMeta">No dataset loaded</div>
+          </div>
+          <div class="header-actions">
+            <button class="ghost-btn" id="reloadBtn" type="button">Refresh</button>
+            <button class="ghost-btn" id="exportJsonBtn" type="button">JSON</button>
+            <button class="ghost-btn" id="exportCsvBtn" type="button">CSV</button>
+            <button class="ghost-btn" id="exportBoardBriefBtn" type="button">Board Pack</button>
+            <button class="ghost-btn" id="exportOwnerPackBtn" type="button">Owner Pack</button>
+            <button class="ghost-btn danger-btn" id="clearStorageBtn" type="button">Clear Data</button>
+          </div>
+        </header>
 
-      <section class="portfolio-story card">
-        <div class="section-heading compact-heading">
-          <h2>Portfolio position</h2>
-          <span class="section-note" id="listMeta">0 items</span>
-        </div>
-        <p class="story-copy" id="portfolioNarrative">Load the FCA initiatives PDF to begin review.</p>
+        <section class="portfolio-story card">
+          <div class="section-heading compact-heading">
+            <h2>Portfolio position</h2>
+            <span class="section-note" id="listMeta">0 items</span>
+          </div>
+          <p class="story-copy" id="portfolioNarrative">Load the FCA initiatives PDF to begin review.</p>
+        </section>
+
+        <main class="workspace">
+          <aside class="sidebar-column">
+            <section class="card intake-panel">
+              <div class="section-heading compact-heading">
+                <h2>Source intake</h2>
+              </div>
+              <div class="upload-stack">
+                <input type="file" id="fileInput" accept=".pdf,application/pdf" />
+                <button class="primary-btn" id="uploadBtn" type="button">Upload PDF</button>
+              </div>
+              <div class="status-banner" id="uploadStatus">No upload</div>
+            </section>
+
+            <section class="card filter-panel">
+              <div class="section-heading compact-heading">
+                <h2>Filters</h2>
+              </div>
+              <div class="filter-grid">
+                <label>
+                  <span>Section</span>
+                  <select id="sectionFilter">
+                    <option value="">All</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Theme</span>
+                  <select id="themeFilter">
+                    <option value="">All</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Owner</span>
+                  <select id="ownerFilter">
+                    <option value="">All</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Stage</span>
+                  <select id="stageFilter">
+                    <option value="">All</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Change</span>
+                  <select id="changeFilter">
+                    <option value="">All</option>
+                    <option value="New">New</option>
+                    <option value="Changed">Changed</option>
+                    <option value="Accelerated">Accelerated</option>
+                    <option value="Delayed">Delayed</option>
+                    <option value="Existing">Existing</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Cluster</span>
+                  <select id="clusterFilter">
+                    <option value="">All</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="label-with-info">
+                    <span>Min relevance</span>
+                    <span class="info-help" tabindex="0">
+                      i
+                      <span class="info-tooltip">Relevance reflects how closely an initiative maps to FMRUK’s activities, permissions, obligations and configured settings. Raise the threshold to focus on the live operating queue rather than the wider watchlist.</span>
+                    </span>
+                  </span>
+                  <select id="relevanceFilter">
+                    <option value="0">0+</option>
+                    <option value="40">40+</option>
+                    <option value="55">55+</option>
+                    <option value="70" selected>70+</option>
+                    <option value="85">85+</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="label-with-info">
+                    <span>Min parse</span>
+                    <span class="info-help" tabindex="0">
+                      i
+                      <span class="info-tooltip">Parse confidence measures how reliably the lead, bold initiative title, description and milestone text were separated from the PDF source. Raise the threshold when you want a cleaner review set before export.</span>
+                    </span>
+                  </span>
+                  <select id="parseConfidenceFilter">
+                    <option value="0">0+</option>
+                    <option value="50">50+</option>
+                    <option value="70" selected>70+</option>
+                    <option value="85">85+</option>
+                  </select>
+                </label>
+                <label class="toggle-row">
+                  <input type="checkbox" id="fmrukOnlyFilter" checked />
+                  <span>FMRUK only</span>
+                </label>
+                <label class="toggle-row">
+                  <input type="checkbox" id="excludeAnnexFilter" checked />
+                  <span>Exclude annex</span>
+                </label>
+                <label class="toggle-row">
+                  <input type="checkbox" id="needsReviewFilter" />
+                  <span>Needs review only</span>
+                </label>
+              </div>
+            </section>
+
+            <section class="card cluster-panel">
+              <div class="section-heading compact-heading">
+                <h2>Clusters</h2>
+              </div>
+              <ul class="stack-list" id="clusterList"></ul>
+            </section>
+
+            <section class="card delta-panel">
+              <div class="section-heading compact-heading">
+                <h2>Changes</h2>
+              </div>
+              <ul class="stack-list" id="deltaList"></ul>
+            </section>
+          </aside>
+
+          <section class="main-column">
+            <section class="card search-panel">
+              <div class="section-heading compact-heading">
+                <h2>Search</h2>
+              </div>
+              <div class="ask-controls">
+                <input type="text" id="searchInput" placeholder="Search initiatives, owners, obligations or source evidence" />
+                <button class="secondary-btn" id="askBtn" type="button">Search</button>
+              </div>
+              <div class="inline-meta" id="askAnswer">No search run.</div>
+              <ul class="stack-list" id="askResults"></ul>
+            </section>
+
+            <section class="review-grid">
+              <section class="card inbox-card">
+                <div class="section-heading compact-heading">
+                  <h2>Items</h2>
+                </div>
+                <div class="initiative-list" id="initiativeList">
+                  <div class="empty-list">No items</div>
+                </div>
+              </section>
+              <section class="card detail-card">
+                <div class="section-heading compact-heading">
+                  <h2>Detail</h2>
+                  <span class="section-note" id="detailMeta">No selection</span>
+                </div>
+                <div id="detailPanel" class="detail-panel empty-state">
+                  Select an item.
+                </div>
+              </section>
+            </section>
+
+            <section class="card pdf-card evidence-panel">
+              <div class="section-heading compact-heading">
+                <h2>Source PDF</h2>
+              </div>
+              <div class="inline-meta" id="pdfPreviewStatus">No PDF preview.</div>
+              <div class="evidence-trail" id="evidenceTrail"></div>
+              <div class="pdf-preview" id="pdfPreview"></div>
+            </section>
+
+            <section class="card timeline-panel">
+              <div class="section-heading compact-heading">
+                <h2>Timeline</h2>
+                <span class="section-note" id="timelineMeta">No milestones</span>
+              </div>
+              <div class="timeline-shell" id="timelineList"></div>
+            </section>
+          </section>
+        </main>
       </section>
 
-      <main class="workspace">
-        <aside class="sidebar-column">
-          <section class="card intake-panel">
-            <div class="section-heading compact-heading">
-              <h2>Source intake</h2>
-            </div>
-            <div class="upload-stack">
-              <input type="file" id="fileInput" accept=".pdf,application/pdf" />
-              <button class="primary-btn" id="uploadBtn" type="button">Upload PDF</button>
-            </div>
-            <div class="status-banner" id="uploadStatus">No upload</div>
-          </section>
+      <section class="page-view settings-view" id="settingsPage">
+        <header class="app-header settings-header">
+          <div class="header-copy">
+            <div class="eyebrow">System controls</div>
+            <h1>Settings / Admin</h1>
+            <div class="header-meta-line" id="settingsSummary">Priority: Balanced · FMRUK effect: Balanced · Ownership bias: Balanced</div>
+          </div>
+          <div class="inline-actions">
+            <button class="secondary-btn" id="saveProfileBtn" type="button">Save settings</button>
+            <button class="ghost-btn" id="resetProfileBtn" type="button">Reset defaults</button>
+          </div>
+        </header>
 
-          <section class="card filter-panel">
+        <main class="settings-layout">
+          <section class="card settings-card">
             <div class="section-heading compact-heading">
-              <h2>Filters</h2>
-            </div>
-            <div class="filter-grid">
-              <label>
-                <span>Section</span>
-                <select id="sectionFilter">
-                  <option value="">All</option>
-                </select>
-              </label>
-              <label>
-                <span>Theme</span>
-                <select id="themeFilter">
-                  <option value="">All</option>
-                </select>
-              </label>
-              <label>
-                <span>Owner</span>
-                <select id="ownerFilter">
-                  <option value="">All</option>
-                </select>
-              </label>
-              <label>
-                <span>Stage</span>
-                <select id="stageFilter">
-                  <option value="">All</option>
-                </select>
-              </label>
-              <label>
-                <span>Change</span>
-                <select id="changeFilter">
-                  <option value="">All</option>
-                  <option value="New">New</option>
-                  <option value="Changed">Changed</option>
-                  <option value="Accelerated">Accelerated</option>
-                  <option value="Delayed">Delayed</option>
-                  <option value="Existing">Existing</option>
-                </select>
-              </label>
-              <label>
-                <span>Cluster</span>
-                <select id="clusterFilter">
-                  <option value="">All</option>
-                </select>
-              </label>
-              <label>
-                <span class="label-with-info">
-                  <span>Min relevance</span>
-                  <span class="info-help" tabindex="0">
-                    i
-                    <span class="info-tooltip">Relevance reflects how closely an initiative maps to FMRUK’s activities, permissions, obligations and chosen profile weighting. Raise the threshold to focus on the live operating queue rather than the wider watchlist.</span>
-                  </span>
-                </span>
-                <select id="relevanceFilter">
-                  <option value="0">0+</option>
-                  <option value="40">40+</option>
-                  <option value="55">55+</option>
-                  <option value="70" selected>70+</option>
-                  <option value="85">85+</option>
-                </select>
-              </label>
-              <label>
-                <span class="label-with-info">
-                  <span>Min parse</span>
-                  <span class="info-help" tabindex="0">
-                    i
-                    <span class="info-tooltip">Parse confidence measures how reliably the PDF row, title, milestones and lead regulator were separated. Raise the threshold when you want a cleaner review set before export.</span>
-                  </span>
-                </span>
-                <select id="parseConfidenceFilter">
-                  <option value="0">0+</option>
-                  <option value="50">50+</option>
-                  <option value="70" selected>70+</option>
-                  <option value="85">85+</option>
-                </select>
-              </label>
-              <label class="toggle-row">
-                <input type="checkbox" id="fmrukOnlyFilter" checked />
-                <span>FMRUK only</span>
-              </label>
-              <label class="toggle-row">
-                <input type="checkbox" id="excludeAnnexFilter" checked />
-                <span>Exclude annex</span>
-              </label>
-              <label class="toggle-row">
-                <input type="checkbox" id="needsReviewFilter" />
-                <span>Needs review only</span>
-              </label>
-            </div>
-          </section>
-
-          <section class="card profile-panel">
-            <div class="section-heading compact-heading">
-              <h2>FMRUK profile</h2>
+              <h2>System logic</h2>
             </div>
             <div class="profile-grid">
               <label>
@@ -164,6 +253,33 @@
                   <option value="executive">Executive escalation</option>
                 </select>
               </label>
+              <label>
+                <span>FMRUK effect mode</span>
+                <select id="profileEffectMode">
+                  <option value="strict">Direct effect only</option>
+                  <option value="balanced">Balanced</option>
+                  <option value="broad">Watchlist inclusive</option>
+                </select>
+              </label>
+              <label>
+                <span>Ownership bias</span>
+                <select id="profileOwnershipMode">
+                  <option value="balanced">Balanced</option>
+                  <option value="controls">Control-led</option>
+                  <option value="operations">Operations-led</option>
+                </select>
+              </label>
+            </div>
+            <div class="inline-meta" id="settingsStatus">
+              Use Settings/Admin to control weighting, FMRUK effect thresholds, routing bias and entity-profile defaults.
+            </div>
+          </section>
+
+          <section class="card settings-card">
+            <div class="section-heading compact-heading">
+              <h2>FMRUK footprint</h2>
+            </div>
+            <div class="profile-grid settings-profile-grid">
               <label>
                 <span>Business lines</span>
                 <textarea id="businessLinesProfile" rows="2"></textarea>
@@ -197,84 +313,24 @@
                 <textarea id="touchpointsProfile" rows="2"></textarea>
               </label>
             </div>
-            <div class="inline-meta">
-              The profile adjusts relevance weighting, routing emphasis and queue order for the same source dataset.
-            </div>
-            <div class="inline-actions">
-              <button class="secondary-btn" id="saveProfileBtn" type="button">Save</button>
-              <button class="ghost-btn" id="resetProfileBtn" type="button">Reset</button>
-            </div>
           </section>
 
-          <section class="card cluster-panel">
+          <section class="card settings-card settings-notes-card">
             <div class="section-heading compact-heading">
-              <h2>Clusters</h2>
+              <h2>How the model uses these settings</h2>
             </div>
-            <ul class="stack-list" id="clusterList"></ul>
+            <ul class="stack-list dense-list">
+              <li>Priority weighting changes how strongly the queue responds to relevance, operational impact, timing pressure and delivery burden.</li>
+              <li>FMRUK effect mode changes how strict the system is when deciding whether an initiative has a live effect on FMRUK or should stay on the watchlist.</li>
+              <li>Ownership bias changes routing defaults when the source text is ambiguous and more than one owner would be plausible.</li>
+              <li>The FMRUK footprint fields bias scoring toward the UK entity’s actual business lines, permissions, products, third-party dependencies and committee structure.</li>
+            </ul>
           </section>
-
-          <section class="card delta-panel">
-            <div class="section-heading compact-heading">
-              <h2>Changes</h2>
-            </div>
-            <ul class="stack-list" id="deltaList"></ul>
-          </section>
-        </aside>
-
-        <section class="main-column">
-          <section class="card search-panel">
-            <div class="section-heading compact-heading">
-              <h2>Search</h2>
-            </div>
-            <div class="ask-controls">
-              <input type="text" id="searchInput" placeholder="Search initiatives, owners, obligations or source evidence" />
-              <button class="secondary-btn" id="askBtn" type="button">Search</button>
-            </div>
-            <div class="inline-meta" id="askAnswer">No search run.</div>
-            <ul class="stack-list" id="askResults"></ul>
-          </section>
-
-          <section class="review-grid">
-            <section class="card inbox-card">
-              <div class="section-heading compact-heading">
-                <h2>Items</h2>
-              </div>
-              <div class="initiative-list" id="initiativeList">
-                <div class="empty-list">No items</div>
-              </div>
-            </section>
-            <section class="card detail-card">
-              <div class="section-heading compact-heading">
-                <h2>Detail</h2>
-                <span class="section-note" id="detailMeta">No selection</span>
-              </div>
-              <div id="detailPanel" class="detail-panel empty-state">
-                Select an item.
-              </div>
-            </section>
-          </section>
-
-          <section class="card pdf-card evidence-panel">
-            <div class="section-heading compact-heading">
-              <h2>Source PDF</h2>
-            </div>
-            <div class="inline-meta" id="pdfPreviewStatus">No PDF preview.</div>
-            <div class="evidence-trail" id="evidenceTrail"></div>
-            <div class="pdf-preview" id="pdfPreview"></div>
-          </section>
-
-          <section class="card timeline-panel">
-            <div class="section-heading compact-heading">
-              <h2>Timeline</h2>
-              <span class="section-note" id="timelineMeta">No milestones</span>
-            </div>
-            <div class="timeline-shell" id="timelineList"></div>
-          </section>
-        </section>
-      </main>
+        </main>
+      </section>
     </section>
   </div>
 
-  <script src="./app.js?v=19"></script>
+  <script src="./app.js?v=21"></script>
 </body>
 </html>
