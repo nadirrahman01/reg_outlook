@@ -4,7 +4,7 @@ const FEEDBACK_KEY = "fmruk_feedback_v10";
 const PDF_DB_NAME = "fmruk_pdf_workspace";
 const PDF_STORE_NAME = "pdfs";
 const PDF_RECORD_KEY = "current_pdf";
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.9.0";
 const APP_UPDATED_AT = "01 April 2026";
 const REPORT_LOGO_PATH = "./assets/fidelity-investments-3.svg";
 const REPORT_LOGO_FALLBACK_SVG = `
@@ -61,6 +61,9 @@ const DEFAULT_PROFILE = {
   priorityMode: "balanced",
   effectMode: "balanced",
   ownershipMode: "balanced",
+  reportAnalystName: "",
+  reportAnalystRole: "",
+  reportAnalystEmail: "",
   businessLines: [
     "investment management",
     "fund governance",
@@ -1225,7 +1228,6 @@ function mapEls() {
     "saveProfileBtn",
     "resetProfileBtn",
     "clusterList",
-    "deltaList",
     "initiativeList",
     "listMeta",
     "detailPanel",
@@ -1241,6 +1243,9 @@ function mapEls() {
     "profilePriorityMode",
     "profileEffectMode",
     "profileOwnershipMode",
+    "reportAnalystName",
+    "reportAnalystRole",
+    "reportAnalystEmail",
     "settingsSummary",
     "settingsStatus"
   ];
@@ -1450,6 +1455,9 @@ function saveProfileFromForm() {
   nextProfile.priorityMode = els.profilePriorityMode?.value || DEFAULT_PROFILE.priorityMode;
   nextProfile.effectMode = els.profileEffectMode?.value || DEFAULT_PROFILE.effectMode;
   nextProfile.ownershipMode = els.profileOwnershipMode?.value || DEFAULT_PROFILE.ownershipMode;
+  nextProfile.reportAnalystName = normaliseWs(els.reportAnalystName?.value || "");
+  nextProfile.reportAnalystRole = normaliseWs(els.reportAnalystRole?.value || "");
+  nextProfile.reportAnalystEmail = normaliseWs(els.reportAnalystEmail?.value || "");
 
   state.profile = mergeProfile(nextProfile);
   localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profile));
@@ -1485,6 +1493,15 @@ function renderProfileForm() {
     els.profileOwnershipMode.value =
       OWNERSHIP_MODES[state.profile?.ownershipMode] ? state.profile.ownershipMode : DEFAULT_PROFILE.ownershipMode;
   }
+  if (els.reportAnalystName) {
+    els.reportAnalystName.value = state.profile?.reportAnalystName || "";
+  }
+  if (els.reportAnalystRole) {
+    els.reportAnalystRole.value = state.profile?.reportAnalystRole || "";
+  }
+  if (els.reportAnalystEmail) {
+    els.reportAnalystEmail.value = state.profile?.reportAnalystEmail || "";
+  }
   renderSettingsSummary();
 }
 
@@ -1504,6 +1521,9 @@ function mergeProfile(profile) {
   merged.ownershipMode = OWNERSHIP_MODES[profile?.ownershipMode]
     ? profile.ownershipMode
     : DEFAULT_PROFILE.ownershipMode;
+  merged.reportAnalystName = normaliseWs(profile?.reportAnalystName || DEFAULT_PROFILE.reportAnalystName);
+  merged.reportAnalystRole = normaliseWs(profile?.reportAnalystRole || DEFAULT_PROFILE.reportAnalystRole);
+  merged.reportAnalystEmail = normaliseWs(profile?.reportAnalystEmail || DEFAULT_PROFILE.reportAnalystEmail);
   return merged;
 }
 
@@ -1526,9 +1546,47 @@ function renderSettingsSummary() {
   const ownership = getOwnershipModeConfig().label;
   els.settingsSummary.textContent = `Priority: ${priority} · FMRUK effect: ${effect} · Ownership bias: ${ownership}`;
   if (els.settingsStatus && !els.settingsStatus.textContent) {
-    els.settingsStatus.textContent =
-      "Use Settings/Admin to control weighting, FMRUK effect thresholds, routing bias and entity-profile defaults.";
+    const missing = getMissingReportMetadata();
+    els.settingsStatus.textContent = missing.length
+      ? `Report export is blocked until metadata is complete: ${missing.join(", ")}.`
+      : "Settings saved. Report metadata is complete for export.";
   }
+}
+
+function getReportMetadata(profile = state.profile) {
+  return {
+    analystName: normaliseWs(profile?.reportAnalystName || ""),
+    analystRole: normaliseWs(profile?.reportAnalystRole || ""),
+    analystEmail: normaliseWs(profile?.reportAnalystEmail || "")
+  };
+}
+
+function getMissingReportMetadata(profile = state.profile) {
+  const meta = getReportMetadata(profile);
+  const missing = [];
+  if (!meta.analystName) missing.push("analyst name");
+  if (!meta.analystRole) missing.push("role / team");
+  if (!meta.analystEmail) missing.push("contact email");
+  return missing;
+}
+
+function validateReportMetadataBeforeExport() {
+  const missing = getMissingReportMetadata();
+  if (!missing.length) return true;
+
+  navigateToPage("settings");
+  renderPageState();
+  const message = `Complete and save report metadata before export: ${missing.join(", ")}.`;
+  setStatusMessage(message, "settings");
+
+  if (!els.reportAnalystName?.value) {
+    els.reportAnalystName?.focus();
+  } else if (!els.reportAnalystRole?.value) {
+    els.reportAnalystRole?.focus();
+  } else {
+    els.reportAnalystEmail?.focus();
+  }
+  return false;
 }
 
 function loadFeedback() {
@@ -3873,7 +3931,6 @@ function renderSummary(items) {
   els.listMeta.textContent = `${items.length} items`;
   els.portfolioNarrative.textContent = buildPortfolioNarrative(items);
   renderClusterList(items);
-  renderDeltaList(items);
 }
 
 function buildPortfolioNarrative(items) {
@@ -3907,37 +3964,6 @@ function renderClusterList(items) {
     const li = document.createElement("li");
     li.textContent = `${cluster.name} · ${cluster.count}`;
     els.clusterList.appendChild(li);
-  });
-}
-
-function renderDeltaList(items) {
-  const summary = state.datasetMeta?.comparisonSummary;
-  els.deltaList.innerHTML = "";
-
-  if (!summary) {
-    els.deltaList.innerHTML = "<li>No comparison.</li>";
-    return;
-  }
-
-  const lines = [
-    `${summary.newCount} new`,
-    `${summary.changedCount} changed`,
-    `${summary.acceleratedCount} earlier`,
-    `${summary.delayedCount} later`,
-    summary.removedItems?.length
-      ? `Removed: ${summary.removedItems.join(", ")}`
-      : `${summary.removedCount} removed`
-  ];
-
-  const topChanged = items
-    .filter(item => item.changeStatus !== "Existing")
-    .slice(0, 2)
-    .map(item => `${item.changeStatus}: ${item.initiativeTitle}`);
-
-  [...lines, ...topChanged].forEach(line => {
-    const li = document.createElement("li");
-    li.textContent = line;
-    els.deltaList.appendChild(li);
   });
 }
 
@@ -4638,13 +4664,9 @@ function exportCsv() {
 }
 
 async function exportBoardBrief() {
-  const filtered = state.filtered.filter(item =>
-    item.immediateActionRequired ||
-    ["Critical", "High"].includes(item.priorityBand) ||
-    item.reviewStatus === "Escalate" ||
-    item.changeStatus !== "Existing"
-  );
-  const items = sortItems(filtered.length ? filtered : state.filtered).slice(0, 12);
+  if (!validateReportMetadataBeforeExport()) return;
+
+  const items = sortItems(state.filtered);
   if (!items.length) {
     els.uploadStatus.textContent = "No items available for a board brief.";
     return;
@@ -4658,8 +4680,8 @@ async function exportBoardBrief() {
 
   const doc = await buildReportPdf({
     kind: "board",
-    title: "FMRUK Regulatory Board Brief",
-    subtitle: "Portfolio position, management read-through, priority actions and control points from the current FCA initiatives review.",
+    title: "FMRUK Regulatory Review Meeting Paper",
+    subtitle: "Current FCA initiatives in scope for FMRUK, with practical impact, milestones, ownership and source references for meeting review.",
     audience: `${getPriorityModeConfig().label} weighting`,
     items,
     summaryText: buildPortfolioNarrative(items)
@@ -4670,14 +4692,9 @@ async function exportBoardBrief() {
 }
 
 async function exportOwnerPack() {
-  const relevantItems = sortItems(
-    state.filtered.filter(item =>
-      item.isFmrukRelevant ||
-      item.needsReview ||
-      item.reviewStatus === "Action defined" ||
-      item.reviewStatus === "Escalate"
-    )
-  );
+  if (!validateReportMetadataBeforeExport()) return;
+
+  const relevantItems = sortItems(state.filtered);
 
   if (!relevantItems.length) {
     els.uploadStatus.textContent = "No items available for an owner pack.";
@@ -4693,7 +4710,7 @@ async function exportOwnerPack() {
   const doc = await buildReportPdf({
     kind: "owner",
     title: "FMRUK Owner Pack",
-    subtitle: "Owner actions, timings, source references and review controls for the current regulatory queue.",
+    subtitle: "Function-level action pack covering the current initiatives in scope, with timelines, FMRUK effect, ownership and source references.",
     audience: `${getPriorityModeConfig().label} weighting`,
     items: relevantItems,
     summaryText: buildPortfolioNarrative(relevantItems)
@@ -4717,48 +4734,34 @@ async function buildReportPdf(config) {
 
   const ctx = await createPdfContext(doc, config);
   await drawReportCover(ctx, config);
-  addReportSectionDivider(
-    ctx,
-    config.kind === "board" ? "Executive overview" : "Owner overview",
-    config.kind === "board" ? "Current regulatory position" : "Current owner action set",
-    config.summaryText
-  );
+  startPdfPage(ctx, "Report overview");
+  addReportIdentitySection(ctx, config);
   addOverviewSection(ctx, config);
 
-  if (config.kind === "board") {
-    addReportSectionDivider(
-      ctx,
-      "Movement",
-      "Changes since the previous upload",
-      "This section highlights new items, timing changes and initiatives where management attention may need to shift."
-    );
+  const comparisonSummary = state.datasetMeta?.comparisonSummary;
+  if (comparisonSummary && (comparisonSummary.newCount || comparisonSummary.changedCount || comparisonSummary.acceleratedCount || comparisonSummary.delayedCount || comparisonSummary.removedCount)) {
     addMovementSection(ctx, config);
-    addReportSectionDivider(
-      ctx,
-      "Priority items",
-      "Meeting discussion notes",
-      "The following pages convert the filtered queue into meeting-ready initiative notes with FMRUK effect, actions, review status and source references."
-    );
+  }
+
+  if (config.kind === "board") {
+    startPdfPage(ctx, "Initiative register");
+    addInitiativeRegisterSection(ctx, config.items);
     addMaterialInitiativeSection(ctx, config.items);
   } else {
-    addReportSectionDivider(
-      ctx,
-      "Owner queues",
-      "Function-level action coverage",
-      "The following sections group the current review set by primary owner and carry forward action ownership, due dates and review status."
-    );
+    startPdfPage(ctx, "Owner allocation");
     addOwnerSummarySection(ctx, config.items);
     addOwnerDetailSections(ctx, config.items);
   }
 
-  addReportSectionDivider(
+  startPdfPage(ctx, config.kind === "board" ? "Review status" : "Control points");
+  addPortfolioAuditSection(
     ctx,
-    "Validation",
-    config.kind === "board" ? "Board review points" : "Owner control points",
-    "Validation sections surface low-confidence extraction, incomplete milestones and items still requiring challenge before action is closed."
+    config.items,
+    config.kind === "board" ? "Review status and open points" : "Owner control points"
   );
-  addPortfolioAuditSection(ctx, config.items, config.kind === "board" ? "Board review points" : "Owner control points");
+  startPdfPage(ctx, "Source references");
   addEvidenceAppendixSection(ctx, config.items);
+  startPdfPage(ctx, "Method");
   addMethodologySection(ctx, config);
   applyPdfPageNumbers(doc, config.title);
   return doc;
@@ -4802,14 +4805,10 @@ async function createPdfContext(doc, config) {
 }
 
 async function prepareReportAssets() {
-  const [logo, coverGraphic] = await Promise.all([
-    loadReportSvgAsset(REPORT_LOGO_PATH, REPORT_LOGO_FALLBACK_SVG, 280, 64),
-    svgToPngDataUrl(buildReportCoverGraphicSvg(900, 900), 900, 900)
-  ]);
+  const logo = await loadReportSvgAsset(REPORT_LOGO_PATH, REPORT_LOGO_FALLBACK_SVG, 280, 64);
 
   return {
-    logo,
-    coverGraphic
+    logo
   };
 }
 
@@ -4859,28 +4858,16 @@ async function svgToPngDataUrl(svgText, width, height) {
   });
 }
 
-function buildReportCoverGraphicSvg(width, height) {
-  return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <rect width="${width}" height="${height}" fill="#ffffff"/>
-      <g transform="translate(360 120)">
-        <path d="M281 35C382 92 452 199 453 324C454 441 391 546 291 608L250 563C331 515 385 427 384 325C384 229 331 144 254 97L281 35Z" fill="#cdced2"/>
-        <circle cx="180" cy="205" r="180" fill="#cdced2"/>
-        <path d="M179 41 L212 154 L306 82 L234 178 L352 201 L232 209 L300 323 L210 249 L178 363 L145 249 L54 323 L123 209 L3 201 L121 178 L49 82 L143 154 Z" fill="#ffffff"/>
-        <path d="M154 196 L204 318 L142 318 Z" fill="#b5b7bc"/>
-        <rect x="146" y="318" width="116" height="20" fill="#b5b7bc"/>
-      </g>
-    </svg>
-  `;
-}
-
 function drawReportCover(ctx, config) {
   const { doc, pageWidth, pageHeight, colors, margin, assets } = ctx;
-  const titleLines = doc.splitTextToSize(config.title, 240);
-  const subtitleLines = doc.splitTextToSize(config.subtitle, 240);
+  const titleLines = doc.splitTextToSize(config.title, 300);
+  const subtitleLines = doc.splitTextToSize(config.subtitle, 320);
   const reportLabel = config.kind === "board" ? "Board report" : "Owner report";
+  const analyst = getReportMetadata();
   const metaLines = [
     `Prepared ${ctx.preparedAt}`,
+    `Prepared by ${analyst.analystName}${analyst.analystRole ? `, ${analyst.analystRole}` : ""}`,
+    analyst.analystEmail,
     `${config.items.length} initiatives in current scope`,
     `${ctx.profileMode} priority weighting`,
     `${ctx.effectMode} FMRUK effect mode`
@@ -4889,47 +4876,32 @@ function drawReportCover(ctx, config) {
   doc.setFillColor(...colors.white);
   doc.rect(0, 0, pageWidth, pageHeight, "F");
 
-  if (assets.coverGraphic) {
-    try {
-      doc.addImage(
-        assets.coverGraphic,
-        "PNG",
-        pageWidth - 324,
-        118,
-        290,
-        420,
-        undefined,
-        "FAST"
-      );
-    } catch (err) {
-      console.warn("Cover graphic failed to render.", err);
-    }
-  }
-
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(...colors.ink);
   doc.text("FMRUK REGULATORY REVIEW", margin, 70);
+  doc.setDrawColor(...colors.lineStrong);
+  doc.line(margin, 82, pageWidth - margin, 82);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(24);
-  doc.text(titleLines, margin, 118);
+  doc.setFontSize(26);
+  doc.text(titleLines, margin, 128);
 
   const titleHeight = titleLines.length * 26;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text(reportLabel, margin, 168 + titleHeight);
+  doc.text(reportLabel, margin, 180 + titleHeight);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12.5);
   doc.setTextColor(...colors.text);
-  doc.text(subtitleLines, margin, 194 + titleHeight);
+  doc.text(subtitleLines, margin, 206 + titleHeight);
 
-  let metaY = 282 + titleHeight;
+  let metaY = 298 + titleHeight;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(...colors.ink);
-  doc.text(APP_UPDATED_AT, margin, metaY);
+  doc.text(ctx.preparedAt, margin, metaY);
   metaY += 18;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
@@ -4941,6 +4913,9 @@ function drawReportCover(ctx, config) {
     doc.text(line, margin, metaY);
     metaY += 14;
   });
+
+  doc.setDrawColor(...colors.lineStrong);
+  doc.line(margin, pageHeight - 120, pageWidth - margin, pageHeight - 120);
 
   if (assets.logo) {
     try {
@@ -4996,47 +4971,6 @@ function drawReportMetricStrip(ctx, metrics) {
   });
 
   ctx.y += 76;
-}
-
-function addReportSectionDivider(ctx, kicker, title, copy) {
-  const { doc, pageWidth, pageHeight, margin, colors, assets } = ctx;
-  doc.addPage();
-  doc.setFillColor(...colors.white);
-  doc.rect(0, 0, pageWidth, pageHeight, "F");
-
-  doc.setDrawColor(...colors.lineStrong);
-  doc.line(margin, 86, pageWidth - margin, 86);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(...colors.faint);
-  doc.text(kicker.toUpperCase(), margin, 70);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(28);
-  doc.setTextColor(...colors.ink);
-  doc.text(doc.splitTextToSize(title, 250), margin, 148);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(12);
-  doc.setTextColor(...colors.text);
-  doc.text(doc.splitTextToSize(copy, 260), margin, 206);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...colors.faint);
-  doc.text(ctx.datasetLabel, margin, pageHeight - 104);
-  doc.text(`${ctx.profileMode} · ${ctx.effectMode}`, margin, pageHeight - 88);
-
-  if (assets.coverGraphic) {
-    try {
-      doc.addImage(assets.coverGraphic, "PNG", pageWidth - 255, 145, 210, 310, undefined, "FAST");
-    } catch (err) {
-      console.warn("Section graphic failed to render.", err);
-    }
-  }
-
-  startPdfPage(ctx, title);
 }
 
 function startPdfPage(ctx, label) {
@@ -5145,6 +5079,49 @@ function addOverviewSection(ctx, config) {
   addTableSection(ctx, "Theme distribution", ["Theme", "Items"], distributionRows);
 }
 
+function addReportIdentitySection(ctx, config) {
+  const analyst = getReportMetadata();
+  const identityRows = [
+    ["Report date", ctx.preparedAt],
+    ["Prepared by", analyst.analystName],
+    ["Role / team", analyst.analystRole],
+    ["Contact", analyst.analystEmail],
+    ["Source dataset", ctx.datasetLabel],
+    ["Items in scope", String(config.items.length)],
+    ["Priority weighting", ctx.profileMode],
+    ["FMRUK effect mode", ctx.effectMode],
+    ["Ownership bias", ctx.ownershipMode],
+    ["Parser version", state.datasetMeta?.parserVersion || "Current build"]
+  ];
+
+  addPdfSectionTitle(ctx, "Document control", "Report identity");
+  addTableSection(ctx, "Document metadata", ["Field", "Value"], identityRows);
+}
+
+function addInitiativeRegisterSection(ctx, items) {
+  addPdfSectionTitle(ctx, "Initiatives", "Initiative register");
+  addPdfParagraph(
+    ctx,
+    "The register below lists all initiatives currently in scope for this review set. Detailed initiative notes follow in score order.",
+    { color: ctx.colors.text, size: 11 }
+  );
+
+  const rows = sortItems(items).map(item => [
+    truncateText(item.initiativeTitle, 34),
+    item.priorityBand || "Low",
+    item.primaryOwner || "N/A",
+    item.fmrukEffectLevel || "Not set",
+    item.timeline?.label || item.timingBucket || "Not set"
+  ]);
+
+  addTableSection(
+    ctx,
+    "Current initiatives",
+    ["Initiative", "Priority", "Owner", "FMRUK effect", "Timing"],
+    rows
+  );
+}
+
 function addMovementSection(ctx, config) {
   addPdfSectionTitle(ctx, "Change", "Movement against prior upload");
 
@@ -5181,10 +5158,10 @@ function addMovementSection(ctx, config) {
 }
 
 function addMaterialInitiativeSection(ctx, items) {
-  addPdfSectionTitle(ctx, "Board review", "Priority initiative notes");
+  addPdfSectionTitle(ctx, "Initiatives", "Initiative notes");
   addPdfParagraph(
     ctx,
-    "The notes below summarise the FMRUK read-through, current action points, review status and source context for the items most likely to require management attention.",
+    "The notes below cover every initiative in the current review set, using the same FMRUK effect, milestone, review and source logic shown in the workspace.",
     { color: ctx.colors.text, size: 11 }
   );
 
@@ -5194,7 +5171,7 @@ function addMaterialInitiativeSection(ctx, items) {
 }
 
 function addOwnerSummarySection(ctx, items) {
-  addPdfSectionTitle(ctx, "Owner summary", "Action coverage by function");
+  addPdfSectionTitle(ctx, "Owners", "Action coverage by function");
   addPdfParagraph(
     ctx,
     "This pack groups the filtered queue by primary owner and carries through review status, due dates and named actions from the analyst review workspace.",
@@ -5273,7 +5250,7 @@ function addOwnerDetailSections(ctx, items) {
 }
 
 function addPortfolioAuditSection(ctx, items, title) {
-  addPdfSectionTitle(ctx, "Validation", title);
+  addPdfSectionTitle(ctx, "Review", title);
   addPdfBulletList(ctx, buildPortfolioAuditPoints(items), {
     color: ctx.colors.text
   });
@@ -5349,10 +5326,12 @@ function addInitiativeCard(ctx, item, index, mode) {
     .filter(Boolean)
     .join(" · ");
   const sections = [
-    ["FMRUK read-through", item.fmrukReadThrough || item.potentialBusinessImpact || item.rationale],
-    ["Potential action points", buildReportActionText(item, mode)],
-    [mode === "board" ? "Management review" : "Owner review", buildReportReviewText(item, mode)],
-    ["Source and timing", buildReportSourceText(item)]
+    ["Initiative summary", buildReportSummaryText(item)],
+    ["FMRUK effect", item.fmrukReadThrough || item.potentialBusinessImpact || item.rationale],
+    ["Milestones", buildReportMilestoneText(item)],
+    ["Action and ownership", buildReportActionOwnerText(item, mode)],
+    [mode === "board" ? "Review status" : "Owner review", buildReportReviewText(item, mode)],
+    ["Source references", buildReportSourceText(item)]
   ];
 
   if (item.needsReview) {
@@ -5429,6 +5408,34 @@ function buildReportActionText(item, mode) {
   return mode === "owner"
     ? "No owner action has been recorded."
     : "No management action points have been recorded.";
+}
+
+function buildReportSummaryText(item) {
+  return truncateText(
+    item.initiativeDescription ||
+      item.changeNarrative ||
+      item.potentialBusinessImpact ||
+      item.rationale ||
+      "No initiative summary extracted.",
+    420
+  );
+}
+
+function buildReportMilestoneText(item) {
+  const milestoneEvents = (item.timeline?.events || [])
+    .slice(0, 4)
+    .map(event => `${event.label}${event.detail ? `: ${truncateText(event.detail, 78)}` : ""}`);
+  if (milestoneEvents.length) {
+    return milestoneEvents.join(" ");
+  }
+  return item.expectedKeyMilestones || item.timeline?.raw || "No clear milestone extracted.";
+}
+
+function buildReportActionOwnerText(item, mode) {
+  const ownerLine = `Primary owner: ${item.primaryOwner || "Not assigned"}${item.secondaryOwner ? `; secondary owner: ${item.secondaryOwner}` : ""}.`;
+  const actionLine = buildReportActionText(item, mode);
+  const namedOwner = item.actionOwner ? ` Action owner: ${item.actionOwner}.` : "";
+  return `${ownerLine} ${actionLine}${namedOwner}`;
 }
 
 function buildReportReviewText(item, mode) {
