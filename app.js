@@ -4,7 +4,7 @@ const FEEDBACK_KEY = "fmruk_feedback_v10";
 const PDF_DB_NAME = "fmruk_pdf_workspace";
 const PDF_STORE_NAME = "pdfs";
 const PDF_RECORD_KEY = "current_pdf";
-const APP_VERSION = "1.6.0";
+const APP_VERSION = "1.7.0";
 const APP_UPDATED_AT = "01 April 2026";
 
 if (window.pdfjsLib) {
@@ -14,6 +14,7 @@ if (window.pdfjsLib) {
 
 const state = {
   currentPage: "workspace",
+  currentWorkspaceView: "monitor",
   baseItems: [],
   raw: [],
   filtered: [],
@@ -257,6 +258,16 @@ const KNOWN_SUBCATEGORIES = [
   "Repeal and replacement of assimilated law under FSMA 2023"
 ];
 
+const EXCEL_QUARTER_COLUMNS = [
+  { aliases: ["oct - dec 2025", "oct-dec 2025"], label: "Oct-Dec 2025", month: 9, year: 2025 },
+  { aliases: ["jan-mar 2026", "jan - mar 2026"], label: "Jan-Mar 2026", month: 0, year: 2026 },
+  { aliases: ["apr-jun 2026", "apr - jun 2026"], label: "Apr-Jun 2026", month: 3, year: 2026 },
+  { aliases: ["jul- sep 2026", "jul-sep 2026", "jul - sep 2026"], label: "Jul-Sep 2026", month: 6, year: 2026 },
+  { aliases: ["oct- dec 2026", "oct-dec 2026", "oct - dec 2026"], label: "Oct-Dec 2026", month: 9, year: 2026 },
+  { aliases: ["jan-jun 2027", "jan - jun 2027"], label: "Jan-Jun 2027", month: 0, year: 2027 },
+  { aliases: ["post july 2027"], label: "Post July 2027", month: 6, year: 2027 }
+];
+
 const SECTION_LOOKUP = new Map(
   KNOWN_SECTIONS.map(value => [value.toLowerCase(), value])
 );
@@ -264,6 +275,23 @@ const SECTION_LOOKUP = new Map(
 const SUBCATEGORY_LOOKUP = new Map(
   KNOWN_SUBCATEGORIES.map(value => [value.toLowerCase(), value])
 );
+
+const SECTION_ALIASES = new Map([
+  ...KNOWN_SECTIONS.map(value => [normaliseLookupKey(value), value]),
+  ["investment management", "Investment management"],
+  ["retail investment", "Retail investments"],
+  ["pensions", "Pensions and retirement income"],
+  ["payment services and cryptoassets", "Payment services and cryptoassets"]
+]);
+
+const SUBCATEGORY_ALIASES = new Map([
+  ...KNOWN_SUBCATEGORIES.map(value => [normaliseLookupKey(value), value]),
+  ["competition innovation and other", "Competition, innovation and other"],
+  ["cross-cutting / omnibus", "Cross-cutting/omnibus"],
+  ["cross-cutting omnibus", "Cross-cutting/omnibus"],
+  ["n/a", "N/A"],
+  ["n/a ", "N/A"]
+]);
 
 const REGULATOR_CODES = [
   "FCA",
@@ -1140,6 +1168,7 @@ async function init() {
   window.setInterval(updateReviewClock, 30000);
   await hydratePdfFromStorage();
   renderPageState();
+  renderWorkspaceView();
   renderAll();
 }
 
@@ -1158,10 +1187,17 @@ function mapEls() {
     "exportBoardBriefBtn",
     "exportOwnerPackBtn",
     "clearStorageBtn",
+    "excelInput",
     "fileInput",
     "uploadBtn",
     "uploadStatus",
+    "sourceSummary",
     "searchInput",
+    "workspaceModeTabs",
+    "workspaceModeMeta",
+    "monitorPane",
+    "timelinePane",
+    "sourcePane",
     "sectionFilter",
     "themeFilter",
     "ownerFilter",
@@ -1208,6 +1244,7 @@ function mapEls() {
 function bindEvents() {
   els.navWorkspaceBtn?.addEventListener("click", () => navigateToPage("workspace"));
   els.navSettingsBtn?.addEventListener("click", () => navigateToPage("settings"));
+  els.workspaceModeTabs?.addEventListener("click", handleWorkspaceModeClick);
   window.addEventListener("hashchange", syncPageFromHash);
   els.uploadBtn.addEventListener("click", handleUpload);
   els.reloadBtn.addEventListener("click", () => renderAll());
@@ -1272,6 +1309,32 @@ function renderPageState() {
   els.settingsPage?.classList.toggle("is-active", state.currentPage === "settings");
   els.navWorkspaceBtn?.classList.toggle("is-active", state.currentPage === "workspace");
   els.navSettingsBtn?.classList.toggle("is-active", state.currentPage === "settings");
+}
+
+function handleWorkspaceModeClick(event) {
+  const button = event.target.closest("[data-workspace-view]");
+  if (!button) return;
+  state.currentWorkspaceView = button.dataset.workspaceView || "monitor";
+  renderWorkspaceView();
+}
+
+function renderWorkspaceView() {
+  const active = state.currentWorkspaceView || "monitor";
+  els.monitorPane?.classList.toggle("is-active", active === "monitor");
+  els.timelinePane?.classList.toggle("is-active", active === "timeline");
+  els.sourcePane?.classList.toggle("is-active", active === "source");
+
+  els.workspaceModeTabs?.querySelectorAll("[data-workspace-view]").forEach(button => {
+    button.classList.toggle("is-active", button.dataset.workspaceView === active);
+  });
+
+  if (els.workspaceModeMeta) {
+    els.workspaceModeMeta.textContent = {
+      monitor: "Monitor view keeps the queue, detail and analyst review visible.",
+      timeline: "Milestones view groups dated events into chronological buckets using the structured grid timeline.",
+      source: "Source view prioritises PDF evidence and cross-checking against the currently selected initiative."
+    }[active] || "Monitor view keeps the queue, detail and analyst review visible.";
+  }
 }
 
 function setStatusMessage(message, scope = "workspace") {
@@ -1471,6 +1534,10 @@ function saveFeedback() {
 }
 
 async function hydratePdfFromStorage() {
+  if (!(state.datasetMeta?.sourceFiles?.pdfFileName || state.datasetMeta?.fileType === "PDF")) {
+    return;
+  }
+
   try {
     const buffer = await loadStoredPdf();
     if (buffer) {
@@ -1483,20 +1550,11 @@ async function hydratePdfFromStorage() {
 }
 
 async function handleUpload() {
-  const file = els.fileInput.files[0];
-  if (!file) {
-    els.uploadStatus.textContent = "Select a PDF.";
-    return;
-  }
+  const pdfFile = els.fileInput.files[0] || null;
+  const excelFile = els.excelInput?.files[0] || null;
 
-  const ext = file.name.split(".").pop().toLowerCase();
-  if (ext !== "pdf") {
-    els.uploadStatus.textContent = "PDF only.";
-    return;
-  }
-
-  if (!window.pdfjsLib) {
-    els.uploadStatus.textContent = "PDF library unavailable.";
+  if (!pdfFile && !excelFile) {
+    els.uploadStatus.textContent = "Select an Excel file, a PDF, or both.";
     return;
   }
 
@@ -1504,32 +1562,80 @@ async function handleUpload() {
   const previousMeta = state.datasetMeta;
 
   try {
-    els.uploadStatus.textContent = `Reading ${file.name}...`;
-    const buffer = await file.arrayBuffer();
-    const parsedItems = await parsePdfFile(buffer, file.name);
-    const deduped = dedupeItems(parsedItems);
+    let excelItems = [];
+    let pdfItems = [];
 
-    if (!deduped.length) {
-      els.uploadStatus.textContent = "No initiatives detected. Check the PDF or parser settings.";
-      return;
+    if (excelFile) {
+      const ext = excelFile.name.split(".").pop().toLowerCase();
+      if (!["xlsx", "xls"].includes(ext)) {
+        els.uploadStatus.textContent = "Excel input must be .xlsx or .xls.";
+        return;
+      }
+      if (!window.XLSX) {
+        els.uploadStatus.textContent = "Excel library unavailable.";
+        return;
+      }
+
+      els.uploadStatus.textContent = `Reading structured workbook: ${excelFile.name}...`;
+      const excelBuffer = await excelFile.arrayBuffer();
+      excelItems = parseExcelFile(excelBuffer, excelFile.name);
     }
 
-    await saveStoredPdf(buffer);
-    state.pdfBuffer = buffer;
-    state.pdfDocument = await loadPdfDocumentFromBuffer(buffer);
+    if (pdfFile) {
+      const ext = pdfFile.name.split(".").pop().toLowerCase();
+      if (ext !== "pdf") {
+        els.uploadStatus.textContent = "PDF input must be a .pdf file.";
+        return;
+      }
+      if (!window.pdfjsLib) {
+        els.uploadStatus.textContent = "PDF library unavailable.";
+        return;
+      }
+
+      els.uploadStatus.textContent = `Reading PDF evidence: ${pdfFile.name}...`;
+      const buffer = await pdfFile.arrayBuffer();
+      pdfItems = await parsePdfFile(buffer, pdfFile.name);
+      await saveStoredPdf(buffer);
+      state.pdfBuffer = buffer;
+      state.pdfDocument = await loadPdfDocumentFromBuffer(buffer);
+    } else {
+      state.pdfBuffer = null;
+      state.pdfDocument = null;
+      state.currentPdfHighlightKey = "";
+      clearStoredPdf().catch(console.error);
+    }
+
+    const ingestedItems = excelItems.length
+      ? mergeStructuredAndPdfItems(excelItems, pdfItems)
+      : pdfItems;
+    const deduped = dedupeItems(ingestedItems);
+
+    if (!deduped.length) {
+      els.uploadStatus.textContent = "No initiatives detected. Check the uploaded sources.";
+      return;
+    }
 
     els.uploadStatus.textContent = `Scoring ${deduped.length} items...`;
     const analysed = analyseRows(deduped);
     const comparison = compareWithPreviousDataset(previousItems, analysed);
+    const preferredSource = excelItems.length ? "Excel" : "PDF";
+    const sourceLabel = buildSourceLabel(excelFile?.name, pdfFile?.name);
 
     state.baseItems = deduped;
     state.raw = sortItems(comparison.items);
     state.datasetMeta = {
-      fileName: file.name,
+      fileName: sourceLabel,
       uploadedAt: new Date().toISOString(),
       rowCount: state.raw.length,
-      fileType: "PDF",
-      parserVersion: "v9",
+      fileType: excelItems.length && pdfItems.length ? "Excel + PDF" : preferredSource,
+      preferredSource,
+      structuredSourceCount: excelItems.length,
+      pdfSupportCount: pdfItems.length,
+      sourceFiles: {
+        excelFileName: excelFile?.name || "",
+        pdfFileName: pdfFile?.name || ""
+      },
+      parserVersion: "v11",
       previousFileName: previousMeta?.fileName || "",
       comparisonSummary: comparison.summary
     };
@@ -1537,12 +1643,329 @@ async function handleUpload() {
     state.currentPdfHighlightKey = "";
 
     saveToStorage();
-    els.uploadStatus.textContent = `Loaded ${state.raw.length} items from ${file.name}.`;
+    els.uploadStatus.textContent = `Loaded ${state.raw.length} items using ${preferredSource}${pdfFile && excelFile ? " with PDF support" : ""}.`;
     renderAll();
   } catch (err) {
     console.error(err);
-    els.uploadStatus.textContent = `Upload failed. ${err.message || "The PDF could not be parsed."}`;
+    els.uploadStatus.textContent = `Upload failed. ${err.message || "The selected sources could not be parsed."}`;
   }
+}
+
+function buildSourceLabel(excelFileName, pdfFileName) {
+  if (excelFileName && pdfFileName) {
+    return `${excelFileName} + ${pdfFileName}`;
+  }
+  return excelFileName || pdfFileName || "Current sources";
+}
+
+function parseExcelFile(buffer, fileName) {
+  const workbook = window.XLSX.read(buffer, { type: "array" });
+  const sheetName =
+    workbook.SheetNames.find(name => normaliseLookupKey(name) === "live initiatives") ||
+    workbook.SheetNames[0];
+
+  if (!sheetName) {
+    throw new Error("No worksheet was found in the Excel file.");
+  }
+
+  const sheet = workbook.Sheets[sheetName];
+  const rows = window.XLSX.utils.sheet_to_json(sheet, {
+    defval: "",
+    raw: false
+  });
+
+  return rows
+    .map((row, index) => parseExcelInitiativeRow(row, index + 2, fileName))
+    .filter(item => item && item.initiativeTitle);
+}
+
+function parseExcelInitiativeRow(row, rowNumber, fileName) {
+  const title = cleanTitleCandidate(getStructuredRowValue(row, ["initiative title"]));
+  if (!title) return null;
+
+  const sectionName = canonicaliseSectionName(getStructuredRowValue(row, ["sector"]));
+  const subcategory = canonicaliseSubcategoryName(getStructuredRowValue(row, ["sub-category"]));
+  const leadRegulator = normaliseRegulatorField(getStructuredRowValue(row, ["regulators involved"]));
+  const description = cleanStructuredText(getStructuredRowValue(row, ["description of initiative"]));
+  const expectedKeyMilestones = cleanStructuredText(getStructuredRowValue(row, ["expected milestones"]));
+  const sourceLink = cleanStructuredText(getStructuredRowValue(row, ["link"]));
+  const impactFlag = extractImpactFlag(
+    getStructuredRowValue(row, ["indicative impact on firms to implement"])
+  );
+  const consumerInterest = consumerInterestFromStructured(
+    getStructuredRowValue(row, [
+      "is this initiative likely to be of significant interest to consumers and consumer organisations?"
+    ])
+  );
+  const timingUpdated = normaliseYesNo(
+    getStructuredRowValue(row, ["has the timing of this initiative changed since the previous grid?"])
+  );
+  const publicationStatus = normalisePublicationStatus(
+    getStructuredRowValue(row, [
+      "will this initiative be new to this publication (ie. this initiative was not included in the previous grid)?"
+    ])
+  );
+  const isNew = publicationStatus === "New" ? "Yes" : "No";
+  const quarterSignals = buildStructuredQuarterSignals(row);
+  const milestoneEvents = mergeTimelineEvents(
+    buildStructuredQuarterEvents(quarterSignals),
+    extractTimelineMarkers(expectedKeyMilestones)
+  );
+  const warnings = [];
+  if (!expectedKeyMilestones && !quarterSignals.length) {
+    warnings.push("Structured milestones are limited.");
+  }
+
+  const rawText = normaliseWs(
+    [
+      sectionName,
+      subcategory,
+      leadRegulator,
+      title,
+      description,
+      expectedKeyMilestones,
+      quarterSignals.map(signal => `${signal.label}: ${signal.status}`).join(" "),
+      sourceLink
+    ].join(" ")
+  );
+
+  return {
+    id: `${slugify(title || "item")}-${rowNumber}`,
+    canonicalKey: buildCanonicalKey({
+      sectionName,
+      leadRegulator,
+      initiativeTitle: title
+    }),
+    sourceFile: fileName,
+    sourceType: "Excel",
+    sourceRowNumber: rowNumber,
+    sourcePages: [],
+    sectionName,
+    subcategory,
+    leadRegulator,
+    initiativeTitle: title,
+    initiativeDescription: description,
+    expectedKeyMilestones,
+    indicativeImpactOnFirms: impactFlag,
+    consumerInterest,
+    timingUpdated,
+    isNew,
+    publicationStatus,
+    timingBucket: inferTimingBucket(
+      `${expectedKeyMilestones} ${quarterSignals.map(signal => signal.label).join(" ")} ${description}`
+    ),
+    rawText,
+    parseConfidence: 98,
+    parseConfidenceBand: "High",
+    parseWarnings: warnings,
+    evidence: emptyEvidenceSet(),
+    sourceLink,
+    structuredTimeline: {
+      quarterSignals,
+      events: milestoneEvents
+    }
+  };
+}
+
+function getStructuredRowValue(row, aliases) {
+  const aliasSet = aliases.map(normaliseLookupKey);
+  for (const [key, value] of Object.entries(row || {})) {
+    if (aliasSet.includes(normaliseLookupKey(key))) {
+      return normaliseStructuredCell(value);
+    }
+  }
+  return "";
+}
+
+function normaliseStructuredCell(value) {
+  return String(value || "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function buildStructuredQuarterSignals(row) {
+  return EXCEL_QUARTER_COLUMNS.map(column => {
+    const value = getStructuredRowValue(row, column.aliases);
+    const status = parseQuarterSignal(value);
+    if (!status) return null;
+    return {
+      label: column.label,
+      status,
+      dateValue: new Date(column.year, column.month, 1).getTime()
+    };
+  }).filter(Boolean);
+}
+
+function buildStructuredQuarterEvents(signals) {
+  return signals.map(signal => ({
+    label: signal.label,
+    dateValue: signal.dateValue,
+    detail:
+      signal.status === "Engagement + milestone"
+        ? `${signal.label}: engagement and milestone activity expected.`
+        : `${signal.label}: ${signal.status.toLowerCase()} expected.`
+  }));
+}
+
+function parseQuarterSignal(value) {
+  const text = normaliseLookupKey(value);
+  if (!text) return "";
+  if (text.includes("both")) return "Engagement + milestone";
+  if (text.includes("key milestone")) return "Key milestone";
+  if (text.includes("engagement")) return "Engagement";
+  return normaliseWs(value);
+}
+
+function normalisePublicationStatus(value) {
+  const text = normaliseLookupKey(value);
+  if (text.includes("new")) return "New";
+  if (text.includes("previously published")) return "Previously published";
+  return normaliseWs(value) || "Previously published";
+}
+
+function consumerInterestFromStructured(value) {
+  const text = normaliseLookupKey(value);
+  if (text === "yes") return "H";
+  if (text === "no") return "L";
+  return "";
+}
+
+function normaliseRegulatorField(value) {
+  const parts = normaliseWs(value)
+    .toUpperCase()
+    .split(/[\/,;|]+/)
+    .map(part => part.replace(/\s+/g, ""))
+    .filter(Boolean);
+  return parts.join("/");
+}
+
+function canonicaliseSectionName(value) {
+  const key = normaliseLookupKey(value);
+  return SECTION_ALIASES.get(key) || normaliseWs(value);
+}
+
+function canonicaliseSubcategoryName(value) {
+  const key = normaliseLookupKey(value);
+  return SUBCATEGORY_ALIASES.get(key) || normaliseWs(value);
+}
+
+function mergeStructuredAndPdfItems(excelItems, pdfItems) {
+  if (!excelItems.length) return pdfItems;
+  if (!pdfItems.length) return excelItems;
+
+  const usedPdfKeys = new Set();
+  return excelItems.map(item => {
+    const match = findSupportingPdfMatch(item, pdfItems, usedPdfKeys);
+    if (!match) return item;
+    usedPdfKeys.add(`${match.canonicalKey}|${match.id}`);
+    return mergeStructuredItemWithPdf(item, match);
+  });
+}
+
+function findSupportingPdfMatch(structuredItem, pdfItems, usedPdfKeys) {
+  let bestMatch = null;
+  let bestScore = 0;
+
+  pdfItems.forEach(pdfItem => {
+    const usedKey = `${pdfItem.canonicalKey}|${pdfItem.id}`;
+    if (usedPdfKeys.has(usedKey)) return;
+
+    let score = 0;
+    if (pdfItem.canonicalKey === structuredItem.canonicalKey) score += 100;
+    if (looseTitleKey(pdfItem.initiativeTitle) === looseTitleKey(structuredItem.initiativeTitle)) score += 40;
+    if (pdfItem.sectionName === structuredItem.sectionName) score += 12;
+    if (pdfItem.leadRegulator === structuredItem.leadRegulator) score += 12;
+    if (
+      looseTitleKey(pdfItem.initiativeTitle).includes(looseTitleKey(structuredItem.initiativeTitle)) ||
+      looseTitleKey(structuredItem.initiativeTitle).includes(looseTitleKey(pdfItem.initiativeTitle))
+    ) {
+      score += 18;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = pdfItem;
+    }
+  });
+
+  return bestScore >= 62 ? bestMatch : null;
+}
+
+function mergeStructuredItemWithPdf(structuredItem, pdfItem) {
+  return {
+    ...structuredItem,
+    sourceType: "Excel + PDF",
+    sourcePages: pdfItem.sourcePages || [],
+    evidence: flattenEvidence(pdfItem.evidence || {}).length ? pdfItem.evidence : structuredItem.evidence,
+    parseWarnings: dedupeStrings([
+      ...(structuredItem.parseWarnings || []),
+      ...(pdfItem.parseWarnings || [])
+    ]),
+    rawText: normaliseWs(`${structuredItem.rawText || ""} ${pdfItem.rawText || ""}`),
+    initiativeDescription: structuredItem.initiativeDescription || pdfItem.initiativeDescription,
+    expectedKeyMilestones: structuredItem.expectedKeyMilestones || pdfItem.expectedKeyMilestones,
+    structuredTimeline: {
+      quarterSignals: structuredItem.structuredTimeline?.quarterSignals || [],
+      events: mergeTimelineEvents(
+        structuredItem.structuredTimeline?.events || [],
+        extractTimelineMarkers(
+          `${structuredItem.expectedKeyMilestones || ""} ${pdfItem.expectedKeyMilestones || ""} ${pdfItem.initiativeDescription || ""}`
+        )
+      )
+    }
+  };
+}
+
+function mergeTimelineEvents(primaryEvents, secondaryEvents) {
+  const merged = new Map();
+  [...(primaryEvents || []), ...(secondaryEvents || [])].forEach(event => {
+    if (!event?.label || !Number.isFinite(event.dateValue)) return;
+    const detail = normaliseWs(event.detail || "");
+    const key = `${event.label}|${event.dateValue}`;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, {
+        label: event.label,
+        dateValue: event.dateValue,
+        detail
+      });
+      return;
+    }
+
+    if (detail.length > (existing.detail || "").length) {
+      merged.set(key, {
+        label: event.label,
+        dateValue: event.dateValue,
+        detail
+      });
+    }
+  });
+  return [...merged.values()].sort((a, b) => a.dateValue - b.dateValue);
+}
+
+function emptyEvidenceSet() {
+  return {
+    title: [],
+    lead: [],
+    description: [],
+    milestones: [],
+    impact: [],
+    consumer: [],
+    timing: [],
+    isNew: [],
+    general: []
+  };
+}
+
+function looseTitleKey(value) {
+  return normaliseWs(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\b(the|and|for|of|to|on|in|a)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 async function parsePdfFile(buffer, fileName) {
@@ -2110,17 +2533,69 @@ function assessParseQuality(accumulator, context) {
 }
 
 function dedupeItems(items) {
-  const seen = new Set();
-  const output = [];
+  const deduped = new Map();
 
   items.forEach(item => {
     const key = item.canonicalKey || buildCanonicalKey(item);
-    if (seen.has(key)) return;
-    seen.add(key);
-    output.push(item);
+    const existing = deduped.get(key);
+    if (!existing) {
+      deduped.set(key, item);
+      return;
+    }
+
+    deduped.set(key, mergeDuplicateItems(existing, item));
   });
 
-  return output;
+  return [...deduped.values()];
+}
+
+function mergeDuplicateItems(left, right) {
+  const preferred = sourcePriority(right) > sourcePriority(left) ? right : left;
+  const secondary = preferred === left ? right : left;
+
+  return {
+    ...preferred,
+    sourceType:
+      preferred.sourceType === secondary.sourceType
+        ? preferred.sourceType
+        : `${preferred.sourceType || "Source"} + ${secondary.sourceType || "Source"}`,
+    initiativeDescription:
+      preferred.initiativeDescription?.length >= secondary.initiativeDescription?.length
+        ? preferred.initiativeDescription
+        : secondary.initiativeDescription,
+    expectedKeyMilestones:
+      preferred.expectedKeyMilestones || secondary.expectedKeyMilestones,
+    sourcePages: uniqueNumbers([...(preferred.sourcePages || []), ...(secondary.sourcePages || [])]),
+    evidence:
+      flattenEvidence(preferred.evidence || {}).length >= flattenEvidence(secondary.evidence || {}).length
+        ? preferred.evidence
+        : secondary.evidence,
+    parseWarnings: dedupeStrings([
+      ...(preferred.parseWarnings || []),
+      ...(secondary.parseWarnings || [])
+    ]),
+    rawText: normaliseWs(`${preferred.rawText || ""} ${secondary.rawText || ""}`),
+    structuredTimeline: {
+      quarterSignals: [
+        ...((preferred.structuredTimeline?.quarterSignals) || []),
+        ...((secondary.structuredTimeline?.quarterSignals) || [])
+      ],
+      events: mergeTimelineEvents(
+        preferred.structuredTimeline?.events || [],
+        secondary.structuredTimeline?.events || []
+      )
+    }
+  };
+}
+
+function sourcePriority(item) {
+  if ((item.sourceType || "").includes("Excel")) return 3;
+  if (item.sourceType === "PDF") return 1;
+  return 0;
+}
+
+function uniqueNumbers(values) {
+  return [...new Set((values || []).filter(value => Number.isFinite(value)))].sort((a, b) => a - b);
 }
 
 function analyseRows(items) {
@@ -2411,6 +2886,19 @@ function evaluateFmrukRelevance(item, classification, stage, obligations) {
   if (obligations.some(obligation => obligation.name === "Governance & Accountability")) score += 4;
   if (stage.id === "reporting" || stage.id === "final_rules") score += 4;
   if (item.leadRegulator.includes("FCA")) score += 3;
+  if ((item.leadRegulator.match(/\//g) || []).length >= 1) score += 2;
+  if (
+    ["Investment management", "Wholesale financial markets", "Multi-sector"].includes(item.sectionName)
+  ) {
+    score += 4;
+  }
+  if (
+    ["Banking, credit and lending", "Insurance and reinsurance", "Pensions and retirement income"].includes(item.sectionName) &&
+    profileMatch.score < 10
+  ) {
+    score -= 8;
+  }
+  if (item.indicativeImpactOnFirms === "H" && profileMatch.score >= 8) score += 4;
   if (item.sectionName === "Annex: initiatives completed/stopped") score -= 10;
 
   score = clamp(score, 0, 100);
@@ -2509,6 +2997,9 @@ function determineOwnership(item, classification, stage, obligations) {
   if (classification.subTheme === "SMCR / Governance") {
     primaryOwner = "Compliance";
     secondaryOwner = "HR";
+  } else if (item.leadRegulator.includes("HMT") && stage.id === "legislation") {
+    primaryOwner = "Legal";
+    secondaryOwner = "Compliance";
   } else if (classification.subTheme === "Settlement / T+1") {
     primaryOwner = "Operations";
     secondaryOwner = "Compliance";
@@ -2539,6 +3030,18 @@ function determineOwnership(item, classification, stage, obligations) {
   ) {
     primaryOwner = "Compliance";
     secondaryOwner = secondaryOwner === "Compliance" ? "Legal" : secondaryOwner;
+  } else if (
+    item.sectionName === "Wholesale financial markets" &&
+    (hasObligation("Operating Model") || hasObligation("Reporting & MI"))
+  ) {
+    primaryOwner = "Operations";
+    secondaryOwner = "Compliance";
+  } else if (
+    item.sectionName === "Investment management" &&
+    classification.theme.includes("Investment Management")
+  ) {
+    primaryOwner = "Compliance";
+    secondaryOwner = "Legal";
   }
 
   if (ownershipMode.biasOwners.includes("Compliance")) {
@@ -2605,6 +3108,10 @@ function determinePriority(
   if (relevance.effectLevel === "Direct" || relevance.effectLevel === "Material") score += 5;
   if (relevance.effectLevel === "Out of scope") score -= 18;
   if (relevance.effectLevel === "Watchlist") score -= 8;
+  if ((item.structuredTimeline?.quarterSignals || []).length >= 3) score += 3;
+  if ((item.leadRegulator.match(/\//g) || []).length >= 1) score += 2;
+  if (item.timingUpdated === "Yes") score += 3;
+  if (item.isNew === "Yes") score += 2;
 
   const uncertaintyPenalty = Math.min(10, (uncertainty.flags || []).length * 1.5);
   score -= uncertaintyPenalty;
@@ -2665,6 +3172,11 @@ function calculateUrgencyScore(item, stage, timeline) {
   if (item.timingUpdated === "Yes") score += 8;
   if (item.isNew === "Yes") score += 6;
   if (item.consumerInterest === "H") score += 4;
+  if ((item.structuredTimeline?.quarterSignals || []).length >= 3) score += 4;
+  if ((timeline?.events || []).length >= 3) score += 6;
+  if (/\b(goes live|implementation|effective|opens|final policy|policy statement)\b/i.test(item.expectedKeyMilestones || "")) {
+    score += 6;
+  }
 
   const now = Date.now();
   if (Number.isFinite(timeline?.sortValue)) {
@@ -2697,6 +3209,8 @@ function calculateDeliveryScore(classification, obligations, ownership, mode) {
 
   if (mode.ownerBoosts.includes(ownership.primaryOwner)) score += 8;
   if (mode.themeBoosts.includes(classification.theme)) score += 6;
+  if ((ownership.primaryOwner || "") === "Operations" && classification.subTheme === "Settlement / T+1") score += 8;
+  if ((ownership.primaryOwner || "") === "Compliance" && classification.subTheme === "SMCR / Governance") score += 6;
 
   return clamp(score, 0, 100);
 }
@@ -2846,16 +3360,23 @@ function buildRationale(item, classification, stage, relevance, obligations) {
 }
 
 function buildTimelinePoint(item) {
-  const events = extractTimelineMarkers(
-    `${item.expectedKeyMilestones || ""} ${item.initiativeDescription || ""} ${item.rawText || ""}`
+  const events = mergeTimelineEvents(
+    item.structuredTimeline?.events || [],
+    extractTimelineMarkers(
+      `${item.expectedKeyMilestones || ""} ${item.initiativeDescription || ""} ${item.rawText || ""}`
+    )
   );
   const now = Date.now();
   const match = events.find(event => event.dateValue >= now - 45 * 24 * 60 * 60 * 1000) || events[0] || null;
   return {
     label: match?.label || item.timingBucket,
     sortValue: match?.dateValue || estimateTimingBucketDate(item.timingBucket),
-    raw: item.expectedKeyMilestones || item.timingBucket || "To Be Confirmed",
-    events: events.slice(0, 4)
+    raw:
+      item.expectedKeyMilestones ||
+      (item.structuredTimeline?.quarterSignals || []).map(signal => `${signal.label}: ${signal.status}`).join(" | ") ||
+      item.timingBucket ||
+      "To Be Confirmed",
+    events: events.slice(0, 6)
   };
 }
 
@@ -3118,6 +3639,7 @@ function reanalyseCurrentDataset() {
 
 function renderAll() {
   renderPageState();
+  renderWorkspaceView();
   renderSettingsSummary();
   updateMeta();
   populateFilters();
@@ -3127,6 +3649,9 @@ function renderAll() {
 function updateMeta() {
   if (!state.datasetMeta) {
     els.headerMeta.textContent = "No dataset loaded";
+    if (els.sourceSummary) {
+      els.sourceSummary.textContent = "Excel acts as the structured source of truth. PDF adds evidence and context where available.";
+    }
     return;
   }
 
@@ -3141,7 +3666,17 @@ function updateMeta() {
     : "No baseline comparison";
 
   els.headerMeta.textContent =
-    `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items · ${formatDate(state.datasetMeta.uploadedAt)} · ${comparisonText}`;
+    `${state.datasetMeta.preferredSource || state.datasetMeta.fileType} primary · ${state.datasetMeta.rowCount} items · ${formatDate(state.datasetMeta.uploadedAt)} · ${comparisonText}`;
+
+  if (els.sourceSummary) {
+    const excelName = state.datasetMeta.sourceFiles?.excelFileName || "";
+    const pdfName = state.datasetMeta.sourceFiles?.pdfFileName || "";
+    const sourceText = [
+      excelName ? `Excel: ${excelName}` : "Excel: not loaded",
+      pdfName ? `PDF: ${pdfName}` : "PDF: not loaded"
+    ].join(" · ");
+    els.sourceSummary.textContent = `${sourceText} · Preferred source: ${state.datasetMeta.preferredSource || state.datasetMeta.fileType}.`;
+  }
 }
 
 function populateFilters() {
@@ -3192,6 +3727,9 @@ function applyFilters() {
       item.secondaryOwner,
       item.stageLabel,
       item.clusterLabel,
+      item.sourceType,
+      item.publicationStatus,
+      item.sourceLink,
       item.potentialBusinessImpact,
       item.rationale,
       item.fmrukReadThrough,
@@ -3415,6 +3953,8 @@ function renderTimelineList(items) {
       entry.addEventListener("click", () => {
         const selected = state.filtered.find(item => item.id === entry.dataset.timelineItem);
         if (!selected) return;
+        state.currentWorkspaceView = "monitor";
+        renderWorkspaceView();
         state.selectedItemId = selected.id;
         renderInitiativeList(state.filtered);
         renderDetail(selected);
@@ -3487,7 +4027,7 @@ function renderDetail(item) {
     ["Stage", item.stageLabel || "N/A"],
     ["Owner", `${item.primaryOwner || "N/A"}${item.secondaryOwner ? ` / ${item.secondaryOwner}` : ""}`],
     ["Timing", item.timeline?.label || item.timingBucket || "N/A"],
-    ["Source", `Pages ${sourcePages}`],
+    ["Source", `${item.sourceType || state.datasetMeta?.fileType || "N/A"}${sourcePages !== "N/A" ? ` · Pages ${sourcePages}` : ""}`],
     ["Review status", analystStatus],
     ["Due date", feedback.targetDate || "Not set"]
   ]
@@ -3509,7 +4049,7 @@ function renderDetail(item) {
     ? `Current review flags: ${item.uncertaintyFlags.join(" ")}`
     : "No current review flags.";
 
-  els.detailMeta.textContent = `${item.primaryOwner} · ${item.priorityBand} priority · pages ${sourcePages}`;
+  els.detailMeta.textContent = `${item.primaryOwner} · ${item.priorityBand} priority · ${item.sourceType || state.datasetMeta?.fileType || "source"}`;
   els.detailPanel.innerHTML = `
     <section class="detail-hero">
       <div class="detail-kicker">${escapeHtml(item.stageLabel)} · ${escapeHtml(item.changeStatus || "Existing")}</div>
@@ -3679,9 +4219,14 @@ function renderPdfEvidence(item) {
     return;
   }
 
+  if (!state.pdfDocument) {
+    els.pdfPreviewStatus.textContent = "No PDF reference loaded. Excel is currently acting as the structured source.";
+    return;
+  }
+
   const evidence = getEvidenceForFields(item, ["title", "lead", "description", "milestones", "impact", "timing", "isNew"], 20);
   if (!evidence.length) {
-    els.pdfPreviewStatus.textContent = "No evidence links captured.";
+    els.pdfPreviewStatus.textContent = "PDF loaded, but no evidence links were matched to this initiative.";
     return;
   }
 
@@ -3713,7 +4258,7 @@ async function renderPdfPreview(item, evidence) {
   els.pdfPreview.innerHTML = "";
 
   if (!state.pdfDocument) {
-    els.pdfPreviewStatus.textContent = "PDF preview not available in this session.";
+    els.pdfPreviewStatus.textContent = "No PDF reference loaded for this session.";
     return;
   }
 
@@ -3809,6 +4354,8 @@ function runAskQuery() {
         item.whyNotRelevant,
         item.primaryOwner,
         item.stageLabel,
+        item.sourceType,
+        item.publicationStatus,
         ...(item.obligations || []).map(obligation => obligation.name),
         ...(flattenEvidence(item.evidence) || []).map(entry => entry.excerpt)
       ]
@@ -3867,6 +4414,8 @@ function renderAskResults() {
       truncateText(item.fmrukReadThrough || item.rationale, 160)
     )}`;
     li.addEventListener("click", () => {
+      state.currentWorkspaceView = "monitor";
+      renderWorkspaceView();
       state.selectedItemId = item.id;
       renderInitiativeList(state.filtered);
       renderDetail(item);
@@ -3897,6 +4446,7 @@ function exportCsv() {
   }
 
   const columns = [
+    "sourceType",
     "priorityBand",
     "priorityScore",
     "changeStatus",
@@ -3905,6 +4455,7 @@ function exportCsv() {
     "subcategory",
     "leadRegulator",
     "initiativeTitle",
+    "publicationStatus",
     "theme",
     "internalSubTheme",
     "primaryOwner",
@@ -3912,6 +4463,7 @@ function exportCsv() {
     "stageLabel",
     "impactLevel",
     "relevanceScore",
+    "fmrukEffectLevel",
     "parseConfidence",
     "reviewStatus",
     "reviewer",
@@ -3920,6 +4472,7 @@ function exportCsv() {
     "timelineLabel",
     "timingBucket",
     "expectedKeyMilestones",
+    "sourceLink",
     "fmrukReadThrough",
     "potentialBusinessImpact",
     "rationale",
@@ -5027,6 +5580,27 @@ function collectTimelineDateMatches(text) {
     }
   });
 
+  const halfYearPatterns = [
+    { pattern: /\bfirst half of (\d{4})\b/gi, label: year => `H1 ${year}`, month: 0 },
+    { pattern: /\bsecond half of (\d{4})\b/gi, label: year => `H2 ${year}`, month: 6 },
+    { pattern: /\bmid[- ](\d{4})\b/gi, label: year => `Mid-${year}`, month: 5 },
+    { pattern: /\bend of (\d{4})\b/gi, label: year => `End ${year}`, month: 11 },
+    { pattern: /\bwinter (\d{4})-(\d{2})\b/gi, label: (year, nextYear) => `Winter ${year}-${nextYear}`, month: 11 }
+  ];
+
+  halfYearPatterns.forEach(patternEntry => {
+    let timeMatch = patternEntry.pattern.exec(source);
+    while (timeMatch) {
+      const year = Number(timeMatch[1]);
+      const nextYear = timeMatch[2] ? Number(`20${timeMatch[2]}`) : null;
+      push({
+        label: patternEntry.label(year, nextYear),
+        dateValue: new Date(year, patternEntry.month, 1).getTime()
+      });
+      timeMatch = patternEntry.pattern.exec(source);
+    }
+  });
+
   return matches.sort((a, b) => a.dateValue - b.dateValue);
 }
 
@@ -5046,6 +5620,9 @@ function buildBlob(item) {
     item.initiativeTitle,
     item.initiativeDescription,
     item.expectedKeyMilestones,
+    item.publicationStatus,
+    item.sourceLink,
+    (item.structuredTimeline?.quarterSignals || []).map(signal => `${signal.label} ${signal.status}`).join(" "),
     item.rawText
   ]
     .join(" ")
@@ -5337,10 +5914,19 @@ function isLeadToken(value) {
 
 function buildCanonicalKey(item) {
   return [
-    normaliseWs(item.sectionName).toLowerCase(),
-    normaliseWs(item.leadRegulator).toLowerCase(),
-    normaliseWs(item.initiativeTitle).toLowerCase()
+    normaliseLookupKey(canonicaliseSectionName(item.sectionName)),
+    normaliseLookupKey(item.leadRegulator),
+    looseTitleKey(item.initiativeTitle)
   ].join("|");
+}
+
+function normaliseLookupKey(value) {
+  return normaliseWs(value)
+    .toLowerCase()
+    .replace(/\u00a0/g, " ")
+    .replace(/[’']/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function groupBy(items, getKey) {
