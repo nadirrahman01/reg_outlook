@@ -50,12 +50,21 @@ textarea {
 }
 
 .app-shell {
-  max-width: 1740px;
+  max-width: 1820px;
   margin: 0 auto;
   padding: 22px;
 }
 
 .review-page {
+  display: grid;
+  gap: 18px;
+}
+
+.page-view {
+  display: none;
+}
+
+.page-view.is-active {
   display: grid;
   gap: 18px;
 }
@@ -91,6 +100,38 @@ textarea {
   font-weight: 700;
   color: var(--navy-deep);
   letter-spacing: -0.02em;
+}
+
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topbar-tab {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.topbar-tab.is-active {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: #fff;
 }
 
 .review-page-meta {
@@ -206,14 +247,13 @@ textarea {
 
 .workspace {
   display: grid;
-  grid-template-columns: 336px minmax(0, 1fr);
+  grid-template-columns: 292px minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
 
 .sidebar-column,
-.main-column,
-.detail-column {
+.main-column {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -226,9 +266,28 @@ textarea {
 
 .review-grid {
   display: grid;
-  grid-template-columns: 430px minmax(0, 1fr);
+  grid-template-columns: 468px minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.settings-card {
+  min-width: 0;
+}
+
+.settings-notes-card {
+  grid-column: 1 / -1;
+}
+
+.settings-profile-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .filter-grid,
@@ -392,6 +451,10 @@ textarea:focus {
 
 .search-panel .stack-list {
   margin-top: 10px;
+}
+
+.dense-list li {
+  padding: 12px 14px;
 }
 
 .inbox-card {
@@ -877,7 +940,7 @@ textarea:focus {
 
 .timeline-entry {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   padding: 10px 11px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -923,9 +986,11 @@ textarea:focus {
 }
 
 .timeline-entry-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .timeline-tag {
@@ -970,11 +1035,11 @@ textarea:focus {
 
 @media (max-width: 1500px) {
   .workspace {
-    grid-template-columns: 320px minmax(0, 1fr);
+    grid-template-columns: 280px minmax(0, 1fr);
   }
 
   .review-grid {
-    grid-template-columns: 380px minmax(0, 1fr);
+    grid-template-columns: 400px minmax(0, 1fr);
   }
 }
 
@@ -987,6 +1052,7 @@ textarea:focus {
   .app-header,
   .review-grid,
   .workspace,
+  .settings-layout,
   .detail-meta-grid,
   .detail-grid,
   .feedback-grid {
@@ -996,6 +1062,10 @@ textarea:focus {
 
   .header-actions {
     justify-content: flex-start;
+  }
+
+  .topbar-meta {
+    flex-wrap: wrap;
   }
 
   .initiative-card-header {
@@ -1023,5 +1093,9 @@ textarea:focus {
 
   .timeline-rail {
     grid-auto-columns: minmax(220px, 240px);
+  }
+
+  .settings-profile-grid {
+    grid-template-columns: 1fr;
   }
 }
