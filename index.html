@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FMRUK Regulatory Review</title>
-  <link rel="stylesheet" href="./styles.css?v=18" />
+  <link rel="stylesheet" href="./styles.css?v=19" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -23,7 +23,7 @@
             <button class="topbar-tab is-active" id="navWorkspaceBtn" type="button">Workspace</button>
             <button class="topbar-tab" id="navSettingsBtn" type="button">Settings / Admin</button>
           </nav>
-          <div class="review-page-meta" id="reviewPageMeta">01 Apr 2026, 17:10 · v1.7.0</div>
+          <div class="review-page-meta" id="reviewPageMeta">01 Apr 2026, 17:10 · v1.8.0</div>
         </div>
       </div>
 
@@ -185,25 +185,27 @@
           </aside>
 
           <section class="main-column">
-            <section class="card search-panel">
-              <div class="section-heading compact-heading">
-                <h2>Search</h2>
-              </div>
-              <div class="ask-controls">
-                <input type="text" id="searchInput" placeholder="Search initiatives, owners, obligations or source evidence" />
-                <button class="secondary-btn" id="askBtn" type="button">Search</button>
-              </div>
-              <div class="inline-meta" id="askAnswer">No search run.</div>
-              <ul class="stack-list" id="askResults"></ul>
-            </section>
+            <section class="terminal-control-row">
+              <section class="card search-panel terminal-panel">
+                <div class="section-heading compact-heading">
+                  <h2>Search</h2>
+                </div>
+                <div class="ask-controls">
+                  <input type="text" id="searchInput" placeholder="Search initiatives, owners, obligations or source evidence" />
+                  <button class="secondary-btn" id="askBtn" type="button">Search</button>
+                </div>
+                <div class="inline-meta" id="askAnswer">No search run.</div>
+                <ul class="stack-list" id="askResults"></ul>
+              </section>
 
-            <section class="card workspace-switcher">
-              <div class="workspace-tabs" id="workspaceModeTabs">
-                <button class="workspace-tab is-active" data-workspace-view="monitor" type="button">Monitor</button>
-                <button class="workspace-tab" data-workspace-view="timeline" type="button">Milestones</button>
-                <button class="workspace-tab" data-workspace-view="source" type="button">Source / Evidence</button>
-              </div>
-              <div class="inline-meta" id="workspaceModeMeta">Monitor view keeps the queue, detail and analyst review visible.</div>
+              <section class="card workspace-switcher terminal-panel">
+                <div class="workspace-tabs" id="workspaceModeTabs">
+                  <button class="workspace-tab is-active" data-workspace-view="monitor" type="button">Monitor</button>
+                  <button class="workspace-tab" data-workspace-view="timeline" type="button">Milestones</button>
+                  <button class="workspace-tab" data-workspace-view="source" type="button">Source / Evidence</button>
+                </div>
+                <div class="inline-meta" id="workspaceModeMeta">Monitor view keeps the queue, detail and analyst review visible.</div>
+              </section>
             </section>
 
             <section class="workspace-pane is-active" id="monitorPane">
@@ -359,6 +361,6 @@
     </section>
   </div>
 
-  <script src="./app.js?v=22"></script>
+  <script src="./app.js?v=23"></script>
 </body>
 </html>
