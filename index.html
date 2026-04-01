@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FMRUK Regulatory Review</title>
-  <link rel="stylesheet" href="./styles.css?v=19" />
+  <link rel="stylesheet" href="./styles.css?v=20" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -23,7 +23,7 @@
             <button class="topbar-tab is-active" id="navWorkspaceBtn" type="button">Workspace</button>
             <button class="topbar-tab" id="navSettingsBtn" type="button">Settings / Admin</button>
           </nav>
-          <div class="review-page-meta" id="reviewPageMeta">01 Apr 2026, 17:10 · v1.8.0</div>
+          <div class="review-page-meta" id="reviewPageMeta">01 Apr 2026, 17:10 · v1.9.0</div>
         </div>
       </div>
 
@@ -176,12 +176,6 @@
               <ul class="stack-list" id="clusterList"></ul>
             </section>
 
-            <section class="card delta-panel">
-              <div class="section-heading compact-heading">
-                <h2>Changes</h2>
-              </div>
-              <ul class="stack-list" id="deltaList"></ul>
-            </section>
           </aside>
 
           <section class="main-column">
@@ -300,8 +294,26 @@
                 </select>
               </label>
             </div>
-            <div class="inline-meta" id="settingsStatus">
-              Use Settings/Admin to control weighting, FMRUK effect thresholds, routing bias and entity-profile defaults.
+            <div class="inline-meta" id="settingsStatus"></div>
+          </section>
+
+          <section class="card settings-card">
+            <div class="section-heading compact-heading">
+              <h2>Report metadata</h2>
+            </div>
+            <div class="profile-grid">
+              <label>
+                <span>Analyst name</span>
+                <input type="text" id="reportAnalystName" placeholder="Required for report export" />
+              </label>
+              <label>
+                <span>Role / team</span>
+                <input type="text" id="reportAnalystRole" placeholder="Required for report export" />
+              </label>
+              <label>
+                <span>Contact email</span>
+                <input type="text" id="reportAnalystEmail" placeholder="Required for report export" />
+              </label>
             </div>
           </section>
 
@@ -345,22 +357,11 @@
             </div>
           </section>
 
-          <section class="card settings-card settings-notes-card">
-            <div class="section-heading compact-heading">
-              <h2>How the model uses these settings</h2>
-            </div>
-            <ul class="stack-list dense-list">
-              <li>Priority weighting changes how strongly the queue responds to relevance, operational impact, timing pressure and delivery burden.</li>
-              <li>FMRUK effect mode changes how strict the system is when deciding whether an initiative has a live effect on FMRUK or should stay on the watchlist.</li>
-              <li>Ownership bias changes routing defaults when the source text is ambiguous and more than one owner would be plausible.</li>
-              <li>The FMRUK footprint fields bias scoring toward the UK entity’s actual business lines, permissions, products, third-party dependencies and committee structure.</li>
-            </ul>
-          </section>
         </main>
       </section>
     </section>
   </div>
 
-  <script src="./app.js?v=23"></script>
+  <script src="./app.js?v=25"></script>
 </body>
 </html>
