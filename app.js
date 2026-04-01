@@ -4,8 +4,21 @@ const FEEDBACK_KEY = "fmruk_feedback_v10";
 const PDF_DB_NAME = "fmruk_pdf_workspace";
 const PDF_STORE_NAME = "pdfs";
 const PDF_RECORD_KEY = "current_pdf";
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.8.0";
 const APP_UPDATED_AT = "01 April 2026";
+const REPORT_LOGO_PATH = "./assets/fidelity-investments-3.svg";
+const REPORT_LOGO_FALLBACK_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="72" viewBox="0 0 320 72" fill="none">
+  <rect width="320" height="72" fill="white"/>
+  <g transform="translate(8 10)">
+    <circle cx="24" cy="26" r="21" fill="#111111"/>
+    <path d="M24 6 L28 20 L40 10 L32 24 L47 26 L32 29 L41 42 L28 33 L24 47 L20 33 L8 42 L16 29 L1 26 L16 24 L8 10 L20 20 Z" fill="white"/>
+    <path d="M20 27 L29 46 L18 46 Z" fill="#d6d6d6"/>
+  </g>
+  <text x="64" y="37" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#111111">Fidelity</text>
+  <text x="65" y="54" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="700" letter-spacing="2.2" fill="#111111">INVESTMENTS</text>
+</svg>
+`;
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -1857,43 +1870,76 @@ function mergeStructuredAndPdfItems(excelItems, pdfItems) {
 
   const usedPdfKeys = new Set();
   return excelItems.map(item => {
-    const match = findSupportingPdfMatch(item, pdfItems, usedPdfKeys);
-    if (!match) return item;
-    usedPdfKeys.add(`${match.canonicalKey}|${match.id}`);
-    return mergeStructuredItemWithPdf(item, match);
+    const candidates = findSupportingPdfCandidates(item, pdfItems, usedPdfKeys);
+    const primary = candidates.find(candidate => candidate.score >= 62 && !candidate.used) || null;
+    const fallback = candidates.find(candidate => candidate.score >= 18) || null;
+
+    if (primary) {
+      usedPdfKeys.add(`${primary.item.canonicalKey}|${primary.item.id}`);
+      return mergeStructuredItemWithPdf(item, primary.item, primary, candidates);
+    }
+
+    if (fallback) {
+      return attachPdfFallback(item, fallback.item, fallback, candidates);
+    }
+
+    return item;
   });
 }
 
-function findSupportingPdfMatch(structuredItem, pdfItems, usedPdfKeys) {
-  let bestMatch = null;
-  let bestScore = 0;
-
-  pdfItems.forEach(pdfItem => {
-    const usedKey = `${pdfItem.canonicalKey}|${pdfItem.id}`;
-    if (usedPdfKeys.has(usedKey)) return;
-
-    let score = 0;
-    if (pdfItem.canonicalKey === structuredItem.canonicalKey) score += 100;
-    if (looseTitleKey(pdfItem.initiativeTitle) === looseTitleKey(structuredItem.initiativeTitle)) score += 40;
-    if (pdfItem.sectionName === structuredItem.sectionName) score += 12;
-    if (pdfItem.leadRegulator === structuredItem.leadRegulator) score += 12;
-    if (
-      looseTitleKey(pdfItem.initiativeTitle).includes(looseTitleKey(structuredItem.initiativeTitle)) ||
-      looseTitleKey(structuredItem.initiativeTitle).includes(looseTitleKey(pdfItem.initiativeTitle))
-    ) {
-      score += 18;
-    }
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = pdfItem;
-    }
-  });
-
-  return bestScore >= 62 ? bestMatch : null;
+function findSupportingPdfCandidates(structuredItem, pdfItems, usedPdfKeys) {
+  return pdfItems
+    .map(pdfItem => {
+      const usedKey = `${pdfItem.canonicalKey}|${pdfItem.id}`;
+      return {
+        item: pdfItem,
+        score: scorePdfSupportMatch(structuredItem, pdfItem),
+        used: usedPdfKeys.has(usedKey)
+      };
+    })
+    .filter(candidate => candidate.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
 }
 
-function mergeStructuredItemWithPdf(structuredItem, pdfItem) {
+function scorePdfSupportMatch(structuredItem, pdfItem) {
+  let score = 0;
+  const structuredTitle = looseTitleKey(structuredItem.initiativeTitle);
+  const pdfTitle = looseTitleKey(pdfItem.initiativeTitle);
+  const structuredTokens = structuredTitle.split(" ").filter(Boolean);
+  const pdfTokens = new Set(pdfTitle.split(" ").filter(Boolean));
+  const overlapCount = structuredTokens.filter(token => pdfTokens.has(token)).length;
+  const overlapRatio = structuredTokens.length ? overlapCount / structuredTokens.length : 0;
+
+  if (pdfItem.canonicalKey === structuredItem.canonicalKey) score += 110;
+  if (pdfTitle === structuredTitle) score += 42;
+  if (pdfItem.sectionName === structuredItem.sectionName) score += 14;
+  if (pdfItem.subcategory === structuredItem.subcategory && structuredItem.subcategory) score += 8;
+  if (pdfItem.leadRegulator === structuredItem.leadRegulator && structuredItem.leadRegulator) score += 14;
+  if (
+    pdfTitle.includes(structuredTitle) ||
+    structuredTitle.includes(pdfTitle)
+  ) {
+    score += 18;
+  }
+  if (overlapRatio >= 0.75) score += 22;
+  else if (overlapRatio >= 0.5) score += 12;
+  else if (overlapRatio >= 0.34) score += 6;
+
+  if (
+    normaliseWs(pdfItem.expectedKeyMilestones).slice(0, 40) &&
+    normaliseWs(structuredItem.expectedKeyMilestones).slice(0, 40) &&
+    normaliseWs(pdfItem.expectedKeyMilestones).toLowerCase().includes(
+      normaliseWs(structuredItem.expectedKeyMilestones).toLowerCase().slice(0, 24)
+    )
+  ) {
+    score += 8;
+  }
+
+  return score;
+}
+
+function mergeStructuredItemWithPdf(structuredItem, pdfItem, match, candidates) {
   return {
     ...structuredItem,
     sourceType: "Excel + PDF",
@@ -1914,7 +1960,36 @@ function mergeStructuredItemWithPdf(structuredItem, pdfItem) {
           `${structuredItem.expectedKeyMilestones || ""} ${pdfItem.expectedKeyMilestones || ""} ${pdfItem.initiativeDescription || ""}`
         )
       )
-    }
+    },
+    pdfSupport: buildPdfSupportRecord(pdfItem, match, candidates)
+  };
+}
+
+function attachPdfFallback(structuredItem, pdfItem, match, candidates) {
+  return {
+    ...structuredItem,
+    sourceType: "Excel + PDF",
+    sourcePages: structuredItem.sourcePages?.length ? structuredItem.sourcePages : (pdfItem.sourcePages || []),
+    evidence:
+      flattenEvidence(structuredItem.evidence || {}).length
+        ? structuredItem.evidence
+        : (flattenEvidence(pdfItem.evidence || {}).length ? pdfItem.evidence : structuredItem.evidence),
+    pdfSupport: buildPdfSupportRecord(pdfItem, match, candidates)
+  };
+}
+
+function buildPdfSupportRecord(pdfItem, match, candidates) {
+  return {
+    matchedTitle: pdfItem.initiativeTitle,
+    matchScore: Math.round(match?.score || 0),
+    matchStrength: match?.score >= 88 ? "Strong match" : match?.score >= 62 ? "Matched support" : "Best available support",
+    sourcePages: pdfItem.sourcePages || [],
+    evidence: pdfItem.evidence || emptyEvidenceSet(),
+    alternatives: (candidates || []).slice(0, 3).map(candidate => ({
+      title: candidate.item.initiativeTitle,
+      score: Math.round(candidate.score),
+      pages: candidate.item.sourcePages || []
+    }))
   };
 }
 
@@ -4224,13 +4299,18 @@ function renderPdfEvidence(item) {
     return;
   }
 
-  const evidence = getEvidenceForFields(item, ["title", "lead", "description", "milestones", "impact", "timing", "isNew"], 20);
-  if (!evidence.length) {
-    els.pdfPreviewStatus.textContent = "PDF loaded, but no evidence links were matched to this initiative.";
+  const evidenceState = resolvePdfEvidenceState(item);
+  const evidence = evidenceState.entries;
+
+  if (!evidence.length && !(evidenceState.pages || []).length) {
+    els.pdfPreviewStatus.textContent = "PDF loaded, but no usable source pages were identified for this initiative.";
     return;
   }
 
-  if (!state.currentPdfHighlightKey || !evidence.find(entry => entry.key === state.currentPdfHighlightKey)) {
+  if (
+    evidence.length &&
+    (!state.currentPdfHighlightKey || !evidence.find(entry => entry.key === state.currentPdfHighlightKey))
+  ) {
     state.currentPdfHighlightKey = evidence[0].key;
   }
 
@@ -4248,13 +4328,67 @@ function renderPdfEvidence(item) {
     els.evidenceTrail.appendChild(button);
   });
 
-  renderPdfPreview(item, evidence).catch(err => {
+  if (evidenceState.note) {
+    els.pdfPreviewStatus.textContent = evidenceState.note;
+  }
+
+  renderPdfPreview(item, evidence, evidenceState.pages).catch(err => {
     console.error(err);
     els.pdfPreviewStatus.textContent = "Preview could not be rendered.";
   });
 }
 
-async function renderPdfPreview(item, evidence) {
+function resolvePdfEvidenceState(item) {
+  const directEvidence = getEvidenceForFields(
+    item,
+    ["title", "lead", "description", "milestones", "impact", "timing", "isNew", "general"],
+    24
+  );
+  if (directEvidence.length) {
+    return {
+      entries: directEvidence,
+      pages: item.sourcePages || [],
+      note: `Pages ${(item.sourcePages || []).slice(0, 4).join(", ")}`
+    };
+  }
+
+  if (item.pdfSupport) {
+    const supportEvidence = getEvidenceEntriesFromSupport(item.pdfSupport);
+    const pages = item.pdfSupport.sourcePages || [];
+    const note = `${item.pdfSupport.matchStrength}: ${item.pdfSupport.matchedTitle}${pages.length ? ` · pages ${pages.join(", ")}` : ""}`;
+    return {
+      entries: supportEvidence,
+      pages,
+      note
+    };
+  }
+
+  return {
+    entries: [],
+    pages: item.sourcePages || [],
+    note: ""
+  };
+}
+
+function getEvidenceEntriesFromSupport(pdfSupport) {
+  const entries = flattenEvidence(pdfSupport?.evidence || {});
+  if (entries.length) {
+    return entries.slice(0, 20);
+  }
+
+  return (pdfSupport?.sourcePages || []).slice(0, 4).map((pageNumber, index) => ({
+    key: `fallback:${pageNumber}:${index}`,
+    field: "general",
+    pageNumber,
+    excerpt: `Best matched PDF support: ${pdfSupport?.matchedTitle || "Related initiative"}`,
+    x1: null,
+    x2: null,
+    y: null,
+    pageWidth: null
+  }));
+}
+
+async function renderPdfPreview(item, evidence, overridePages) {
   els.pdfPreview.innerHTML = "";
 
   if (!state.pdfDocument) {
@@ -4262,13 +4396,15 @@ async function renderPdfPreview(item, evidence) {
     return;
   }
 
-  const pages = item.sourcePages?.length ? item.sourcePages.slice(0, 4) : [];
+  const pages = (overridePages?.length ? overridePages : item.sourcePages || []).slice(0, 4);
   if (!pages.length) {
     els.pdfPreviewStatus.textContent = "No source pages captured.";
     return;
   }
 
-  els.pdfPreviewStatus.textContent = `Pages ${pages.join(", ")}`;
+  if (!els.pdfPreviewStatus.textContent) {
+    els.pdfPreviewStatus.textContent = `Pages ${pages.join(", ")}`;
+  }
   const activeEvidence = evidence.find(entry => entry.key === state.currentPdfHighlightKey);
   const token = ++state.pdfRenderToken;
 
@@ -4305,6 +4441,9 @@ async function renderPdfPreview(item, evidence) {
     evidence
       .filter(entry => entry.pageNumber === pageNumber)
       .forEach(entry => {
+        if (!Number.isFinite(entry?.x1) || !Number.isFinite(entry?.x2) || !Number.isFinite(entry?.y) || !Number.isFinite(entry?.pageWidth)) {
+          return;
+        }
         const highlight = document.createElement("div");
         highlight.className = "pdf-highlight";
         if (entry.key === activeEvidence?.key) highlight.classList.add("active");
@@ -4498,7 +4637,7 @@ function exportCsv() {
   downloadTextFile("fmruk-regulatory-intelligence.csv", lines.join("\n"), "text/csv;charset=utf-8;");
 }
 
-function exportBoardBrief() {
+async function exportBoardBrief() {
   const filtered = state.filtered.filter(item =>
     item.immediateActionRequired ||
     ["Critical", "High"].includes(item.priorityBand) ||
@@ -4517,7 +4656,7 @@ function exportBoardBrief() {
     return;
   }
 
-  const doc = buildReportPdf({
+  const doc = await buildReportPdf({
     kind: "board",
     title: "FMRUK Regulatory Board Brief",
     subtitle: "Portfolio position, management read-through, priority actions and control points from the current FCA initiatives review.",
@@ -4530,7 +4669,7 @@ function exportBoardBrief() {
   doc.save(`fmruk-board-brief-${stamp}.pdf`);
 }
 
-function exportOwnerPack() {
+async function exportOwnerPack() {
   const relevantItems = sortItems(
     state.filtered.filter(item =>
       item.isFmrukRelevant ||
@@ -4551,10 +4690,10 @@ function exportOwnerPack() {
     return;
   }
 
-  const doc = buildReportPdf({
+  const doc = await buildReportPdf({
     kind: "owner",
     title: "FMRUK Owner Pack",
-    subtitle: "Owner actions, timings and review controls.",
+    subtitle: "Owner actions, timings, source references and review controls for the current regulatory queue.",
     audience: `${getPriorityModeConfig().label} weighting`,
     items: relevantItems,
     summaryText: buildPortfolioNarrative(relevantItems)
@@ -4568,7 +4707,7 @@ function getPdfConstructor() {
   return window.jspdf?.jsPDF || null;
 }
 
-function buildReportPdf(config) {
+async function buildReportPdf(config) {
   const JsPDF = getPdfConstructor();
   const doc = new JsPDF({
     unit: "pt",
@@ -4576,46 +4715,79 @@ function buildReportPdf(config) {
     compress: true
   });
 
-  const ctx = createPdfContext(doc, config);
-  drawReportCover(ctx, config);
-  startPdfPage(ctx, "Portfolio position");
+  const ctx = await createPdfContext(doc, config);
+  await drawReportCover(ctx, config);
+  addReportSectionDivider(
+    ctx,
+    config.kind === "board" ? "Executive overview" : "Owner overview",
+    config.kind === "board" ? "Current regulatory position" : "Current owner action set",
+    config.summaryText
+  );
   addOverviewSection(ctx, config);
 
   if (config.kind === "board") {
+    addReportSectionDivider(
+      ctx,
+      "Movement",
+      "Changes since the previous upload",
+      "This section highlights new items, timing changes and initiatives where management attention may need to shift."
+    );
     addMovementSection(ctx, config);
+    addReportSectionDivider(
+      ctx,
+      "Priority items",
+      "Meeting discussion notes",
+      "The following pages convert the filtered queue into meeting-ready initiative notes with FMRUK effect, actions, review status and source references."
+    );
     addMaterialInitiativeSection(ctx, config.items);
-    addPortfolioAuditSection(ctx, config.items, "Board review points");
   } else {
+    addReportSectionDivider(
+      ctx,
+      "Owner queues",
+      "Function-level action coverage",
+      "The following sections group the current review set by primary owner and carry forward action ownership, due dates and review status."
+    );
     addOwnerSummarySection(ctx, config.items);
     addOwnerDetailSections(ctx, config.items);
-    addPortfolioAuditSection(ctx, config.items, "Owner control points");
   }
 
+  addReportSectionDivider(
+    ctx,
+    "Validation",
+    config.kind === "board" ? "Board review points" : "Owner control points",
+    "Validation sections surface low-confidence extraction, incomplete milestones and items still requiring challenge before action is closed."
+  );
+  addPortfolioAuditSection(ctx, config.items, config.kind === "board" ? "Board review points" : "Owner control points");
+  addEvidenceAppendixSection(ctx, config.items);
   addMethodologySection(ctx, config);
   applyPdfPageNumbers(doc, config.title);
   return doc;
 }
 
-function createPdfContext(doc, config) {
+async function createPdfContext(doc, config) {
   return {
     doc,
     pageWidth: doc.internal.pageSize.getWidth(),
     pageHeight: doc.internal.pageSize.getHeight(),
-    margin: 46,
-    contentWidth: doc.internal.pageSize.getWidth() - 92,
-    y: 64,
+    margin: 52,
+    contentWidth: doc.internal.pageSize.getWidth() - 104,
+    y: 72,
     colors: {
-      navy: [23, 58, 89],
-      navyDeep: [16, 39, 61],
-      teal: [42, 109, 123],
-      gold: [141, 109, 38],
-      red: [161, 69, 69],
-      green: [47, 119, 80],
-      text: [23, 38, 56],
-      soft: [95, 111, 131],
-      line: [215, 223, 231],
-      lineStrong: [197, 208, 220],
-      panel: [247, 249, 251],
+      ink: [17, 24, 34],
+      navy: [24, 49, 78],
+      navyDeep: [15, 30, 48],
+      teal: [56, 92, 104],
+      gold: [125, 101, 42],
+      red: [146, 57, 57],
+      green: [43, 110, 73],
+      text: [27, 36, 48],
+      soft: [95, 107, 121],
+      faint: [129, 139, 149],
+      line: [221, 225, 230],
+      lineStrong: [192, 199, 208],
+      panel: [247, 248, 250],
+      graphic: [208, 210, 214],
+      footer: [20, 20, 20],
       white: [255, 255, 255]
     },
     datasetLabel: state.datasetMeta?.fileName || "Current filtered dataset",
@@ -4624,66 +4796,164 @@ function createPdfContext(doc, config) {
     preparedAt: formatDate(new Date().toISOString()),
     profileMode: getPriorityModeConfig().label,
     effectMode: getEffectModeConfig().label,
-    ownershipMode: getOwnershipModeConfig().label
+    ownershipMode: getOwnershipModeConfig().label,
+    assets: await prepareReportAssets()
   };
 }
 
+async function prepareReportAssets() {
+  const [logo, coverGraphic] = await Promise.all([
+    loadReportSvgAsset(REPORT_LOGO_PATH, REPORT_LOGO_FALLBACK_SVG, 280, 64),
+    svgToPngDataUrl(buildReportCoverGraphicSvg(900, 900), 900, 900)
+  ]);
+
+  return {
+    logo,
+    coverGraphic
+  };
+}
+
+async function loadReportSvgAsset(path, fallbackSvg, width, height) {
+  let svgText = fallbackSvg;
+  try {
+    const response = await fetch(path, { cache: "no-store" });
+    if (response.ok) {
+      const loaded = await response.text();
+      if (loaded.includes("<svg")) {
+        svgText = loaded;
+      }
+    }
+  } catch (err) {
+    console.warn("Report asset fallback used.", err);
+  }
+  return svgToPngDataUrl(svgText, width, height);
+}
+
+async function svgToPngDataUrl(svgText, width, height) {
+  if (!svgText || typeof document === "undefined") return "";
+
+  return new Promise(resolve => {
+    const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    const image = new Image();
+
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.clearRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+      }
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/png"));
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve("");
+    };
+
+    image.src = url;
+  });
+}
+
+function buildReportCoverGraphicSvg(width, height) {
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <rect width="${width}" height="${height}" fill="#ffffff"/>
+      <g transform="translate(360 120)">
+        <path d="M281 35C382 92 452 199 453 324C454 441 391 546 291 608L250 563C331 515 385 427 384 325C384 229 331 144 254 97L281 35Z" fill="#cdced2"/>
+        <circle cx="180" cy="205" r="180" fill="#cdced2"/>
+        <path d="M179 41 L212 154 L306 82 L234 178 L352 201 L232 209 L300 323 L210 249 L178 363 L145 249 L54 323 L123 209 L3 201 L121 178 L49 82 L143 154 Z" fill="#ffffff"/>
+        <path d="M154 196 L204 318 L142 318 Z" fill="#b5b7bc"/>
+        <rect x="146" y="318" width="116" height="20" fill="#b5b7bc"/>
+      </g>
+    </svg>
+  `;
+}
+
 function drawReportCover(ctx, config) {
-  const { doc, pageWidth, pageHeight, colors, margin } = ctx;
-
-  doc.setFillColor(...colors.navyDeep);
-  doc.rect(0, 0, pageWidth, 110, "F");
-  doc.setFillColor(...colors.teal);
-  doc.rect(0, 110, pageWidth, 4, "F");
-
-  doc.setTextColor(...colors.white);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.text("FIDELITY INVESTMENTS", margin, 36);
-  doc.setFontSize(26);
-  doc.text(config.title, margin, 68);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  const subtitleLines = doc.splitTextToSize(config.subtitle, pageWidth - margin * 2);
-  doc.text(subtitleLines, margin, 90);
-
-  const panelTop = 148;
-  const panelHeight = 146;
-  doc.setFillColor(...colors.white);
-  doc.setDrawColor(...colors.lineStrong);
-  doc.roundedRect(margin, panelTop, pageWidth - margin * 2, panelHeight, 10, 10, "FD");
-
-  const metaRows = [
-    ["Prepared", ctx.preparedAt],
-    ["Source dataset", ctx.datasetLabel],
-    ["Priority weighting", ctx.profileMode],
-    ["FMRUK effect mode", ctx.effectMode],
-    ["Ownership bias", ctx.ownershipMode],
-    ["Items in scope", String(config.items.length)],
-    ["Parser", state.datasetMeta?.parserVersion || "Current version"],
-    ["Build", `v${APP_VERSION} · ${APP_UPDATED_AT}`]
+  const { doc, pageWidth, pageHeight, colors, margin, assets } = ctx;
+  const titleLines = doc.splitTextToSize(config.title, 240);
+  const subtitleLines = doc.splitTextToSize(config.subtitle, 240);
+  const reportLabel = config.kind === "board" ? "Board report" : "Owner report";
+  const metaLines = [
+    `Prepared ${ctx.preparedAt}`,
+    `${config.items.length} initiatives in current scope`,
+    `${ctx.profileMode} priority weighting`,
+    `${ctx.effectMode} FMRUK effect mode`
   ];
 
-  let metaY = panelTop + 26;
-  metaRows.forEach((row, index) => {
-    const x = margin + 18 + (index % 2) * ((pageWidth - margin * 2 - 36) / 2);
-    if (index > 0 && index % 2 === 0) metaY += 28;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...colors.soft);
-    doc.text(row[0].toUpperCase(), x, metaY);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    doc.setTextColor(...colors.text);
-    doc.text(truncateText(row[1], 56), x, metaY + 13);
-  });
+  doc.setFillColor(...colors.white);
+  doc.rect(0, 0, pageWidth, pageHeight, "F");
 
-  drawPdfMetrics(ctx, buildPdfMetrics(config.items), panelTop + panelHeight + 20, 94, 2);
+  if (assets.coverGraphic) {
+    try {
+      doc.addImage(
+        assets.coverGraphic,
+        "PNG",
+        pageWidth - 324,
+        118,
+        290,
+        420,
+        undefined,
+        "FAST"
+      );
+    } catch (err) {
+      console.warn("Cover graphic failed to render.", err);
+    }
+  }
 
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...colors.ink);
+  doc.text("FMRUK REGULATORY REVIEW", margin, 70);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(24);
+  doc.text(titleLines, margin, 118);
+
+  const titleHeight = titleLines.length * 26;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text(reportLabel, margin, 168 + titleHeight);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12.5);
+  doc.setTextColor(...colors.text);
+  doc.text(subtitleLines, margin, 194 + titleHeight);
+
+  let metaY = 282 + titleHeight;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.setTextColor(...colors.ink);
+  doc.text(APP_UPDATED_AT, margin, metaY);
+  metaY += 18;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
   doc.setTextColor(...colors.soft);
-  doc.text("Prepared from the current filtered review set.", margin, pageHeight - 24);
+  doc.text("Prepared for internal Fidelity governance and working-group review.", margin, metaY);
+  metaY += 26;
+
+  metaLines.forEach(line => {
+    doc.text(line, margin, metaY);
+    metaY += 14;
+  });
+
+  if (assets.logo) {
+    try {
+      doc.addImage(assets.logo, "PNG", margin, pageHeight - 84, 142, 32, undefined, "FAST");
+    } catch (err) {
+      console.warn("Logo failed to render.", err);
+    }
+  } else {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(...colors.ink);
+    doc.text("Fidelity Investments", margin, pageHeight - 56);
+  }
 }
 
 function buildPdfMetrics(items) {
@@ -4704,53 +4974,93 @@ function buildPdfMetrics(items) {
   ];
 }
 
-function drawPdfMetrics(ctx, metrics, y, boxHeight, columns) {
-  const { doc, pageWidth, margin, colors } = ctx;
-  const gap = 14;
-  const columnWidth = (pageWidth - margin * 2 - gap * (columns - 1)) / columns;
-  metrics.forEach((metric, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const x = margin + column * (columnWidth + gap);
-    const top = y + row * (boxHeight + gap);
+function drawReportMetricStrip(ctx, metrics) {
+  const { doc, margin, contentWidth, colors } = ctx;
+  const gap = 10;
+  const columnWidth = (contentWidth - gap * (metrics.length - 1)) / metrics.length;
+  ensurePdfSpace(ctx, 74);
 
+  metrics.forEach((metric, index) => {
+    const x = margin + index * (columnWidth + gap);
     doc.setFillColor(...colors.panel);
     doc.setDrawColor(...colors.line);
-    doc.roundedRect(x, top, columnWidth, boxHeight, 8, 8, "FD");
+    doc.rect(x, ctx.y, columnWidth, 58, "FD");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...colors.soft);
-    doc.text(metric.label.toUpperCase(), x + 14, top + 20);
+    doc.setFontSize(8.5);
+    doc.setTextColor(...colors.faint);
+    doc.text(metric.label.toUpperCase(), x + 12, ctx.y + 16);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(24);
+    doc.setFontSize(20);
     doc.setTextColor(...colors.navyDeep);
-    doc.text(metric.value, x + 14, top + 58);
+    doc.text(metric.value, x + 12, ctx.y + 41);
   });
+
+  ctx.y += 76;
+}
+
+function addReportSectionDivider(ctx, kicker, title, copy) {
+  const { doc, pageWidth, pageHeight, margin, colors, assets } = ctx;
+  doc.addPage();
+  doc.setFillColor(...colors.white);
+  doc.rect(0, 0, pageWidth, pageHeight, "F");
+
+  doc.setDrawColor(...colors.lineStrong);
+  doc.line(margin, 86, pageWidth - margin, 86);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...colors.faint);
+  doc.text(kicker.toUpperCase(), margin, 70);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(28);
+  doc.setTextColor(...colors.ink);
+  doc.text(doc.splitTextToSize(title, 250), margin, 148);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  doc.setTextColor(...colors.text);
+  doc.text(doc.splitTextToSize(copy, 260), margin, 206);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(...colors.faint);
+  doc.text(ctx.datasetLabel, margin, pageHeight - 104);
+  doc.text(`${ctx.profileMode} · ${ctx.effectMode}`, margin, pageHeight - 88);
+
+  if (assets.coverGraphic) {
+    try {
+      doc.addImage(assets.coverGraphic, "PNG", pageWidth - 255, 145, 210, 310, undefined, "FAST");
+    } catch (err) {
+      console.warn("Section graphic failed to render.", err);
+    }
+  }
+
+  startPdfPage(ctx, title);
 }
 
 function startPdfPage(ctx, label) {
   const { doc, pageWidth, margin, colors } = ctx;
   doc.addPage();
   ctx.activeHeader = label;
-  ctx.y = 74;
-
-  doc.setFillColor(...colors.panel);
-  doc.rect(0, 0, pageWidth, 56, "F");
-  doc.setDrawColor(...colors.line);
-  doc.line(margin, 56, pageWidth - margin, 56);
+  ctx.y = 82;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(...colors.teal);
-  doc.text(label.toUpperCase(), margin, 24);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(...colors.navyDeep);
-  doc.text(ctx.datasetLabel, margin, 44);
+  doc.setFontSize(8.5);
+  doc.setTextColor(...colors.faint);
+  doc.text("FMRUK REGULATORY REVIEW", margin, 34);
+  doc.text(label.toUpperCase(), pageWidth - margin, 34, { align: "right" });
+
+  doc.setDrawColor(...colors.lineStrong);
+  doc.line(margin, 46, pageWidth - margin, 46);
+
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(9.2);
   doc.setTextColor(...colors.soft);
-  doc.text(`${ctx.profileMode} · ${ctx.effectMode}`, pageWidth - margin, 24, { align: "right" });
+  doc.text(ctx.datasetLabel, margin, 62);
+  doc.text(`${ctx.profileMode} · ${ctx.effectMode} · ${ctx.ownershipMode}`, pageWidth - margin, 62, {
+    align: "right"
+  });
 }
 
 function ensurePdfSpace(ctx, neededHeight) {
@@ -4759,18 +5069,18 @@ function ensurePdfSpace(ctx, neededHeight) {
 }
 
 function addPdfSectionTitle(ctx, kicker, title) {
-  ensurePdfSpace(ctx, 48);
+  ensurePdfSpace(ctx, 54);
   const { doc, margin, colors } = ctx;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(...colors.teal);
+  doc.setFontSize(8.5);
+  doc.setTextColor(...colors.faint);
   doc.text(kicker.toUpperCase(), margin, ctx.y);
-  ctx.y += 16;
+  ctx.y += 18;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.setTextColor(...colors.navyDeep);
+  doc.setFontSize(22);
+  doc.setTextColor(...colors.ink);
   doc.text(title, margin, ctx.y);
-  ctx.y += 22;
+  ctx.y += 24;
 }
 
 function addPdfParagraph(ctx, text, options = {}) {
@@ -4784,7 +5094,7 @@ function addPdfParagraph(ctx, text, options = {}) {
 
   doc.setFont(font, style);
   doc.setFontSize(size);
-  doc.setTextColor(...(options.color || colors.soft));
+  doc.setTextColor(...(options.color || colors.text));
   const lines = doc.splitTextToSize(text, width);
   ensurePdfSpace(ctx, lines.length * (size + 2) + gap);
   doc.text(lines, x, ctx.y);
@@ -4809,6 +5119,7 @@ function addPdfBulletList(ctx, items, options = {}) {
 function addOverviewSection(ctx, config) {
   addPdfSectionTitle(ctx, "Portfolio position", "Current review set");
   addPdfParagraph(ctx, config.summaryText, { color: ctx.colors.text, size: 11 });
+  drawReportMetricStrip(ctx, buildPdfMetrics(config.items));
 
   const queueRows = sortItems(config.items)
     .slice(0, 8)
@@ -5005,7 +5316,7 @@ function addMethodologySection(ctx, config) {
   addPdfBulletList(
     ctx,
     [
-      `Source: FCA initiatives grid PDF parsed into lead regulator, title, description, milestone, impact and timing fields.`,
+      `Source: FCA Regulatory Initiatives Grid using Excel as the structured source where available, with PDF used for source context, page support and evidence matching.`,
       `Priority model: ${ctx.profileMode} weighting applied across relevance, impact, urgency and delivery change.`,
       `FMRUK effect mode: ${ctx.effectMode}. Ownership bias: ${ctx.ownershipMode}.`,
       "Relevance uses the saved FMRUK footprint plus effect-mode thresholds to determine whether an item is direct, material, conditional, watchlist or out of scope.",
@@ -5062,43 +5373,45 @@ function addInitiativeCard(ctx, item, index, mode) {
     lines: doc.splitTextToSize(copy, contentWidth - 30)
   }));
   const boxHeight =
-    22 +
+    26 +
     titleLines.length * 16 +
     metaLines.length * 11 +
-    sectionLayouts.reduce((sum, section) => sum + 16 + section.lines.length * 12 + 8, 0) +
-    12;
+    sectionLayouts.reduce((sum, section) => sum + 16 + section.lines.length * 12 + 10, 0) +
+    16;
 
   ensurePdfSpace(ctx, boxHeight + 12);
 
   doc.setFillColor(...colors.white);
-  doc.setDrawColor(...colors.lineStrong);
-  doc.roundedRect(margin, ctx.y, contentWidth, boxHeight, 8, 8, "FD");
+  doc.setDrawColor(...colors.line);
+  doc.rect(margin, ctx.y, contentWidth, boxHeight, "FD");
+  doc.setFillColor(...colors.navyDeep);
+  doc.rect(margin, ctx.y, 4, boxHeight, "F");
 
   let cursorY = ctx.y + 18;
-  doc.setTextColor(...colors.navyDeep);
+  doc.setTextColor(...colors.ink);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
-  doc.text(titleLines, margin + 15, cursorY);
+  doc.text(titleLines, margin + 18, cursorY);
   cursorY += titleLines.length * 16;
 
   doc.setTextColor(...colors.soft);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
-  doc.text(metaLines, margin + 15, cursorY);
-  cursorY += metaLines.length * 11 + 10;
+  doc.text(metaLines, margin + 18, cursorY);
+  cursorY += metaLines.length * 11 + 12;
 
   sectionLayouts.forEach(section => {
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(...colors.teal);
-    doc.text(section.heading.toUpperCase(), margin + 15, cursorY);
+    doc.setFontSize(8.8);
+    doc.setTextColor(...colors.faint);
+    doc.text(section.heading.toUpperCase(), margin + 18, cursorY);
     cursorY += 12;
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10.2);
     doc.setTextColor(...colors.text);
-    doc.text(section.lines, margin + 15, cursorY);
-    cursorY += section.lines.length * 12 + 10;
+    doc.text(section.lines, margin + 18, cursorY);
+    cursorY += section.lines.length * 12 + 12;
   });
 
   ctx.y += boxHeight + 12;
@@ -5142,9 +5455,26 @@ function buildReportReviewText(item, mode) {
 }
 
 function buildReportSourceText(item) {
-  const pages = item.sourcePages?.length ? item.sourcePages.join(", ") : "N/A";
+  const pageList = item.sourcePages?.length
+    ? item.sourcePages
+    : (item.pdfSupport?.sourcePages || []);
+  const pages = pageList.length ? pageList.join(", ") : "";
+  const support = item.pdfSupport
+    ? `${item.pdfSupport.matchStrength.toLowerCase()} to "${item.pdfSupport.matchedTitle}".`
+    : "No separate PDF support note recorded.";
+  const structuredLink = item.sourceLink ? `Structured link available: ${truncateText(item.sourceLink, 90)}.` : "";
   const milestone = item.expectedKeyMilestones || item.timeline?.raw || "No clear milestone extracted.";
-  return `Lead regulator: ${item.leadRegulator || "Not isolated"}. Section: ${item.sectionName || "N/A"}. Timing reference: ${truncateText(milestone, 150)} Evidence pages: ${pages}.`;
+
+  return [
+    `Source type: ${item.sourceType || state.datasetMeta?.preferredSource || "Structured dataset"}.`,
+    `Lead regulator: ${item.leadRegulator || "Not isolated"}. Section: ${item.sectionName || "N/A"}.`,
+    pages ? `PDF pages: ${pages}.` : "No PDF page set was isolated directly.",
+    support,
+    `Timing reference: ${truncateText(milestone, 140)}.`,
+    structuredLink
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function getReportReviewStatus(item) {
@@ -5211,15 +5541,19 @@ function addTableSection(ctx, title, head, body) {
         font: "helvetica",
         fontSize: 9,
         cellPadding: 6,
-        textColor: ctx.colors.text
+        textColor: ctx.colors.text,
+        lineColor: ctx.colors.line,
+        lineWidth: 0.35
       },
       headStyles: {
-        fillColor: ctx.colors.navy,
-        textColor: 255,
-        fontStyle: "bold"
+        fillColor: ctx.colors.panel,
+        textColor: ctx.colors.ink,
+        fontStyle: "bold",
+        lineColor: ctx.colors.lineStrong,
+        lineWidth: 0.45
       },
       alternateRowStyles: {
-        fillColor: [248, 250, 252]
+        fillColor: [250, 251, 252]
       }
     });
     ctx.y = doc.lastAutoTable.finalY + 18;
@@ -5231,19 +5565,58 @@ function addTableSection(ctx, title, head, body) {
   });
 }
 
+function addEvidenceAppendixSection(ctx, items) {
+  addPdfSectionTitle(ctx, "Evidence", "Source references");
+  addPdfParagraph(
+    ctx,
+    "This appendix lists the structured source, matched PDF support and page references carried into the current filtered review set.",
+    { color: ctx.colors.text, size: 11 }
+  );
+
+  const rows = sortItems(items).map(item => [
+    truncateText(item.initiativeTitle, 42),
+    item.sourceType || state.datasetMeta?.preferredSource || "Source",
+    item.sourcePages?.length
+      ? item.sourcePages.join(", ")
+      : (item.pdfSupport?.sourcePages?.length ? item.pdfSupport.sourcePages.join(", ") : "N/A"),
+    truncateText(item.pdfSupport?.matchedTitle || item.sectionName || "No linked support", 34),
+    truncateText(item.sourceLink || "", 42) || "N/A"
+  ]);
+
+  addTableSection(
+    ctx,
+    "Initiative evidence register",
+    ["Initiative", "Source", "PDF pages", "Matched support", "Link"],
+    rows
+  );
+
+  const unsupported = items.filter(
+    item => !(item.sourcePages?.length) && !(item.pdfSupport?.sourcePages?.length)
+  ).length;
+
+  addPdfParagraph(
+    ctx,
+    unsupported
+      ? `${unsupported} items do not yet have a clean PDF page reference and should be checked in source review before meeting circulation.`
+      : "All items in scope carry either direct PDF page references or a best-available matched PDF support record.",
+    { color: ctx.colors.soft, size: 10.3 }
+  );
+}
+
 function applyPdfPageNumbers(doc, title) {
   const totalPages = doc.getNumberOfPages();
   for (let page = 1; page <= totalPages; page += 1) {
     doc.setPage(page);
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    doc.setDrawColor(214, 223, 233);
-    doc.line(46, pageHeight - 28, pageWidth - 46, pageHeight - 28);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(95, 111, 132);
-    doc.text(title, 46, pageHeight - 12);
-    doc.text(`Page ${page} of ${totalPages}`, pageWidth - 46, pageHeight - 12, { align: "right" });
+    if (page === 1) continue;
+    doc.setFillColor(19, 19, 19);
+    doc.rect(42, pageHeight - 34, pageWidth - 84, 16, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(title, 52, pageHeight - 22.5);
+    doc.text(String(page), pageWidth / 2, pageHeight - 22.5, { align: "center" });
   }
 }
 
