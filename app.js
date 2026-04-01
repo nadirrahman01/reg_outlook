@@ -1,11 +1,11 @@
-const STORAGE_KEY = "fmruk_reg_intelligence_v8";
-const PROFILE_KEY = "fmruk_profile_v8";
-const FEEDBACK_KEY = "fmruk_feedback_v8";
+const STORAGE_KEY = "fmruk_reg_intelligence_v9";
+const PROFILE_KEY = "fmruk_profile_v9";
+const FEEDBACK_KEY = "fmruk_feedback_v9";
 const PDF_DB_NAME = "fmruk_pdf_workspace";
 const PDF_STORE_NAME = "pdfs";
 const PDF_RECORD_KEY = "current_pdf";
-const APP_VERSION = "1.3.0";
-const APP_UPDATED_AT = "30 March 2026";
+const APP_VERSION = "1.5.0";
+const APP_UPDATED_AT = "01 April 2026";
 
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -20,8 +20,6 @@ const state = {
   datasetMeta: null,
   profile: null,
   feedback: {},
-  currentPage: "home",
-  roleView: "Compliance",
   pdfBuffer: null,
   pdfDocument: null,
   pdfRenderToken: 0,
@@ -45,6 +43,7 @@ const PROFILE_FIELDS = [
 ];
 
 const DEFAULT_PROFILE = {
+  priorityMode: "balanced",
   businessLines: [
     "investment management",
     "fund governance",
@@ -96,66 +95,93 @@ const DEFAULT_PROFILE = {
   ]
 };
 
-const ROLE_VIEWS = {
-  Compliance: {
-    summary: "Policy, governance and conduct.",
-    ownerBoosts: ["Compliance", "Risk", "Legal"],
-    obligationBoosts: [
-      "Policy & Procedures",
-      "Governance & Accountability",
-      "Market Conduct & Surveillance",
-      "Training & Communications"
-    ],
-    stageBoosts: [
-      "Final Rules / Implementation",
-      "Supervisory / Thematic Review",
-      "Consultation / Policy Development"
-    ]
+const PROFILE_PRIORITY_MODES = {
+  balanced: {
+    label: "Balanced",
+    weights: {
+      relevance: 0.38,
+      impact: 0.28,
+      urgency: 0.22,
+      delivery: 0.12
+    },
+    ownerBoosts: [],
+    obligationBoosts: [],
+    themeBoosts: []
   },
-  COO: {
-    summary: "Operations, reporting and delivery.",
-    ownerBoosts: ["Operations", "Risk", "Technology", "Finance"],
+  governance: {
+    label: "Governance and policy",
+    weights: {
+      relevance: 0.36,
+      impact: 0.26,
+      urgency: 0.18,
+      delivery: 0.20
+    },
+    ownerBoosts: ["Compliance", "Legal", "HR"],
+    obligationBoosts: [
+      "Governance & Accountability",
+      "Policy & Procedures",
+      "Training & Communications",
+      "Disclosure & Communications"
+    ],
+    themeBoosts: ["Governance / SMCR", "AML / Sanctions / Financial Crime"]
+  },
+  operations: {
+    label: "Operations and reporting",
+    weights: {
+      relevance: 0.32,
+      impact: 0.28,
+      urgency: 0.22,
+      delivery: 0.18
+    },
+    ownerBoosts: ["Operations", "Technology", "Finance"],
     obligationBoosts: [
       "Reporting & MI",
-      "Outsourcing & Third Parties",
       "Operational Resilience",
+      "Outsourcing & Third Parties",
       "Operating Model"
     ],
-    stageBoosts: [
-      "Reporting / Data Request",
-      "Final Rules / Implementation",
-      "Supervisory / Thematic Review"
+    themeBoosts: [
+      "Reporting / Disclosure",
+      "Operational Resilience",
+      "Operations / Post-Trade"
     ]
   },
-  Legal: {
-    summary: "Perimeter, disclosure and interpretation.",
-    ownerBoosts: ["Legal", "Compliance"],
+  markets: {
+    label: "Markets and post-trade",
+    weights: {
+      relevance: 0.34,
+      impact: 0.28,
+      urgency: 0.22,
+      delivery: 0.16
+    },
+    ownerBoosts: ["Operations", "Compliance"],
     obligationBoosts: [
-      "Legal Entity Perimeter",
-      "Disclosure & Communications",
-      "Policy & Procedures",
-      "Governance & Accountability"
+      "Market Conduct & Surveillance",
+      "Reporting & MI",
+      "Operating Model"
     ],
-    stageBoosts: [
-      "Legislative / Perimeter Change",
-      "Consultation / Policy Development",
-      "Final Rules / Implementation"
+    themeBoosts: [
+      "Market Conduct / Trading",
+      "Market Structure / Wholesale",
+      "Operations / Post-Trade"
     ]
   },
-  Executive: {
-    summary: "Material items, ownership and timing.",
-    ownerBoosts: ["Compliance", "Risk", "Operations", "Legal"],
+  executive: {
+    label: "Executive escalation",
+    weights: {
+      relevance: 0.30,
+      impact: 0.34,
+      urgency: 0.24,
+      delivery: 0.12
+    },
+    ownerBoosts: ["Compliance", "Operations", "Risk", "Legal"],
     obligationBoosts: [
       "Governance & Accountability",
       "Operational Resilience",
       "Reporting & MI",
-      "Legal Entity Perimeter"
+      "Prudential & Capital"
     ],
-    stageBoosts: [
-      "Final Rules / Implementation",
-      "Reporting / Data Request",
-      "Supervisory / Thematic Review"
-    ]
+    themeBoosts: []
   }
 };
 
@@ -233,12 +259,46 @@ const ROW_NOISE_PATTERNS = [
   /^jan-mar \d{4}$/i,
   /^apr-jun \d{4}$/i,
   /^jul-sept \d{4}$/i,
+  /^jul-dec \d{4}$/i,
   /^jan-jun \d{4}$/i,
   /^post july \d{4}$/i,
+  /^july to december \d{4}$/i,
+  /^beyond (that )?horizon$/i,
+  /^quarter-by-quarter$/i,
   /^e\s*formal engagement planned/i
 ];
 
 const CLASSIFICATION_RULES = [
+  {
+    id: "settlement-cycle",
+    theme: "Operations / Post-Trade",
+    subTheme: "Settlement / T+1",
+    primaryOwner: "Operations",
+    secondaryOwner: "Compliance",
+    impactBias: 28,
+    impactStatement:
+      "Could affect trade allocation, confirmation, affirmation, settlement instructions, fails management, liquidity planning and oversight of post-trade providers.",
+    signals: [
+      {
+        weight: 28,
+        reason: "Directly references T+1 or settlement-cycle reform.",
+        terms: ["t+1", "t plus one", "settlement cycle", "shortened settlement cycle"]
+      },
+      {
+        weight: 18,
+        reason: "Touches post-trade operations or settlement processing.",
+        terms: ["settlement", "affirmation", "allocation", "post-trade", "settlement fails"]
+      }
+    ],
+    sectionBoosts: {
+      "Wholesale financial markets": 8,
+      "Investment management": 4
+    },
+    coreActions: [
+      "Assess front-to-back readiness across trading, operations, custodians and outsourced post-trade providers.",
+      "Review cut-off times, exception handling, client communication points and settlement fail monitoring."
+    ]
+  },
   {
     id: "transaction-reporting",
     theme: "Market Conduct / Trading",
@@ -1023,7 +1083,6 @@ document.addEventListener("DOMContentLoaded", () => {
 async function init() {
   mapEls();
   bindEvents();
-  state.currentPage = getPageFromHash();
   state.profile = loadProfile();
   state.feedback = loadFeedback();
   loadFromStorage();
@@ -1036,15 +1095,8 @@ async function init() {
 
 function mapEls() {
   const ids = [
-    "landingVersion",
-    "landingDatasetStatus",
-    "landingDatasetCopy",
-    "homeLastScan",
-    "homeComparisonStatus",
     "reviewPageMeta",
     "headerMeta",
-    "datasetInfo",
-    "comparisonInfo",
     "portfolioNarrative",
     "reloadBtn",
     "exportJsonBtn",
@@ -1076,21 +1128,14 @@ function mapEls() {
     "detailPanel",
     "detailMeta",
     "timelineList",
+    "timelineMeta",
     "pdfPreviewStatus",
     "evidenceTrail",
     "pdfPreview",
     "askBtn",
     "askAnswer",
     "askResults",
-    "kpiTotal",
-    "kpiImmediateAction",
-    "kpiHighRelevance",
-    "kpiNeedsReview",
-    "kpiChanges",
-    "footerVersion",
-    "footerUpdated",
-    "footerParser",
-    "footerDataset"
+    "profilePriorityMode"
   ];
 
   ids.forEach(id => {
@@ -1110,10 +1155,6 @@ function bindEvents() {
   els.exportBoardBriefBtn.addEventListener("click", exportBoardBrief);
   els.exportOwnerPackBtn.addEventListener("click", exportOwnerPack);
   els.clearStorageBtn.addEventListener("click", clearSavedData);
-  document.querySelectorAll("[data-page-target]").forEach(button => {
-    button.addEventListener("click", () => navigateToPage(button.dataset.pageTarget));
-  });
-  window.addEventListener("hashchange", syncPageFromHash);
   els.askBtn.addEventListener("click", runAskQuery);
   els.searchInput.addEventListener("keydown", event => {
     if (event.key === "Enter") {
@@ -1144,30 +1185,6 @@ function bindEvents() {
   });
 }
 
-function getPageFromHash() {
-  return window.location.hash === "#review" ? "review" : "home";
-}
-
-function syncPageFromHash() {
-  state.currentPage = getPageFromHash();
-  renderPageState();
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function navigateToPage(page) {
-  if (!["home", "review"].includes(page)) return;
-
-  const nextHash = `#${page}`;
-  if (window.location.hash !== nextHash) {
-    window.location.hash = nextHash;
-    return;
-  }
-
-  state.currentPage = page;
-  renderPageState();
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
 function updateReviewClock() {
   if (!els.reviewPageMeta) return;
   const formatter = new Intl.DateTimeFormat("en-GB", {
@@ -1177,7 +1194,7 @@ function updateReviewClock() {
     hour: "2-digit",
     minute: "2-digit"
   });
-  els.reviewPageMeta.textContent = formatter.format(new Date());
+  els.reviewPageMeta.textContent = `${formatter.format(new Date())} · v${APP_VERSION}`;
 }
 
 function loadFromStorage() {
@@ -1253,6 +1270,7 @@ function saveProfileFromForm() {
   PROFILE_FIELDS.forEach(([field, domId]) => {
     nextProfile[field] = splitLines(els[domId].value);
   });
+  nextProfile.priorityMode = els.profilePriorityMode?.value || DEFAULT_PROFILE.priorityMode;
 
   state.profile = mergeProfile(nextProfile);
   localStorage.setItem(PROFILE_KEY, JSON.stringify(state.profile));
@@ -1273,6 +1291,11 @@ function renderProfileForm() {
     if (!els[domId]) return;
     els[domId].value = (state.profile?.[field] || []).join(", ");
   });
+
+  if (els.profilePriorityMode) {
+    els.profilePriorityMode.value =
+      PROFILE_PRIORITY_MODES[state.profile?.priorityMode] ? state.profile.priorityMode : DEFAULT_PROFILE.priorityMode;
+  }
 }
 
 function mergeProfile(profile) {
@@ -1282,7 +1305,14 @@ function mergeProfile(profile) {
       ? profile[field].map(normaliseWs).filter(Boolean)
       : structuredClone(DEFAULT_PROFILE[field]);
   });
+  merged.priorityMode = PROFILE_PRIORITY_MODES[profile?.priorityMode]
+    ? profile.priorityMode
+    : DEFAULT_PROFILE.priorityMode;
   return merged;
+}
+
+function getPriorityModeConfig() {
+  return PROFILE_PRIORITY_MODES[state.profile?.priorityMode] || PROFILE_PRIORITY_MODES.balanced;
 }
 
 function loadFeedback() {
@@ -1359,7 +1389,7 @@ async function handleUpload() {
       uploadedAt: new Date().toISOString(),
       rowCount: state.raw.length,
       fileType: "PDF",
-      parserVersion: "v8",
+      parserVersion: "v9",
       previousFileName: previousMeta?.fileName || "",
       comparisonSummary: comparison.summary
     };
@@ -1622,6 +1652,7 @@ function isNoiseRow(row) {
   const text = row.text;
   if (!text) return true;
   if (ROW_NOISE_PATTERNS.some(pattern => pattern.test(text))) return true;
+  if (isQuarterHeaderText(text)) return true;
 
   const headerHits = HEADER_TEXT_PATTERNS.reduce((count, pattern) => {
     return count + (pattern.test(text) ? 1 : 0);
@@ -1643,7 +1674,11 @@ function detectInitiativeStart(row, nextRow) {
     !SUBCATEGORY_LOOKUP.has(nextRow.text.toLowerCase())
   ) {
     const nextTitle = cleanTitleCandidate(cellText(nextRow, "initiative") || nextRow.text);
-    if (isPlausibleTitle(nextTitle) && !extractLeadAndTitle(nextRow)) {
+    if (
+      isPlausibleTitle(nextTitle) &&
+      !extractLeadAndTitle(nextRow) &&
+      isLikelyTitleContinuationText(nextTitle, nextRow)
+    ) {
       return {
         lead: leadOnly,
         title: nextTitle,
@@ -1703,6 +1738,7 @@ function createAccumulator(start, sectionName, subcategory, fileName, row) {
     isNewParts: [],
     rawParts: [],
     pageNumbers: [],
+    titleLineCount: 1,
     evidence: {
       title: [],
       lead: [],
@@ -1753,9 +1789,13 @@ function ingestRowIntoAccumulator(accumulator, row, options) {
     recordEvidence(accumulator, "isNew", row, "isNew");
   }
 
-  const initiativeCell = stripRepeatedTitle(cellText(row, "initiative"), accumulator.initiativeTitle);
-  const overflowText = normaliseWs(cellText(row, "overflow"));
-  const leadResidue = stripLeadPrefix(cellText(row, "lead"), accumulator.leadRegulator);
+  const initiativeCell = cleanStructuredText(
+    stripRepeatedTitle(cellText(row, "initiative"), accumulator.initiativeTitle)
+  );
+  const overflowText = cleanStructuredText(cellText(row, "overflow"));
+  const leadResidue = cleanStructuredText(
+    stripLeadPrefix(cellText(row, "lead"), accumulator.leadRegulator)
+  );
 
   if (opts.isStartRow) {
     if (leadResidue) {
@@ -1768,10 +1808,12 @@ function ingestRowIntoAccumulator(accumulator, row, options) {
     }
   } else if (opts.consumeAsTitle && initiativeCell) {
     accumulator.initiativeTitle = normaliseWs(`${accumulator.initiativeTitle} ${initiativeCell}`);
+    accumulator.titleLineCount += 1;
     recordEvidence(accumulator, "title", row, "initiative", initiativeCell);
   } else if (initiativeCell) {
     if (shouldTreatAsTitleContinuation(accumulator, initiativeCell, row)) {
       accumulator.initiativeTitle = normaliseWs(`${accumulator.initiativeTitle} ${initiativeCell}`);
+      accumulator.titleLineCount += 1;
       recordEvidence(accumulator, "title", row, "initiative", initiativeCell);
     } else {
       appendUnique(accumulator.initiativeDescriptionParts, initiativeCell);
@@ -1911,13 +1953,27 @@ function analyseRows(items) {
     const classification = classifyItem(item);
     const stage = determineStage(item);
     const obligations = mapObligations(item, classification, stage);
+    const timeline = buildTimelinePoint(item);
+    const ownership = determineOwnership(item, classification, stage, obligations);
     const impact = determineImpactLevel(item, classification, stage, obligations);
     const relevance = evaluateFmrukRelevance(item, classification, stage, obligations);
     const uncertainty = determineUncertainty(item, classification, stage, relevance);
+    const priority = determinePriority(
+      item,
+      classification,
+      stage,
+      obligations,
+      ownership,
+      impact,
+      relevance,
+      uncertainty,
+      timeline
+    );
     const suggestedActions = buildSuggestedActions(
       item,
       classification,
       stage,
+      ownership,
       impact,
       relevance,
       obligations,
@@ -1929,15 +1985,22 @@ function analyseRows(items) {
       stage,
       obligations
     );
-    const timeline = buildTimelinePoint(item);
     const clusterLabel = determineCluster(item, classification, obligations);
+    const fmrukReadThrough = buildFmrukReadThrough(
+      item,
+      classification,
+      stage,
+      obligations,
+      ownership,
+      relevance
+    );
 
     let analysed = {
       ...item,
       theme: classification.theme,
       internalSubTheme: classification.subTheme,
-      primaryOwner: classification.primaryOwner,
-      secondaryOwner: classification.secondaryOwner,
+      primaryOwner: ownership.primaryOwner,
+      secondaryOwner: ownership.secondaryOwner,
       classificationConfidence: classification.confidence,
       classificationSignals: classification.signals,
       classificationAmbiguity: classification.ambiguity,
@@ -1957,21 +2020,18 @@ function analyseRows(items) {
       whyNotRelevant: relevance.whyNotRelevant,
       uncertaintyFlags: uncertainty.flags,
       needsReview: uncertainty.needsReview,
+      priorityScoreBase: priority.score,
+      priorityScore: priority.score,
+      priorityBand: priority.band,
+      priorityReasons: priority.reasons,
+      urgencyScore: priority.urgencyScore,
+      deliveryScore: priority.deliveryScore,
       potentialBusinessImpact,
+      fmrukReadThrough,
       suggestedActions,
       suggestedAction: suggestedActions.join(" "),
-      immediateActionRequired:
-        relevance.isRelevant && impact.level === "High" && stage.id !== "monitoring",
+      immediateActionRequired: priority.immediateActionRequired,
       rationale: buildRationale(item, classification, stage, relevance, obligations),
-      briefBlocks: buildBriefBlocks(
-        item,
-        classification,
-        stage,
-        obligations,
-        relevance,
-        suggestedActions,
-        uncertainty
-      ),
       timeline,
       clusterLabel
     };
@@ -2073,6 +2133,12 @@ function mapObligations(item, classification, stage) {
     if (classification.subTheme === "Capital / Liquidity" && rule.name === "Prudential & Capital") {
       score += 10;
     }
+    if (classification.subTheme === "Settlement / T+1" && rule.name === "Operating Model") {
+      score += 10;
+    }
+    if (classification.subTheme === "Settlement / T+1" && rule.name === "Reporting & MI") {
+      score += 6;
+    }
     if (stage.id === "reporting" && rule.name === "Reporting & MI") {
       score += 10;
     }
@@ -2139,11 +2205,14 @@ function evaluateFmrukRelevance(item, classification, stage, obligations) {
   const positive = scoreSignalGroups(RELEVANCE_SIGNAL_GROUPS.positive, blob);
   const negative = scoreSignalGroups(RELEVANCE_SIGNAL_GROUPS.negative, blob);
   const profileMatch = scoreProfileMatch(item, state.profile);
+  const mode = getPriorityModeConfig();
 
   score += positive.score;
   score -= negative.score;
   score += profileMatch.score;
   score += RELEVANCE_SIGNAL_GROUPS.sectionAdjustments[item.sectionName] || 0;
+  if (mode.themeBoosts.includes(classification.theme)) score += 6;
+  if (obligations.some(obligation => mode.obligationBoosts.includes(obligation.name))) score += 4;
 
   if (
     [
@@ -2154,7 +2223,8 @@ function evaluateFmrukRelevance(item, classification, stage, obligations) {
       "Operational Resilience",
       "Outsourcing / Third Party Risk",
       "SMCR / Governance",
-      "Regulatory Reporting / Data Collection"
+      "Regulatory Reporting / Data Collection",
+      "Settlement / T+1"
     ].includes(classification.subTheme)
   ) {
     score += 8;
@@ -2232,6 +2302,226 @@ function scoreProfileMatch(item, profile) {
   };
 }
 
+function determineOwnership(item, classification, stage, obligations) {
+  const blob = buildBlob(item);
+  const mode = getPriorityModeConfig();
+  const hasObligation = name =>
+    obligations.some(obligation => obligation.name === name);
+  let primaryOwner = classification.primaryOwner;
+  let secondaryOwner = classification.secondaryOwner;
+
+  if (classification.subTheme === "SMCR / Governance") {
+    primaryOwner = "Compliance";
+    secondaryOwner = "HR";
+  } else if (classification.subTheme === "Settlement / T+1") {
+    primaryOwner = "Operations";
+    secondaryOwner = "Compliance";
+  } else if (
+    classification.subTheme === "Regulatory Reporting / Data Collection" ||
+    stage.id === "reporting"
+  ) {
+    primaryOwner = "Operations";
+    secondaryOwner = hasObligation("Governance & Accountability") ? "Compliance" : "Compliance";
+  } else if (classification.subTheme === "Capital / Liquidity") {
+    primaryOwner = "Finance";
+    secondaryOwner = "Risk";
+  } else if (classification.subTheme === "Outsourcing / Third Party Risk") {
+    primaryOwner = "Risk";
+    secondaryOwner = "Technology";
+  } else if (/\bt\+1\b|\bt plus one\b|\bsettlement\b|\bpost-trade\b/.test(blob)) {
+    primaryOwner = "Operations";
+    secondaryOwner = "Compliance";
+  } else if (
+    hasObligation("Reporting & MI") &&
+    (mode.ownerBoosts.includes("Operations") || mode.obligationBoosts.includes("Reporting & MI"))
+  ) {
+    primaryOwner = "Operations";
+    secondaryOwner = primaryOwner === "Compliance" ? "Risk" : "Compliance";
+  } else if (
+    hasObligation("Governance & Accountability") &&
+    mode.obligationBoosts.includes("Governance & Accountability")
+  ) {
+    primaryOwner = "Compliance";
+    secondaryOwner = secondaryOwner === "Compliance" ? "Legal" : secondaryOwner;
+  }
+
+  if (primaryOwner === secondaryOwner) {
+    secondaryOwner = classification.secondaryOwner !== primaryOwner
+      ? classification.secondaryOwner
+      : "Compliance";
+  }
+
+  return {
+    primaryOwner,
+    secondaryOwner
+  };
+}
+
+function determinePriority(
+  item,
+  classification,
+  stage,
+  obligations,
+  ownership,
+  impact,
+  relevance,
+  uncertainty,
+  timeline
+) {
+  const mode = getPriorityModeConfig();
+  const weights = mode.weights;
+  const urgencyScore = calculateUrgencyScore(item, stage, timeline);
+  const deliveryScore = calculateDeliveryScore(classification, obligations, ownership, mode);
+
+  let score =
+    relevance.score * weights.relevance +
+    impact.score * weights.impact +
+    urgencyScore * weights.urgency +
+    deliveryScore * weights.delivery;
+
+  if (mode.themeBoosts.includes(classification.theme)) score += 6;
+  if (mode.ownerBoosts.includes(ownership.primaryOwner)) score += 4;
+  if ((obligations || []).some(obligation => mode.obligationBoosts.includes(obligation.name))) score += 4;
+
+  const uncertaintyPenalty = Math.min(10, (uncertainty.flags || []).length * 1.5);
+  score -= uncertaintyPenalty;
+  score = clamp(score, 0, 100);
+
+  const band = priorityBandFromScore(score);
+  const reasons = [];
+  if (relevance.score >= 80) reasons.push("High FMRUK relevance.");
+  if (impact.level === "High") reasons.push("High firm impact.");
+  if (urgencyScore >= 72) reasons.push("Near-term milestone or implementation date.");
+  if (deliveryScore >= 68) reasons.push("Material delivery or control change.");
+  if (mode.themeBoosts.includes(classification.theme) || mode.ownerBoosts.includes(ownership.primaryOwner)) {
+    reasons.push(`Profile weighting: ${mode.label.toLowerCase()}.`);
+  }
+  if (!reasons.length) reasons.push("Included in the working review queue.");
+
+  const immediateActionRequired = Boolean(
+    relevance.isRelevant &&
+      stage.id !== "monitoring" &&
+      (
+        score >= 82 ||
+        (impact.level === "High" && urgencyScore >= 72) ||
+        (stage.id === "reporting" && relevance.score >= 65 && urgencyScore >= 68)
+      )
+  );
+
+  return {
+    score,
+    band,
+    reasons,
+    urgencyScore,
+    deliveryScore,
+    immediateActionRequired
+  };
+}
+
+function calculateUrgencyScore(item, stage, timeline) {
+  let score = 28;
+  if (stage.id === "final_rules") score += 24;
+  if (stage.id === "reporting") score += 22;
+  if (stage.id === "supervisory") score += 16;
+  if (stage.id === "legislation") score += 14;
+  if (stage.id === "consultation") score += 12;
+  if (stage.id === "monitoring") score -= 10;
+
+  if (item.timingBucket === "Near Term") score += 20;
+  else if (item.timingBucket === "Medium Term") score += 12;
+  else if (item.timingBucket === "Longer Term") score += 4;
+  else score += 8;
+
+  if (item.timingUpdated === "Yes") score += 8;
+  if (item.isNew === "Yes") score += 6;
+  if (item.consumerInterest === "H") score += 4;
+
+  const now = Date.now();
+  if (Number.isFinite(timeline?.sortValue)) {
+    const days = Math.round((timeline.sortValue - now) / (24 * 60 * 60 * 1000));
+    if (days <= 90) score += 10;
+    else if (days <= 180) score += 6;
+    else if (days >= 365) score -= 4;
+  }
+
+  return clamp(score, 0, 100);
+}
+
+function calculateDeliveryScore(classification, obligations, ownership, mode) {
+  let score = 34;
+  const obligationWeights = {
+    "Reporting & MI": 18,
+    "Operational Resilience": 18,
+    "Governance & Accountability": 16,
+    "Outsourcing & Third Parties": 14,
+    "Prudential & Capital": 14,
+    "Market Conduct & Surveillance": 12,
+    "Policy & Procedures": 10,
+    "Operating Model": 10,
+    "Disclosure & Communications": 10
+  };
+
+  (obligations || []).slice(0, 3).forEach(obligation => {
+    score += obligationWeights[obligation.name] || 8;
+  });
+
+  if (mode.ownerBoosts.includes(ownership.primaryOwner)) score += 8;
+  if (mode.themeBoosts.includes(classification.theme)) score += 6;
+
+  return clamp(score, 0, 100);
+}
+
+function priorityBandFromScore(score) {
+  if (score >= 86) return "Critical";
+  if (score >= 72) return "High";
+  if (score >= 58) return "Medium";
+  return "Low";
+}
+
+function buildFmrukReadThrough(item, classification, stage, obligations, ownership, relevance) {
+  if (!relevance.isRelevant) {
+    return item.whyNotRelevant || "Current review suggests limited direct impact on FMRUK. Keep on the watchlist until the scope or timing becomes clearer.";
+  }
+
+  const domainText = obligations.length
+    ? obligations.slice(0, 2).map(obligation => obligation.name.toLowerCase()).join(" and ")
+    : "the current control environment";
+
+  const ownerText = ownership.secondaryOwner
+    ? `${ownership.primaryOwner} as lead, with ${ownership.secondaryOwner} support`
+    : `${ownership.primaryOwner} as lead`;
+
+  const stageText = {
+    consultation: "The immediate requirement is to confirm scope early and decide whether a response or preparatory work is needed.",
+    final_rules: "The item is close to implementation, so the focus should move into delivery readiness and control change.",
+    supervisory: "The main read-through is evidencing current-state compliance and addressing weaker controls before scrutiny increases.",
+    reporting: "The practical effect is likely to sit in data ownership, submissions, reconciliations and sign-off.",
+    legislation: "The key issue is whether entity scope, permissions or legal interpretation change the obligations that apply to FMRUK.",
+    monitoring: "The item should remain visible, but it does not yet look like an immediate delivery programme."
+  }[stage.id] || "";
+
+  const specificReadThroughs = {
+    "Settlement / T+1":
+      "For FMRUK, the practical effect is likely to sit in trade allocations, confirmations, affirmations, settlement cut-offs, exception handling and oversight of post-trade providers.",
+    "Transaction Reporting":
+      "For FMRUK, the main effect is likely to sit in reporting scope, data fields, reconciliations, exception management and control ownership across Operations and Compliance.",
+    "SMCR / Governance":
+      "For FMRUK, the main effect is likely to sit in accountability mapping, committee oversight, statements of responsibility and coordination with HR where certification or role scope changes arise.",
+    "Regulatory Reporting / Data Collection":
+      "For FMRUK, the main effect is likely to sit in reporting perimeter, data lineage, controls, sign-off and readiness to make accurate submissions.",
+    "Outsourcing / Third Party Risk":
+      "For FMRUK, the main effect is likely to sit in outsourced service oversight, registers, due diligence, contractual controls and dependency mapping.",
+    "Operational Resilience":
+      "For FMRUK, the main effect is likely to sit in important business services, scenario testing, dependency mapping and remediation governance."
+  };
+
+  const opening =
+    specificReadThroughs[classification.subTheme] ||
+    `For FMRUK, the main read-through is into ${domainText}. ${classification.impactStatement}`;
+
+  return `${opening} Ownership is likely to sit with ${ownerText}. ${stageText}`;
+}
+
 function determineUncertainty(item, classification, stage, relevance) {
   const flags = [];
   if ((item.parseConfidence || 0) < 70) flags.push("Low parse confidence.");
@@ -2268,14 +2558,14 @@ function buildPotentialBusinessImpact(item, classification, stage, obligations) 
   return `${classification.impactStatement}${obligationText}${stageNote}`;
 }
 
-function buildSuggestedActions(item, classification, stage, impact, relevance, obligations, uncertainty) {
+function buildSuggestedActions(item, classification, stage, ownership, impact, relevance, obligations, uncertainty) {
   const actions = [];
   const stageActions = GENERIC_STAGE_ACTIONS[stage.id] || GENERIC_STAGE_ACTIONS.monitoring;
 
   if (relevance.isRelevant) {
-    actions.push(`Lead: ${classification.primaryOwner}. Support: ${classification.secondaryOwner}.`);
+    actions.push(`Confirm ${ownership.primaryOwner} as lead and ${ownership.secondaryOwner} as support.`);
   } else {
-    actions.push(`Keep with ${classification.primaryOwner} on watchlist until scope is clearer.`);
+    actions.push(`Keep with ${ownership.primaryOwner} on the watchlist until scope is clearer.`);
   }
 
   actions.push(stageActions[0]);
@@ -2314,77 +2604,23 @@ function buildRationale(item, classification, stage, relevance, obligations) {
   return `Theme: ${classification.theme} / ${classification.subTheme}. Stage: ${stage.label}. ${positiveText}${negativeText}${obligationText}`;
 }
 
-function buildBriefBlocks(item, classification, stage, obligations, relevance, actions, uncertainty) {
-  const type =
-    `${stage.label}. ${classification.theme}. ${item.leadRegulator || "Lead regulator not isolated"}.`;
-  const change =
-    item.initiativeDescription
-      ? truncateText(item.initiativeDescription, 220)
-      : classification.impactStatement;
-  const timing =
-    item.expectedKeyMilestones
-      ? `${item.timingBucket}. ${truncateText(item.expectedKeyMilestones, 180)}`
-      : `${item.timingBucket}.`;
-  const fmrukView =
-    relevance.isRelevant
-      ? truncateText(relevance.positiveReasons.join(" "), 220) || "Matches the current FMRUK profile."
-      : item.whyNotRelevant || "No strong FMRUK trigger recorded.";
-  const owner =
-    `Lead: ${classification.primaryOwner}. Support: ${classification.secondaryOwner}. Domains: ${obligations.map(obligation => obligation.name).join(", ") || "Not mapped"}.`;
-  const nextSteps = actions.slice(0, 3).join(" ");
-  const checks = uncertainty.flags.length
-    ? uncertainty.flags.join(" ")
-    : "No open issues flagged.";
-
-  return [
-    {
-      title: "Type",
-      copy: type,
-      evidenceFields: ["title", "lead", "general"]
-    },
-    {
-      title: "Change",
-      copy: change,
-      evidenceFields: ["description", "impact", "general"]
-    },
-    {
-      title: "Timing",
-      copy: timing,
-      evidenceFields: ["milestones", "timing", "isNew"]
-    },
-    {
-      title: "FMRUK View",
-      copy: fmrukView,
-      evidenceFields: ["description", "milestones", "general"]
-    },
-    {
-      title: "Owner",
-      copy: owner,
-      evidenceFields: ["title", "description"]
-    },
-    {
-      title: "Actions",
-      copy: nextSteps,
-      evidenceFields: ["milestones", "description", "general"]
-    },
-    {
-      title: "Checks",
-      copy: checks,
-      evidenceFields: ["general", "milestones", "description"]
-    }
-  ];
-}
-
 function buildTimelinePoint(item) {
-  const match = parseTimelineDate(item.expectedKeyMilestones || item.rawText || "");
+  const events = extractTimelineMarkers(
+    `${item.expectedKeyMilestones || ""} ${item.initiativeDescription || ""} ${item.rawText || ""}`
+  );
+  const match = events[0] || null;
   return {
     label: match?.label || item.timingBucket,
     sortValue: match?.dateValue || estimateTimingBucketDate(item.timingBucket),
-    raw: item.expectedKeyMilestones || item.timingBucket || "To Be Confirmed"
+    raw: item.expectedKeyMilestones || item.timingBucket || "To Be Confirmed",
+    events
   };
 }
 
 function determineCluster(item, classification, obligations) {
+  if (classification.subTheme === "Settlement / T+1") {
+    return "Post-Trade and Settlement Change";
+  }
   if (obligations.some(obligation => obligation.name === "Reporting & MI")) {
     return "Reporting and Data Change";
   }
@@ -2415,6 +2651,12 @@ function applyFeedbackOverrides(item) {
 
   const next = { ...item };
   next.feedback = feedback;
+  next.reviewStatus = feedback.reviewStatus || "Not reviewed";
+  next.reviewer = feedback.reviewer || "";
+  next.targetDate = feedback.targetDate || "";
+  next.actionOwner = feedback.actionOwner || "";
+  next.ownerAction = feedback.ownerAction || "";
+  next.boardComment = feedback.boardComment || "";
 
   if (feedback.themeOverride) {
     next.theme = feedback.themeOverride;
@@ -2439,6 +2681,8 @@ function applyFeedbackOverrides(item) {
   if (feedback.markUrgent) {
     next.impactLevel = "High";
     next.impactScore = Math.max(next.impactScore || 0, 82);
+    next.priorityScore = clamp(Math.max(next.priorityScore || 0, 86), 0, 100);
+    next.priorityBand = priorityBandFromScore(next.priorityScore);
     next.immediateActionRequired = true;
   }
 
@@ -2458,12 +2702,25 @@ function applyFeedbackOverrides(item) {
     ]);
   }
 
+  if (feedback.reviewStatus === "Escalate") {
+    next.priorityScore = clamp((next.priorityScore || 0) + 8, 0, 100);
+    next.priorityBand = priorityBandFromScore(next.priorityScore);
+    next.immediateActionRequired = true;
+  }
+
+  if (feedback.reviewStatus === "Action defined") {
+    next.priorityScore = clamp((next.priorityScore || 0) + 3, 0, 100);
+    next.priorityBand = priorityBandFromScore(next.priorityScore);
+  }
+
   next.needsReview = Boolean(
     next.needsReview ||
       feedback.markParseIssue ||
       feedback.note ||
       feedback.themeOverride ||
-      feedback.ownerOverride
+      feedback.ownerOverride ||
+      !feedback.reviewStatus ||
+      feedback.reviewStatus === "Not reviewed"
   );
 
   return next;
@@ -2482,11 +2739,11 @@ function compareWithPreviousDataset(previousItems, newItems) {
     const previous = previousMap.get(item.canonicalKey);
     if (!previous) {
       newCount += 1;
-      return {
+      return applyPriorityDeltaBoost({
         ...item,
         changeStatus: "New",
         changeNarrative: "New in the latest upload."
-      };
+      }, "New");
     }
 
     const deltaType = determineDeltaType(previous, item);
@@ -2494,11 +2751,11 @@ function compareWithPreviousDataset(previousItems, newItems) {
     else if (deltaType === "Delayed") delayedCount += 1;
     else if (deltaType === "Changed") changedCount += 1;
 
-    return {
+    return applyPriorityDeltaBoost({
       ...item,
       changeStatus: deltaType,
       changeNarrative: buildChangeNarrative(previous, item, deltaType)
-    };
+    }, deltaType);
   });
 
   previousMap.forEach(previousItem => {
@@ -2552,6 +2809,34 @@ function buildChangeNarrative(previous, next, deltaType) {
   return "No material change.";
 }
 
+function applyPriorityDeltaBoost(item, deltaType) {
+  const boost = {
+    New: 5,
+    Accelerated: 8,
+    Changed: 3,
+    Delayed: 1,
+    Existing: 0
+  }[deltaType] || 0;
+
+  const score = clamp((item.priorityScoreBase || item.priorityScore || 0) + boost, 0, 100);
+  const band = priorityBandFromScore(score);
+  const immediateActionRequired = Boolean(
+    item.immediateActionRequired ||
+      (
+        item.isFmrukRelevant &&
+        item.stage !== "monitoring" &&
+        (band === "Critical" || (deltaType === "Accelerated" && item.priorityScoreBase >= 74))
+      )
+  );
+
+  return {
+    ...item,
+    priorityScore: score,
+    priorityBand: band,
+    immediateActionRequired
+  };
+}
+
 function reanalyseCurrentDataset() {
   if (!state.baseItems.length) {
     renderAll();
@@ -2569,13 +2854,19 @@ function reanalyseCurrentDataset() {
   );
 
   state.raw = sortItems(
-    analyseRows(state.baseItems).map(item => ({
-      ...item,
-      ...(deltaMap.get(item.canonicalKey) || {
+    analyseRows(state.baseItems).map(item => {
+      const delta = deltaMap.get(item.canonicalKey) || {
         changeStatus: "Existing",
         changeNarrative: "No comparison note."
-      })
-    }))
+      };
+      return applyPriorityDeltaBoost(
+        {
+          ...item,
+          ...delta
+        },
+        delta.changeStatus
+      );
+    })
   );
 
   saveToStorage();
@@ -2583,64 +2874,29 @@ function reanalyseCurrentDataset() {
 }
 
 function renderAll() {
-  renderPageState();
   updateMeta();
   populateFilters();
   applyFilters();
 }
 
-function renderPageState() {
-  document.body.dataset.page = state.currentPage;
-  document.querySelectorAll(".page-switch[data-page-target]").forEach(button => {
-    button.classList.toggle("is-current", button.dataset.pageTarget === state.currentPage);
-  });
-}
-
 function updateMeta() {
-  els.footerVersion.textContent = APP_VERSION;
-  els.footerUpdated.textContent = APP_UPDATED_AT;
-  els.landingVersion.textContent = `v${APP_VERSION}`;
-
   if (!state.datasetMeta) {
     els.headerMeta.textContent = "No dataset loaded";
-    els.datasetInfo.textContent = "No PDF loaded";
-    els.comparisonInfo.textContent = "No comparison";
-    els.landingDatasetStatus.textContent = "No dataset";
-    els.landingDatasetCopy.textContent = "Load the FCA initiatives PDF.";
-    els.homeLastScan.textContent = "Not run";
-    els.homeComparisonStatus.textContent = "No baseline";
-    els.footerParser.textContent = "Awaiting dataset";
-    els.footerDataset.textContent = "No PDF loaded";
     return;
   }
 
-  els.headerMeta.textContent = `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items · ${formatDate(state.datasetMeta.uploadedAt)}`;
-  els.datasetInfo.textContent = `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items`;
-  els.landingDatasetStatus.textContent = `${state.datasetMeta.rowCount} items loaded`;
-  els.homeLastScan.textContent = formatDate(state.datasetMeta.uploadedAt);
-  els.footerParser.textContent = state.datasetMeta.parserVersion || "Current parser";
-  els.footerDataset.textContent = `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items`;
-
   const summary = state.datasetMeta.comparisonSummary;
-  if (summary) {
-    const comparisonBits = [
-      `${summary.newCount} new`,
-      `${summary.changedCount} changed`,
-      `${summary.acceleratedCount} earlier`,
-      `${summary.delayedCount} later`,
-      `${summary.removedCount} removed`
-    ];
-    const movedCount = state.raw.filter(item => item.changeStatus !== "Existing").length;
-    els.comparisonInfo.textContent = comparisonBits.join(" · ");
-    els.homeComparisonStatus.textContent = `${movedCount} moved`;
-    els.landingDatasetCopy.textContent =
-      `${state.datasetMeta.fileName} · ${formatDate(state.datasetMeta.uploadedAt)}`;
-  } else {
-    els.comparisonInfo.textContent = "No comparison";
-    els.homeComparisonStatus.textContent = "No baseline";
-    els.landingDatasetCopy.textContent =
-      `${state.datasetMeta.fileName} · ${formatDate(state.datasetMeta.uploadedAt)}`;
-  }
+  const comparisonText = summary
+    ? [
+        `${summary.newCount} new`,
+        `${summary.changedCount} changed`,
+        `${summary.acceleratedCount} earlier`,
+        `${summary.delayedCount} later`
+      ].join(" · ")
+    : "No baseline comparison";
+
+  els.headerMeta.textContent =
+    `${state.datasetMeta.fileName} · ${state.datasetMeta.rowCount} items · ${formatDate(state.datasetMeta.uploadedAt)} · ${comparisonText}`;
 }
 
 function populateFilters() {
@@ -2693,6 +2949,7 @@ function applyFilters() {
       item.clusterLabel,
       item.potentialBusinessImpact,
       item.rationale,
+      item.fmrukReadThrough,
       item.whyNotRelevant,
       ...(item.classificationSignals || []),
       ...(item.relevanceSignals || []),
@@ -2721,7 +2978,7 @@ function applyFilters() {
     );
   });
 
-  state.filtered = sortItems(items, state.roleView);
+  state.filtered = sortItems(items);
 
   if (!state.filtered.find(item => item.id === state.selectedItemId)) {
     state.selectedItemId = state.filtered[0]?.id || null;
@@ -2731,20 +2988,22 @@ function applyFilters() {
   renderInitiativeList(state.filtered);
   const selectedItem = state.filtered.find(item => item.id === state.selectedItemId);
   renderDetail(selectedItem);
-  renderTimelineList(state.filtered);
   renderPdfEvidence(selectedItem);
+  renderTimelineList(state.filtered);
   renderAskResults();
 }
 
-function sortItems(items, roleView = state.roleView) {
-  const role = ROLE_VIEWS[roleView] || ROLE_VIEWS.Compliance;
+function sortItems(items) {
   return [...items].sort((a, b) => {
-    const roleScoreA = rolePriorityScore(a, role);
-    const roleScoreB = rolePriorityScore(b, role);
-    if (roleScoreB !== roleScoreA) return roleScoreB - roleScoreA;
+    if ((b.priorityScore || 0) !== (a.priorityScore || 0)) {
+      return (b.priorityScore || 0) - (a.priorityScore || 0);
+    }
     if ((b.immediateActionRequired ? 1 : 0) !== (a.immediateActionRequired ? 1 : 0)) {
       return (b.immediateActionRequired ? 1 : 0) - (a.immediateActionRequired ? 1 : 0);
     }
+    const aDate = Number.isFinite(a.timeline?.sortValue) ? a.timeline.sortValue : Number.POSITIVE_INFINITY;
+    const bDate = Number.isFinite(b.timeline?.sortValue) ? b.timeline.sortValue : Number.POSITIVE_INFINITY;
+    if (aDate !== bDate) return aDate - bDate;
     if ((b.relevanceScore || 0) !== (a.relevanceScore || 0)) {
       return (b.relevanceScore || 0) - (a.relevanceScore || 0);
     }
@@ -2752,23 +3011,7 @@ function sortItems(items, roleView = state.roleView) {
   });
 }
 
-function rolePriorityScore(item, role) {
-  let score = 0;
-  if (role.ownerBoosts.includes(item.primaryOwner)) score += 12;
-  if ((item.obligations || []).some(obligation => role.obligationBoosts.includes(obligation.name))) score += 10;
-  if (role.stageBoosts.includes(item.stageLabel)) score += 8;
-  if (state.roleView === "Executive" && item.changeStatus !== "Existing") score += 8;
-  if (item.immediateActionRequired) score += 12;
-  if (item.needsReview) score += 4;
-  return score;
-}
-
 function renderSummary(items) {
-  els.kpiTotal.textContent = items.length;
-  els.kpiImmediateAction.textContent = items.filter(item => item.immediateActionRequired).length;
-  els.kpiHighRelevance.textContent = items.filter(item => (item.relevanceScore || 0) >= 80).length;
-  els.kpiNeedsReview.textContent = items.filter(item => item.needsReview).length;
-  els.kpiChanges.textContent = items.filter(item => item.changeStatus !== "Existing").length;
   els.listMeta.textContent = `${items.length} items`;
   els.portfolioNarrative.textContent = buildPortfolioNarrative(items);
   renderClusterList(items);
@@ -2780,16 +3023,15 @@ function buildPortfolioNarrative(items) {
     return "No items in scope.";
   }
 
+  const priorityCounts = topCounts(items.map(item => item.priorityBand), 4);
   const topThemes = topCounts(items.map(item => item.theme), 3)
     .map(entry => entry.name)
     .join(", ");
-  const topOwners = topCounts(items.map(item => item.primaryOwner), 2)
-    .map(entry => entry.name)
-    .join(", ");
-  const highPriority = items.filter(item => item.immediateActionRequired).length;
-  const delta = items.filter(item => item.changeStatus !== "Existing").length;
+  const immediate = items.filter(item => item.immediateActionRequired).length;
+  const reviewCount = items.filter(item => item.needsReview).length;
+  const profileMode = getPriorityModeConfig().label;
 
-  return `${items.length} items in scope. ${highPriority} need immediate action. ${delta} changed. Themes: ${topThemes || "none"}. Owners: ${topOwners || "none"}.`;
+  return `${items.length} items in scope. ${immediate} require immediate action. ${reviewCount} still need review. Priority weighting: ${profileMode}. Priority split: ${priorityCounts.map(entry => `${entry.name} ${entry.count}`).join(", ") || "none"}. Themes: ${topThemes || "none"}.`;
 }
 
 function renderClusterList(items) {
@@ -2845,22 +3087,65 @@ function renderTimelineList(items) {
   const nextItems = items
     .filter(item => Number.isFinite(item.timeline?.sortValue))
     .sort((a, b) => a.timeline.sortValue - b.timeline.sortValue)
-    .slice(0, 8);
+    .slice(0, 12);
 
   if (!nextItems.length) {
-    els.timelineList.innerHTML = "<li>No milestones in scope.</li>";
+    els.timelineMeta.textContent = "No milestones";
+    els.timelineList.innerHTML = `<div class="timeline-empty">No milestones in scope.</div>`;
     return;
   }
 
-  nextItems.forEach(item => {
-    const li = document.createElement("li");
-    li.innerHTML = `
-      <span class="timeline-date">${escapeHtml(item.timeline.label || item.timingBucket)}</span>
-      <strong>${escapeHtml(item.initiativeTitle)}</strong><br />
-      ${escapeHtml(truncateText(item.expectedKeyMilestones || item.stageLabel, 140))}
+  els.timelineMeta.textContent = `${nextItems.length} dated items`;
+
+  const track = document.createElement("div");
+  track.className = "timeline-track";
+
+  const axis = document.createElement("div");
+  axis.className = "timeline-axis";
+  track.appendChild(axis);
+
+  const finiteValues = nextItems
+    .map(item => item.timeline.sortValue)
+    .filter(value => Number.isFinite(value));
+  const min = Math.min(...finiteValues);
+  const max = Math.max(...finiteValues);
+  const spread = Math.max(max - min, 1);
+
+  nextItems.forEach((item, index) => {
+    const percent = finiteValues.length === 1
+      ? 50
+      : 8 + ((item.timeline.sortValue - min) / spread) * 84;
+    const wrapper = document.createElement("article");
+    wrapper.className = "timeline-item";
+    wrapper.classList.add(index % 2 === 0 ? "side-top" : "side-bottom");
+    if (item.id === state.selectedItemId) wrapper.classList.add("active");
+    wrapper.style.left = `${percent}%`;
+    wrapper.innerHTML = `
+      <div class="timeline-card" data-timeline-item="${escapeHtml(item.id)}">
+        <span class="timeline-date-pill">${escapeHtml(item.timeline.label || item.timingBucket)}</span>
+        <div class="timeline-title">${escapeHtml(item.initiativeTitle)}</div>
+        <div class="timeline-copy">${escapeHtml(truncateText(item.fmrukReadThrough || item.initiativeDescription, 110))}</div>
+        <div class="timeline-meta-row">
+          <span class="timeline-tag">${escapeHtml(item.priorityBand || "Low")} priority</span>
+          <span class="timeline-tag">${escapeHtml(item.primaryOwner || "Owner")}</span>
+        </div>
+      </div>
+      <div class="timeline-connector"></div>
+      <div class="timeline-node"></div>
     `;
-    els.timelineList.appendChild(li);
+
+    wrapper.querySelector("[data-timeline-item]")?.addEventListener("click", () => {
+      state.selectedItemId = item.id;
+      renderInitiativeList(state.filtered);
+      renderDetail(item);
+      renderPdfEvidence(item);
+      renderTimelineList(state.filtered);
+    });
+
+    track.appendChild(wrapper);
   });
+
+  els.timelineList.appendChild(track);
 }
 
 function renderInitiativeList(items) {
@@ -2877,23 +3162,14 @@ function renderInitiativeList(items) {
     if (item.id === state.selectedItemId) card.classList.add("selected");
 
     card.innerHTML = `
-      <div class="initiative-topline">
-        <div class="chip-row">
-          ${chipHtml(item.relevanceBand, chipClassForBand(item.relevanceBand))}
-          ${chipHtml(item.stageLabel, stageChipClass(item.stageLabel))}
-          ${chipHtml(item.changeStatus, changeChipClass(item.changeStatus))}
-        </div>
-        <span class="section-note">${escapeHtml(item.primaryOwner)}</span>
+      <div class="initiative-card-main">
+        <h3 class="initiative-title">${escapeHtml(item.initiativeTitle)}</h3>
+        <p class="initiative-copy">${escapeHtml(truncateText(item.fmrukReadThrough || item.initiativeDescription, 170))}</p>
       </div>
-      <h3 class="initiative-title">${escapeHtml(item.initiativeTitle)}</h3>
-      <p class="initiative-copy">${escapeHtml(truncateText(item.briefBlocks?.[1]?.copy || item.initiativeDescription, 180))}</p>
-      <div class="chip-row">
-        ${chipHtml(`Parse ${item.parseConfidence || 0}`, parseChipClass(item.parseConfidence || 0))}
-        ${chipHtml(item.clusterLabel, "chip-neutral")}
-        ${item.immediateActionRequired ? chipHtml("Action", "chip-high") : ""}
-      </div>
-      <div class="chip-row">
-        ${(item.obligations || []).slice(0, 3).map(obligation => chipHtml(obligation.name, "chip-neutral")).join("")}
+      <div class="initiative-card-side">
+        <span class="owner-pill">${escapeHtml(item.primaryOwner)}</span>
+        <span class="priority-pill priority-${slugify(item.priorityBand || "low")}">${escapeHtml(item.priorityBand || "Low")} priority</span>
+        <span class="stage-pill">${escapeHtml(item.stageLabel)}</span>
       </div>
     `;
 
@@ -2902,6 +3178,7 @@ function renderInitiativeList(items) {
       renderInitiativeList(state.filtered);
       renderDetail(item);
       renderPdfEvidence(item);
+      renderTimelineList(state.filtered);
     });
 
     els.initiativeList.appendChild(card);
@@ -2916,55 +3193,17 @@ function renderDetail(item) {
   }
 
   const sourcePages = item.sourcePages?.length ? item.sourcePages.join(", ") : "N/A";
-  els.detailMeta.textContent = `${item.primaryOwner} · ${item.stageLabel} · pages ${sourcePages}`;
   const feedback = state.feedback[item.canonicalKey] || {};
-  const evidenceCount = flattenEvidence(item.evidence).length;
-
-  const heroChips = [
-    chipHtml(`${item.relevanceScore} relevance`, chipClassForBand(item.relevanceBand)),
-    chipHtml(item.impactLevel, chipClassForBand(item.impactLevel)),
-    chipHtml(`${item.parseConfidence} parse`, parseChipClass(item.parseConfidence)),
-    chipHtml(item.changeStatus, changeChipClass(item.changeStatus)),
-    item.isFmrukRelevant ? chipHtml("FMRUK", "chip-high") : chipHtml("Low relevance", "chip-low")
-  ].join("");
-
-  const briefCards = item.briefBlocks
-    .map(block => renderBriefCard(item, block))
-    .join("");
-
-  const decisionStrip = [
-    buildDecisionStripCard(
-      "Owner",
-      `${item.primaryOwner || "TBC"} lead with ${item.secondaryOwner || "no support owner"} support.`
-    ),
-    buildDecisionStripCard(
-      "Timing",
-      `${item.timeline?.label || item.timingBucket || "Timing to be confirmed"} · ${item.changeStatus || "Existing"}`
-    ),
-    buildDecisionStripCard(
-      "Evidence",
-      `Pages ${sourcePages} · Parse ${item.parseConfidence || 0} · ${evidenceCount} anchors`
-    )
-  ].join("");
-
-  const decisionCards = [
-    buildDecisionCard(
-      "FMRUK view",
-      item.briefBlocks?.[3]?.copy || item.rationale || "No FMRUK read-through recorded."
-    ),
-    buildDecisionCard("Decision", buildDecisionRequiredCopy(item)),
-    buildDecisionCard("Route", buildGovernanceRoute(item))
-  ].join("");
-
+  const analystStatus = feedback.reviewStatus || "Not reviewed";
   const metaCards = [
-    ["Section", item.sectionName || "N/A"],
-    ["Subcategory", item.subcategory || "N/A"],
-    ["Lead", item.leadRegulator || "N/A"],
-    ["Primary owner", item.primaryOwner || "N/A"],
-    ["Secondary owner", item.secondaryOwner || "N/A"],
+    ["Priority", `${item.priorityBand} (${Math.round(item.priorityScore || 0)})`],
+    ["Stage", item.stageLabel || "N/A"],
+    ["Owner", `${item.primaryOwner || "N/A"}${item.secondaryOwner ? ` / ${item.secondaryOwner}` : ""}`],
     ["Timing", item.timeline?.label || item.timingBucket || "N/A"],
-    ["Source pages", sourcePages],
-    ["Change", item.changeNarrative || "N/A"]
+    ["Change", item.changeNarrative || "N/A"],
+    ["Source", `Pages ${sourcePages}`],
+    ["Review status", analystStatus],
+    ["Due date", feedback.targetDate || "Not set"]
   ]
     .map(
       ([label, value]) => `
@@ -2976,72 +3215,55 @@ function renderDetail(item) {
     )
     .join("");
 
-  const uncertaintyList = item.uncertaintyFlags?.length
-    ? `<ul class="detail-list">${item.uncertaintyFlags.map(flag => `<li>${escapeHtml(flag)}</li>`).join("")}</ul>`
-    : `<p>No open issues flagged.</p>`;
+  const actionItems = (item.suggestedActions || [])
+    .map(action => `<li>${escapeHtml(action)}</li>`)
+    .join("");
 
-  const whyNotRelevant = item.whyNotRelevant
-    ? `<div class="support-card"><h4>Relevance</h4><p>${escapeHtml(item.whyNotRelevant)}</p></div>`
-    : "";
+  const reviewFlags = item.uncertaintyFlags?.length
+    ? `Current review flags: ${item.uncertaintyFlags.join(" ")}`
+    : "No current review flags.";
 
+  els.detailMeta.textContent = `${item.primaryOwner} · ${item.priorityBand} priority · pages ${sourcePages}`;
   els.detailPanel.innerHTML = `
     <section class="detail-hero">
-      <div class="chip-row">${heroChips}</div>
+      <div class="detail-kicker">${escapeHtml(item.stageLabel)} · ${escapeHtml(item.changeStatus || "Existing")}</div>
       <h3>${escapeHtml(item.initiativeTitle)}</h3>
-      <p class="hero-copy">${escapeHtml(item.briefBlocks?.[0]?.copy || item.rationale)}</p>
+      <p class="detail-summary">${escapeHtml(truncateText(item.initiativeDescription || item.changeNarrative, 260))}</p>
     </section>
 
-    <section class="decision-strip">${decisionStrip}</section>
-
-    <section class="decision-note-grid">${decisionCards}</section>
-
-    <section class="support-card">
-      <div class="detail-section-heading">
-        <h4>Brief</h4>
-        <span class="section-note">Linked to source</span>
-      </div>
-      <div class="brief-grid">${briefCards}</div>
+    <section class="detail-grid">
+      <section class="support-card">
+        <h4>How does this initiative affect FMRUK?</h4>
+        <p class="detail-body-copy">${escapeHtml(item.fmrukReadThrough || item.rationale)}</p>
+      </section>
+      <section class="support-card">
+        <h4>Potential action points</h4>
+        <ul class="action-list">${actionItems || "<li>No action points recorded.</li>"}</ul>
+      </section>
     </section>
 
     <section class="detail-meta-grid">${metaCards}</section>
 
-    <section class="support-card">
-      <h4>Impacted domains</h4>
-      <div class="obligation-grid">
-        ${(item.obligations || []).map(obligation => chipHtml(obligation.name, "chip-neutral")).join("")}
-      </div>
-      <p class="inline-meta">${escapeHtml(item.potentialBusinessImpact || "N/A")}</p>
-    </section>
-
-    <section class="support-card">
-      <h4>Checks</h4>
-      ${uncertaintyList}
-    </section>
-
-    <section class="support-card">
-      <h4>Prioritisation</h4>
-      <div class="chip-column">
-        <div class="list-caption">Positive</div>
-        <div class="signal-grid">${renderSignalSet(item.relevanceSignals, "chip-high")}</div>
-        <div class="list-caption">Counter</div>
-        <div class="signal-grid">${renderSignalSet(item.relevanceNegativeSignals, "chip-low")}</div>
-        <div class="list-caption">Profile</div>
-        <div class="signal-grid">${renderSignalSet(item.profileReasons, "chip-neutral")}</div>
-      </div>
-    </section>
-
-    ${whyNotRelevant}
-
     <section class="feedback-panel">
       <h4>Analyst review</h4>
-      <p class="feedback-note">Saved feedback is reused when the same item appears again.</p>
+      <p class="feedback-note">Use this section to confirm review status, define actions and feed the board and owner packs.</p>
       <div class="feedback-actions">
         <button class="feedback-chip ${feedback.markUrgent ? "active" : ""}" id="feedbackUrgentBtn" type="button">Urgent</button>
         <button class="feedback-chip ${feedback.markNotRelevant ? "active" : ""}" id="feedbackNotRelevantBtn" type="button">Not Relevant</button>
         <button class="feedback-chip ${feedback.markParseIssue ? "active" : ""}" id="feedbackParseBtn" type="button">Parsing Issue</button>
         <button class="feedback-chip" id="clearFeedbackBtn" type="button">Clear</button>
       </div>
-      <div class="filter-grid">
+      <div class="feedback-grid">
+        <label>
+          <span>Review status</span>
+          <select id="reviewStatusSelect">
+            ${buildReviewStatusOptions(feedback.reviewStatus)}
+          </select>
+        </label>
+        <label>
+          <span>Due date</span>
+          <input type="date" id="targetDateInput" value="${escapeHtml(feedback.targetDate || "")}" />
+        </label>
         <label>
           <span>Theme override</span>
           <select id="themeOverrideSelect">${buildThemeOptions(item.theme, feedback.themeOverride)}</select>
@@ -3050,112 +3272,35 @@ function renderDetail(item) {
           <span>Owner override</span>
           <select id="ownerOverrideSelect">${buildOwnerOptions(item.primaryOwner, feedback.ownerOverride)}</select>
         </label>
+        <label>
+          <span>Reviewer</span>
+          <input type="text" id="reviewerInput" value="${escapeHtml(feedback.reviewer || "")}" placeholder="Reviewer name" />
+        </label>
+        <label>
+          <span>Action owner</span>
+          <input type="text" id="actionOwnerInput" value="${escapeHtml(feedback.actionOwner || "")}" placeholder="Named owner or team" />
+        </label>
       </div>
       <label>
-        <span>Note</span>
+        <span>Owner report action</span>
+        <textarea id="ownerActionInput" rows="3" placeholder="Action required for the owner pack">${escapeHtml(feedback.ownerAction || "")}</textarea>
+      </label>
+      <label>
+        <span>Board note</span>
+        <textarea id="boardCommentInput" rows="3" placeholder="Short governance note for the board pack">${escapeHtml(feedback.boardComment || "")}</textarea>
+      </label>
+      <label>
+        <span>Review note</span>
         <textarea id="feedbackNoteInput" rows="3">${escapeHtml(feedback.note || "")}</textarea>
       </label>
+      <div class="inline-meta">${escapeHtml(reviewFlags)}</div>
       <div class="inline-actions">
-        <button class="secondary-btn" id="saveFeedbackBtn" type="button">Save</button>
+        <button class="secondary-btn" id="saveFeedbackBtn" type="button">Save review</button>
       </div>
     </section>
   `;
 
   attachDetailEvents(item);
-}
-
-function buildDecisionStripCard(label, copy) {
-  return `
-    <article class="decision-card">
-      <div class="meta-label">${escapeHtml(label)}</div>
-      <p class="decision-note-copy">${escapeHtml(copy)}</p>
-    </article>
-  `;
-}
-
-function buildDecisionCard(title, copy) {
-  return `
-    <article class="decision-card">
-      <h4>${escapeHtml(title)}</h4>
-      <p class="decision-note-copy">${escapeHtml(copy)}</p>
-    </article>
-  `;
-}
-
-function buildDecisionRequiredCopy(item) {
-  if (item.immediateActionRequired) {
-    return `Start triage now. Confirm scope, owner and delivery dates.`;
-  }
-
-  if (item.needsReview) {
-    return `Check scope, owner, timing and source text before actioning.`;
-  }
-
-  if (!item.isFmrukRelevant) {
-    return `Keep on watchlist. No immediate action needed.`;
-  }
-
-  return `Keep in active review and confirm the next step before the next milestone.`;
-}
-
-function buildGovernanceRoute(item) {
-  const committee = selectGovernanceCommittee(item);
-
-  if (item.immediateActionRequired) {
-    return `Route through ${committee} with ${item.primaryOwner || "the lead owner"} as sponsor.`;
-  }
-
-  if (item.stageLabel === "Reporting / Data Request") {
-    return `Route through ${committee} and the delivery forum for reporting readiness.`;
-  }
-
-  if (item.needsReview) {
-    return `Keep within ${committee} until scope, relevance and ownership are confirmed.`;
-  }
-
-  return `Maintain oversight through ${committee} and revisit if timing or scope changes.`;
-}
-
-function selectGovernanceCommittee(item) {
-  const committees = state.profile?.committees?.length
-    ? state.profile.committees
-    : DEFAULT_PROFILE.committees;
-
-  const lowerCommittees = committees.map(value => String(value || "").trim()).filter(Boolean);
-  const hasObligation = name =>
-    item.obligations?.some(obligation => obligation.name === name);
-
-  const choose = hint =>
-    lowerCommittees.find(entry => entry.toLowerCase().includes(hint));
-
-  if (item.immediateActionRequired) {
-    return choose("board") || choose("risk") || choose("compliance") || lowerCommittees[0] || "the relevant forum";
-  }
-
-  if (hasObligation("Operational Resilience") || hasObligation("Outsourcing & Third Parties")) {
-    return choose("risk") || choose("oversight") || lowerCommittees[0] || "the relevant forum";
-  }
-
-  if (hasObligation("Disclosure & Communications") || item.primaryOwner === "Legal") {
-    return choose("compliance") || choose("board") || lowerCommittees[0] || "the relevant forum";
-  }
-
-  return choose("compliance") || choose("oversight") || lowerCommittees[0] || "the relevant forum";
-}
-
-function renderBriefCard(item, block) {
-  const evidence = getEvidenceForFields(item, block.evidenceFields, 3);
-  return `
-    <article class="brief-card">
-      <h4>${escapeHtml(block.title)}</h4>
-      <p class="brief-copy">${escapeHtml(block.copy)}</p>
-      <div class="brief-evidence">
-        <div class="chip-row">
-          ${evidence.length ? evidence.map(entry => evidenceButtonHtml(entry)).join("") : chipHtml("No direct link", "chip-neutral")}
-        </div>
-      </div>
-    </article>
-  `;
 }
 
 function attachDetailEvents(item) {
@@ -3203,12 +3348,24 @@ function saveDetailFeedback(item) {
   const current = state.feedback[item.canonicalKey] || {};
   const themeOverride = document.getElementById("themeOverrideSelect")?.value || "";
   const ownerOverride = document.getElementById("ownerOverrideSelect")?.value || "";
+  const reviewStatus = document.getElementById("reviewStatusSelect")?.value || "Not reviewed";
+  const reviewer = normaliseWs(document.getElementById("reviewerInput")?.value || "");
+  const targetDate = normaliseWs(document.getElementById("targetDateInput")?.value || "");
+  const actionOwner = normaliseWs(document.getElementById("actionOwnerInput")?.value || "");
+  const ownerAction = normaliseWs(document.getElementById("ownerActionInput")?.value || "");
+  const boardComment = normaliseWs(document.getElementById("boardCommentInput")?.value || "");
   const note = normaliseWs(document.getElementById("feedbackNoteInput")?.value || "");
 
   const next = {
     ...current,
     themeOverride: themeOverride || "",
     ownerOverride: ownerOverride || "",
+    reviewStatus,
+    reviewer,
+    targetDate,
+    actionOwner,
+    ownerAction,
+    boardComment,
     note
   };
 
@@ -3346,13 +3503,15 @@ function runAskQuery() {
   }
 
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const scored = state.raw
+  const sourceItems = state.filtered.length ? state.filtered : state.raw;
+  const scored = sourceItems
     .map(item => {
       const haystack = [
         item.initiativeTitle,
         item.theme,
         item.internalSubTheme,
         item.rationale,
+        item.fmrukReadThrough,
         item.potentialBusinessImpact,
         item.whyNotRelevant,
         item.primaryOwner,
@@ -3412,13 +3571,14 @@ function renderAskResults() {
   state.ask.results.forEach(item => {
     const li = document.createElement("li");
     li.innerHTML = `<strong>${escapeHtml(item.initiativeTitle)}</strong><br />${escapeHtml(
-      truncateText(item.briefBlocks?.[3]?.copy || item.rationale, 160)
+      truncateText(item.fmrukReadThrough || item.rationale, 160)
     )}`;
     li.addEventListener("click", () => {
       state.selectedItemId = item.id;
       renderInitiativeList(state.filtered);
       renderDetail(item);
       renderPdfEvidence(item);
+      renderTimelineList(state.filtered);
     });
     els.askResults.appendChild(li);
   });
@@ -3444,6 +3604,8 @@ function exportCsv() {
   }
 
   const columns = [
+    "priorityBand",
+    "priorityScore",
     "changeStatus",
     "clusterLabel",
     "sectionName",
@@ -3458,17 +3620,32 @@ function exportCsv() {
     "impactLevel",
     "relevanceScore",
     "parseConfidence",
+    "reviewStatus",
+    "reviewer",
+    "actionOwner",
+    "targetDate",
+    "timelineLabel",
     "timingBucket",
     "expectedKeyMilestones",
+    "fmrukReadThrough",
     "potentialBusinessImpact",
     "rationale",
-    "suggestedAction"
+    "suggestedAction",
+    "ownerAction",
+    "boardComment"
   ];
 
   const lines = [
     columns.join(","),
     ...state.filtered.map(item =>
-      columns.map(column => csvEscape(item[column])).join(",")
+      columns
+        .map(column => {
+          if (column === "timelineLabel") {
+            return csvEscape(item.timeline?.label || "");
+          }
+          return csvEscape(item[column]);
+        })
+        .join(",")
     )
   ];
 
@@ -3476,7 +3653,13 @@ function exportCsv() {
 }
 
 function exportBoardBrief() {
-  const items = state.filtered.slice(0, 12);
+  const filtered = state.filtered.filter(item =>
+    item.immediateActionRequired ||
+    ["Critical", "High"].includes(item.priorityBand) ||
+    item.reviewStatus === "Escalate" ||
+    item.changeStatus !== "Existing"
+  );
+  const items = sortItems(filtered.length ? filtered : state.filtered).slice(0, 12);
   if (!items.length) {
     els.uploadStatus.textContent = "No items available for a board brief.";
     return;
@@ -3491,8 +3674,8 @@ function exportBoardBrief() {
   const doc = buildReportPdf({
     kind: "board",
     title: "FMRUK Regulatory Board Brief",
-    subtitle: "Current items, actions and review points.",
-    audience: `${state.roleView} view`,
+    subtitle: "Portfolio position, management read-through, priority actions and control points from the current FCA initiatives review.",
+    audience: `${getPriorityModeConfig().label} weighting`,
     items,
     summaryText: buildPortfolioNarrative(items)
   });
@@ -3502,9 +3685,13 @@ function exportBoardBrief() {
 }
 
 function exportOwnerPack() {
-  const role = state.roleView;
-  const relevantItems = state.filtered.filter(item =>
-    role === "Executive" ? item.immediateActionRequired || item.changeStatus !== "Existing" : true
+  const relevantItems = sortItems(
+    state.filtered.filter(item =>
+      item.isFmrukRelevant ||
+      item.needsReview ||
+      item.reviewStatus === "Action defined" ||
+      item.reviewStatus === "Escalate"
+    )
   );
 
   if (!relevantItems.length) {
@@ -3521,14 +3708,14 @@ function exportOwnerPack() {
   const doc = buildReportPdf({
     kind: "owner",
     title: "FMRUK Owner Pack",
-    subtitle: "Owner actions and review points.",
-    audience: `${role} view`,
+    subtitle: "Owner actions, timings and review controls.",
+    audience: `${getPriorityModeConfig().label} weighting`,
     items: relevantItems,
     summaryText: buildPortfolioNarrative(relevantItems)
   });
 
   const stamp = new Date().toISOString().slice(0, 10);
-  doc.save(`fmruk-owner-pack-${slugify(role)}-${stamp}.pdf`);
+  doc.save(`fmruk-owner-pack-${slugify(getPriorityModeConfig().label)}-${stamp}.pdf`);
 }
 
 function getPdfConstructor() {
@@ -3545,17 +3732,17 @@ function buildReportPdf(config) {
 
   const ctx = createPdfContext(doc, config);
   drawReportCover(ctx, config);
-  startPdfPage(ctx, "Portfolio overview");
+  startPdfPage(ctx, "Portfolio position");
   addOverviewSection(ctx, config);
 
   if (config.kind === "board") {
     addMovementSection(ctx, config);
     addMaterialInitiativeSection(ctx, config.items);
-    addPortfolioAuditSection(ctx, config.items, "Board audit points");
+    addPortfolioAuditSection(ctx, config.items, "Board review points");
   } else {
     addOwnerSummarySection(ctx, config.items);
     addOwnerDetailSections(ctx, config.items);
-    addPortfolioAuditSection(ctx, config.items, "Owner audit points");
+    addPortfolioAuditSection(ctx, config.items, "Owner control points");
   }
 
   addMethodologySection(ctx, config);
@@ -3572,21 +3759,24 @@ function createPdfContext(doc, config) {
     contentWidth: doc.internal.pageSize.getWidth() - 92,
     y: 64,
     colors: {
-      navy: [17, 59, 103],
-      navyDeep: [13, 45, 77],
-      teal: [13, 141, 134],
-      gold: [178, 124, 24],
-      red: [176, 67, 67],
-      green: [45, 122, 76],
-      text: [22, 35, 52],
-      soft: [95, 111, 132],
-      line: [214, 223, 233],
-      panel: [245, 248, 252],
+      navy: [23, 58, 89],
+      navyDeep: [16, 39, 61],
+      teal: [42, 109, 123],
+      gold: [141, 109, 38],
+      red: [161, 69, 69],
+      green: [47, 119, 80],
+      text: [23, 38, 56],
+      soft: [95, 111, 131],
+      line: [215, 223, 231],
+      lineStrong: [197, 208, 220],
+      panel: [247, 249, 251],
       white: [255, 255, 255]
     },
     datasetLabel: state.datasetMeta?.fileName || "Current filtered dataset",
     audience: config.audience,
-    activeHeader: config.title
+    activeHeader: config.title,
+    preparedAt: formatDate(new Date().toISOString()),
+    profileMode: getPriorityModeConfig().label
   };
 }
 
@@ -3594,72 +3784,73 @@ function drawReportCover(ctx, config) {
   const { doc, pageWidth, pageHeight, colors, margin } = ctx;
 
   doc.setFillColor(...colors.navyDeep);
-  doc.rect(0, 0, pageWidth, 182, "F");
-
+  doc.rect(0, 0, pageWidth, 110, "F");
   doc.setFillColor(...colors.teal);
-  doc.rect(0, 182, pageWidth, 6, "F");
+  doc.rect(0, 110, pageWidth, 4, "F");
 
   doc.setTextColor(...colors.white);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("FIDELITY INVESTMENTS", margin, 56);
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(28);
-  doc.text(config.title, margin, 98);
-
+  doc.setFontSize(10);
+  doc.text("FIDELITY INVESTMENTS", margin, 36);
+  doc.setFontSize(26);
+  doc.text(config.title, margin, 68);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   const subtitleLines = doc.splitTextToSize(config.subtitle, pageWidth - margin * 2);
-  doc.text(subtitleLines, margin, 126);
+  doc.text(subtitleLines, margin, 90);
 
-  const summaryTop = 220;
-  const summaryHeight = 126;
+  const panelTop = 148;
+  const panelHeight = 112;
   doc.setFillColor(...colors.white);
-  doc.roundedRect(margin, summaryTop, pageWidth - margin * 2, summaryHeight, 18, 18, "F");
-  doc.setDrawColor(...colors.line);
-  doc.roundedRect(margin, summaryTop, pageWidth - margin * 2, summaryHeight, 18, 18, "S");
+  doc.setDrawColor(...colors.lineStrong);
+  doc.roundedRect(margin, panelTop, pageWidth - margin * 2, panelHeight, 10, 10, "FD");
 
-  const metaLines = [
-    `Created: ${formatDate(new Date().toISOString())}`,
-    `Source: ${state.datasetMeta?.fileName || "Current browser session"}`,
-    `View: ${config.audience}`,
-    `Parser: ${state.datasetMeta?.parserVersion || "Current version"}`
+  const metaRows = [
+    ["Prepared", ctx.preparedAt],
+    ["Source dataset", ctx.datasetLabel],
+    ["Priority weighting", ctx.profileMode],
+    ["Items in scope", String(config.items.length)],
+    ["Parser", state.datasetMeta?.parserVersion || "Current version"],
+    ["Build", `v${APP_VERSION} · ${APP_UPDATED_AT}`]
   ];
 
-  doc.setTextColor(...colors.text);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text("Document context", margin + 18, summaryTop + 28);
+  let metaY = panelTop + 26;
+  metaRows.forEach((row, index) => {
+    const x = margin + 18 + (index % 2) * ((pageWidth - margin * 2 - 36) / 2);
+    if (index > 0 && index % 2 === 0) metaY += 28;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...colors.soft);
+    doc.text(row[0].toUpperCase(), x, metaY);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    doc.setTextColor(...colors.text);
+    doc.text(truncateText(row[1], 56), x, metaY + 13);
+  });
+
+  drawPdfMetrics(ctx, buildPdfMetrics(config.items), panelTop + panelHeight + 20, 94, 2);
+
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.text(metaLines, margin + 18, summaryTop + 48, { lineHeightFactor: 1.6 });
-
-  const metrics = buildPdfMetrics(config.items);
-  drawPdfMetrics(
-    ctx,
-    metrics,
-    summaryTop + summaryHeight + 22,
-    110,
-    2
-  );
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
+  doc.setFontSize(9.5);
   doc.setTextColor(...colors.soft);
-  doc.text(
-    "Prepared from the current filtered dataset.",
-    margin,
-    pageHeight - 38
-  );
+  doc.text("Prepared from the current filtered review set.", margin, pageHeight - 24);
 }
 
 function buildPdfMetrics(items) {
   return [
     { label: "Items in scope", value: String(items.length) },
-    { label: "Immediate action", value: String(items.filter(item => item.immediateActionRequired).length) },
-    { label: "Needs review", value: String(items.filter(item => item.needsReview).length) },
-    { label: "Changed / moved", value: String(items.filter(item => item.changeStatus !== "Existing").length) }
+    {
+      label: "High / critical",
+      value: String(items.filter(item => ["Critical", "High"].includes(item.priorityBand)).length)
+    },
+    {
+      label: "Immediate action",
+      value: String(items.filter(item => item.immediateActionRequired).length)
+    },
+    {
+      label: "Reviewed",
+      value: String(items.filter(item => getReportReviewStatus(item) !== "Not reviewed").length)
+    }
   ];
 }
 
@@ -3675,15 +3866,15 @@ function drawPdfMetrics(ctx, metrics, y, boxHeight, columns) {
 
     doc.setFillColor(...colors.panel);
     doc.setDrawColor(...colors.line);
-    doc.roundedRect(x, top, columnWidth, boxHeight, 16, 16, "FD");
+    doc.roundedRect(x, top, columnWidth, boxHeight, 8, 8, "FD");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
+    doc.setFontSize(9);
     doc.setTextColor(...colors.soft);
-    doc.text(metric.label.toUpperCase(), x + 16, top + 24);
+    doc.text(metric.label.toUpperCase(), x + 14, top + 20);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(26);
+    doc.setFontSize(24);
     doc.setTextColor(...colors.navyDeep);
-    doc.text(metric.value, x + 16, top + 66);
+    doc.text(metric.value, x + 14, top + 58);
   });
 }
 
@@ -3691,47 +3882,45 @@ function startPdfPage(ctx, label) {
   const { doc, pageWidth, margin, colors } = ctx;
   doc.addPage();
   ctx.activeHeader = label;
-  ctx.y = 70;
+  ctx.y = 74;
 
   doc.setFillColor(...colors.panel);
-  doc.rect(0, 0, pageWidth, 58, "F");
+  doc.rect(0, 0, pageWidth, 56, "F");
   doc.setDrawColor(...colors.line);
-  doc.line(margin, 58, pageWidth - margin, 58);
+  doc.line(margin, 56, pageWidth - margin, 56);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(...colors.teal);
-  doc.text(label.toUpperCase(), margin, 28);
-
+  doc.text(label.toUpperCase(), margin, 24);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
+  doc.setFontSize(18);
   doc.setTextColor(...colors.navyDeep);
-  doc.text(ctx.datasetLabel, margin, 48);
-
+  doc.text(ctx.datasetLabel, margin, 44);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(...colors.soft);
-  doc.text(ctx.audience, pageWidth - margin, 28, { align: "right" });
+  doc.text(ctx.profileMode, pageWidth - margin, 24, { align: "right" });
 }
 
 function ensurePdfSpace(ctx, neededHeight) {
-  if (ctx.y + neededHeight <= ctx.pageHeight - 56) return;
+  if (ctx.y + neededHeight <= ctx.pageHeight - 54) return;
   startPdfPage(ctx, ctx.activeHeader);
 }
 
 function addPdfSectionTitle(ctx, kicker, title) {
-  ensurePdfSpace(ctx, 52);
+  ensurePdfSpace(ctx, 48);
   const { doc, margin, colors } = ctx;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setTextColor(...colors.teal);
   doc.text(kicker.toUpperCase(), margin, ctx.y);
-  ctx.y += 18;
+  ctx.y += 16;
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
+  doc.setFontSize(20);
   doc.setTextColor(...colors.navyDeep);
   doc.text(title, margin, ctx.y);
-  ctx.y += 24;
+  ctx.y += 22;
 }
 
 function addPdfParagraph(ctx, text, options = {}) {
@@ -3768,107 +3957,151 @@ function addPdfBulletList(ctx, items, options = {}) {
 }
 
 function addOverviewSection(ctx, config) {
-  addPdfSectionTitle(ctx, "Portfolio overview", "Summary");
-  addPdfParagraph(ctx, config.summaryText, { color: ctx.colors.text, size: 11.5 });
+  addPdfSectionTitle(ctx, "Portfolio position", "Current review set");
+  addPdfParagraph(ctx, config.summaryText, { color: ctx.colors.text, size: 11 });
 
-  const topThemes = topCounts(config.items.map(item => item.theme), 4);
-  const clusterRows = topCounts(config.items.map(item => item.clusterLabel), 5).map(entry => [
-    entry.name,
-    String(entry.count)
-  ]);
+  const queueRows = sortItems(config.items)
+    .slice(0, 8)
+    .map(item => [
+      truncateText(item.initiativeTitle, 44),
+      item.priorityBand || "Low",
+      item.primaryOwner || "N/A",
+      item.timeline?.label || item.timingBucket || "Not set",
+      getReportReviewStatus(item)
+    ]);
 
   addTableSection(
     ctx,
-    "Theme distribution",
-    ["Theme or cluster", "Items"],
-    [
-      ...topThemes.map(entry => [entry.name, String(entry.count)]),
-      ...clusterRows
-    ].slice(0, 8)
+    "Current queue",
+    ["Initiative", "Priority", "Owner", "Timing", "Review"],
+    queueRows
   );
+
+  const distributionRows = topCounts(config.items.map(item => item.theme), 6).map(entry => [
+    entry.name,
+    String(entry.count)
+  ]);
+  addTableSection(ctx, "Theme distribution", ["Theme", "Items"], distributionRows);
 }
 
 function addMovementSection(ctx, config) {
-  addPdfSectionTitle(ctx, "Change", "Movement");
+  addPdfSectionTitle(ctx, "Change", "Movement against prior upload");
 
   const summary = state.datasetMeta?.comparisonSummary;
   const bullets = summary
     ? [
-        `${summary.newCount} new items.`,
-        `${summary.changedCount} changed items.`,
-        `${summary.acceleratedCount} earlier and ${summary.delayedCount} later than the previous upload.`,
-        `${summary.removedCount} no longer appear in the latest upload.`
+        `${summary.newCount} items are new compared with the previous upload.`,
+        `${summary.changedCount} items changed in description, stage or triage outcome.`,
+        `${summary.acceleratedCount} items moved earlier and ${summary.delayedCount} moved later.`,
+        summary.removedCount
+          ? `${summary.removedCount} items no longer appear in the latest upload.`
+          : "No items dropped out of the latest upload."
       ]
-    : ["No prior upload comparison available."];
+    : ["No prior upload comparison is available for this dataset."];
 
   addPdfBulletList(ctx, bullets, { color: ctx.colors.text });
 
-  const movementRows = config.items
-    .filter(item => item.changeStatus !== "Existing")
-    .slice(0, 8)
+  const movementRows = sortItems(config.items.filter(item => item.changeStatus !== "Existing"))
+    .slice(0, 10)
     .map(item => [
       item.changeStatus,
-      truncateText(item.initiativeTitle, 52),
-      item.primaryOwner,
-      item.timeline?.label || item.timingBucket
+      truncateText(item.initiativeTitle, 42),
+      item.priorityBand || "Low",
+      item.timeline?.label || item.timingBucket || "Not set",
+      item.primaryOwner || "N/A"
     ]);
 
-  if (movementRows.length) {
-    addTableSection(ctx, "Material movements", ["Status", "Initiative", "Owner", "Timing"], movementRows);
-  }
+  addTableSection(
+    ctx,
+    "Material movements",
+    ["Status", "Initiative", "Priority", "Timing", "Owner"],
+    movementRows
+  );
 }
 
 function addMaterialInitiativeSection(ctx, items) {
-  addPdfSectionTitle(ctx, "Material items", "Board notes");
+  addPdfSectionTitle(ctx, "Board review", "Priority initiative notes");
+  addPdfParagraph(
+    ctx,
+    "The notes below summarise the FMRUK read-through, current action points, review status and source context for the items most likely to require management attention.",
+    { color: ctx.colors.text, size: 11 }
+  );
+
   items.forEach((item, index) => {
     addInitiativeCard(ctx, item, index + 1, "board");
   });
 }
 
 function addOwnerSummarySection(ctx, items) {
-  addPdfSectionTitle(ctx, "Owner summary", "Action coverage");
+  addPdfSectionTitle(ctx, "Owner summary", "Action coverage by function");
   addPdfParagraph(
     ctx,
-    "Grouped by primary owner for action review and follow-up.",
-    { color: ctx.colors.text, size: 11.5 }
+    "This pack groups the filtered queue by primary owner and carries through review status, due dates and named actions from the analyst review workspace.",
+    { color: ctx.colors.text, size: 11 }
   );
 
-  const grouped = groupBy(items, item => item.primaryOwner);
+  const grouped = groupBy(items, item => item.primaryOwner || "Unassigned");
   const rows = Object.entries(grouped)
     .sort((a, b) => b[1].length - a[1].length)
     .map(([owner, ownerItems]) => [
       owner,
       String(ownerItems.length),
+      String(ownerItems.filter(item => ["Critical", "High"].includes(item.priorityBand)).length),
       String(ownerItems.filter(item => item.immediateActionRequired).length),
-      String(ownerItems.filter(item => item.needsReview).length)
+      String(ownerItems.filter(item => getReportReviewStatus(item) === "Not reviewed").length)
     ]);
 
-  addTableSection(ctx, "Owner queue", ["Owner", "Items", "Immediate", "Needs review"], rows);
+  addTableSection(
+    ctx,
+    "Owner queue",
+    ["Owner", "Items", "High / critical", "Immediate", "Not reviewed"],
+    rows
+  );
+
+  const openRows = sortItems(items)
+    .filter(item => item.needsReview || getReportReviewStatus(item) === "Not reviewed")
+    .slice(0, 10)
+    .map(item => [
+      truncateText(item.initiativeTitle, 36),
+      item.primaryOwner || "N/A",
+      item.priorityBand || "Low",
+      getReportReviewStatus(item),
+      formatShortDate(item.targetDate) || "Not set"
+    ]);
+
+  addTableSection(
+    ctx,
+    "Open review items",
+    ["Initiative", "Owner", "Priority", "Review", "Due"],
+    openRows
+  );
 }
 
 function addOwnerDetailSections(ctx, items) {
-  const grouped = groupBy(items, item => item.primaryOwner);
+  const grouped = groupBy(items, item => item.primaryOwner || "Unassigned");
   Object.entries(grouped)
     .sort((a, b) => b[1].length - a[1].length)
     .forEach(([owner, ownerItems]) => {
-      addPdfSectionTitle(ctx, owner, "Owner pack");
+      addPdfSectionTitle(ctx, owner, "Owner action pack");
       addPdfParagraph(
         ctx,
-        `${owner} owns ${ownerItems.length} items in the filtered scope.`,
-        { color: ctx.colors.text, size: 11.5 }
+        `${owner} currently owns ${ownerItems.length} items in the filtered scope. The tracker below shows priority, timing, review status and any named action owner recorded in analyst review.`,
+        { color: ctx.colors.text, size: 11 }
       );
 
       const trackerRows = ownerItems.slice(0, 12).map(item => [
-        truncateText(item.initiativeTitle, 44),
+        truncateText(item.initiativeTitle, 32),
+        item.priorityBand || "Low",
         item.stageLabel,
-        item.changeStatus,
-        truncateText(item.suggestedActions?.[0] || item.suggestedAction, 66)
+        formatShortDate(item.targetDate) || "Not set",
+        getReportReviewStatus(item),
+        truncateText(item.actionOwner || item.primaryOwner || "Not set", 18)
       ]);
 
       addTableSection(
         ctx,
-        `${owner} action tracker`,
-        ["Initiative", "Stage", "Change", "Primary next action"],
+        `${owner} tracker`,
+        ["Initiative", "Priority", "Stage", "Due", "Review", "Action owner"],
         trackerRows
       );
 
@@ -3879,34 +4112,37 @@ function addOwnerDetailSections(ctx, items) {
 }
 
 function addPortfolioAuditSection(ctx, items, title) {
-  addPdfSectionTitle(ctx, "Audit", title);
-
+  addPdfSectionTitle(ctx, "Validation", title);
   addPdfBulletList(ctx, buildPortfolioAuditPoints(items), {
     color: ctx.colors.text
   });
 
-  const flaggedRows = items
-    .filter(item => item.needsReview || (item.parseConfidence || 0) < 70)
+  const flaggedRows = sortItems(
+    items.filter(item =>
+      item.needsReview ||
+      (item.parseConfidence || 0) < 70 ||
+      getReportReviewStatus(item) === "Not reviewed"
+    )
+  )
     .slice(0, 10)
     .map(item => [
-      truncateText(item.initiativeTitle, 46),
-      String(item.parseConfidence || 0),
-      item.primaryOwner,
-      truncateText((item.uncertaintyFlags || [])[0] || "Needs manual review.", 70)
+      truncateText(item.initiativeTitle, 36),
+      item.priorityBand || "Low",
+      item.primaryOwner || "N/A",
+      getReportReviewStatus(item),
+      truncateText((item.uncertaintyFlags || [])[0] || "Manual validation required.", 54)
     ]);
 
-  if (flaggedRows.length) {
-    addTableSection(
-      ctx,
-      "Items needing the strongest challenge",
-      ["Initiative", "Parse", "Owner", "Primary review point"],
-      flaggedRows
-    );
-  }
+  addTableSection(
+    ctx,
+    "Items needing challenge",
+    ["Initiative", "Priority", "Owner", "Review", "Primary issue"],
+    flaggedRows
+  );
 }
 
 function addMethodologySection(ctx, config) {
-  addPdfSectionTitle(ctx, "Method", "How to read this report");
+  addPdfSectionTitle(ctx, "Method", "How this report was assembled");
 
   const profileSummary = PROFILE_FIELDS.map(([field]) => {
     const label = field
@@ -3919,9 +4155,11 @@ function addMethodologySection(ctx, config) {
   addPdfBulletList(
     ctx,
     [
-      "Based on the current filtered dataset and the active role view.",
-      "Each item uses parsed PDF content, linked evidence, rule-based classification and saved analyst overrides.",
-      "Audit points highlight parsing confidence, open items, missing milestones and scope questions.",
+      `Source: FCA initiatives grid PDF parsed into lead regulator, title, description, milestone, impact and timing fields.`,
+      `Priority model: ${ctx.profileMode} weighting applied across relevance, impact, urgency and delivery change.`,
+      "Relevance uses the saved FMRUK profile to bias ranking toward the UK entity's activities, obligations and operating model.",
+      "Review status, due dates, named action owners, owner actions and board notes are taken from analyst review in the workspace.",
+      "Lower parse confidence, missing milestones and mixed relevance signals are carried forward as review flags.",
       ...profileSummary.slice(0, 4)
     ],
     { color: ctx.colors.text }
@@ -3930,8 +4168,8 @@ function addMethodologySection(ctx, config) {
   addPdfParagraph(
     ctx,
     config.kind === "board"
-      ? "This report supports management review. It does not replace legal or compliance judgement."
-      : "This pack supports review, action tracking and documented judgement.",
+      ? "This report is intended for internal governance review and challenge. It supports, but does not replace, legal and compliance judgement."
+      : "This pack is intended for internal owner follow-up, control mobilisation and documented review.",
     { color: ctx.colors.soft, size: 10.5 }
   );
 }
@@ -3939,117 +4177,158 @@ function addMethodologySection(ctx, config) {
 function addInitiativeCard(ctx, item, index, mode) {
   const { doc, margin, contentWidth, colors } = ctx;
   const title = `${index}. ${item.initiativeTitle}`;
-  const meta = `${item.theme} | ${item.stageLabel} | ${item.primaryOwner} / ${item.secondaryOwner} | ${item.timeline?.label || item.timingBucket} | pages ${item.sourcePages.join(", ")}`;
-  const summary = item.briefBlocks?.[3]?.copy || item.rationale;
-  const action = item.suggestedActions?.[0] || item.suggestedAction;
-  const obligations = (item.obligations || []).map(obligation => obligation.name).join(", ");
-  const auditPoints = buildItemAuditPoints(item, mode);
+  const meta = [
+    `${item.priorityBand || "Low"} priority`,
+    item.stageLabel,
+    `${item.primaryOwner || "N/A"}${item.secondaryOwner ? ` / ${item.secondaryOwner}` : ""}`,
+    item.timeline?.label || item.timingBucket || "Not set",
+    item.changeStatus !== "Existing" ? item.changeStatus : null
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const sections = [
+    ["FMRUK read-through", item.fmrukReadThrough || item.potentialBusinessImpact || item.rationale],
+    ["Potential action points", buildReportActionText(item, mode)],
+    [mode === "board" ? "Management review" : "Owner review", buildReportReviewText(item, mode)],
+    ["Source and timing", buildReportSourceText(item)]
+  ];
+
+  if (item.needsReview) {
+    sections.push([
+      "Open points",
+      (item.uncertaintyFlags || []).slice(0, 2).join(" ") || "Manual validation required."
+    ]);
+  }
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   const titleLines = doc.splitTextToSize(title, contentWidth - 30);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  const metaLines = doc.splitTextToSize(meta, contentWidth - 30);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10.5);
-  const summaryLines = doc.splitTextToSize(`Summary: ${summary}`, contentWidth - 30);
-  const actionLines = doc.splitTextToSize(`Action: ${action}`, contentWidth - 30);
-  const obligationLines = doc.splitTextToSize(`Domains: ${obligations || "Not yet mapped."}`, contentWidth - 30);
-  const auditHeight = auditPoints.length * 15 + 8;
+  doc.setFontSize(9.5);
+  const metaLines = doc.splitTextToSize(meta, contentWidth - 30);
+  const sectionLayouts = sections.map(([heading, copy]) => ({
+    heading,
+    lines: doc.splitTextToSize(copy, contentWidth - 30)
+  }));
   const boxHeight =
-    28 +
-    titleLines.length * 18 +
-    metaLines.length * 12 +
-    summaryLines.length * 12 +
-    actionLines.length * 12 +
-    obligationLines.length * 12 +
-    auditHeight +
-    24;
+    22 +
+    titleLines.length * 16 +
+    metaLines.length * 11 +
+    sectionLayouts.reduce((sum, section) => sum + 16 + section.lines.length * 12 + 8, 0) +
+    12;
 
   ensurePdfSpace(ctx, boxHeight + 12);
 
-  doc.setFillColor(...colors.panel);
-  doc.setDrawColor(...colors.line);
-  doc.roundedRect(margin, ctx.y, contentWidth, boxHeight, 16, 16, "FD");
+  doc.setFillColor(...colors.white);
+  doc.setDrawColor(...colors.lineStrong);
+  doc.roundedRect(margin, ctx.y, contentWidth, boxHeight, 8, 8, "FD");
 
-  let cursorY = ctx.y + 22;
+  let cursorY = ctx.y + 18;
   doc.setTextColor(...colors.navyDeep);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text(titleLines, margin + 16, cursorY);
-  cursorY += titleLines.length * 18;
+  doc.setFontSize(14);
+  doc.text(titleLines, margin + 15, cursorY);
+  cursorY += titleLines.length * 16;
 
   doc.setTextColor(...colors.soft);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.text(metaLines, margin + 16, cursorY);
-  cursorY += metaLines.length * 12 + 8;
-
-  doc.setTextColor(...colors.text);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10.5);
-  doc.text(summaryLines, margin + 16, cursorY);
-  cursorY += summaryLines.length * 12 + 8;
-  doc.text(actionLines, margin + 16, cursorY);
-  cursorY += actionLines.length * 12 + 8;
-  doc.text(obligationLines, margin + 16, cursorY);
-  cursorY += obligationLines.length * 12 + 10;
+  doc.setFontSize(9.5);
+  doc.text(metaLines, margin + 15, cursorY);
+  cursorY += metaLines.length * 11 + 10;
 
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...colors.teal);
-  doc.text("Audit points", margin + 16, cursorY);
-  cursorY += 14;
+  sectionLayouts.forEach(section => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...colors.teal);
+    doc.text(section.heading.toUpperCase(), margin + 15, cursorY);
+    cursorY += 12;
 
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(...colors.text);
-  auditPoints.forEach(point => {
-    const lines = doc.splitTextToSize(`- ${point}`, contentWidth - 30);
-    doc.text(lines, margin + 16, cursorY);
-    cursorY += lines.length * 12 + 3;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.2);
+    doc.setTextColor(...colors.text);
+    doc.text(section.lines, margin + 15, cursorY);
+    cursorY += section.lines.length * 12 + 10;
   });
 
   ctx.y += boxHeight + 12;
 }
 
-function buildItemAuditPoints(item, mode) {
-  const points = [
-    `Source evidence captured on PDF pages ${item.sourcePages.join(", ")}.`,
-    `Parse confidence is ${item.parseConfidence} (${item.parseConfidenceBand}).`,
-    `Change signal is ${item.changeStatus}: ${item.changeNarrative}`,
-    `Primary review points: ${(item.uncertaintyFlags || []).slice(0, 2).join(" ") || "No material review points flagged."}`
-  ];
+function buildReportActionText(item, mode) {
+  const baseActions = (item.suggestedActions || []).slice(0, 3);
+  const ownerAction = normaliseWs(item.ownerAction || "");
+  if (mode === "owner" && ownerAction) {
+    return `${ownerAction}${baseActions.length ? ` ${baseActions.join(" ")}` : ""}`;
+  }
+  if (baseActions.length) {
+    return baseActions.join(" ");
+  }
+  return mode === "owner"
+    ? "No owner action has been recorded."
+    : "No management action points have been recorded.";
+}
 
-  if (mode === "owner") {
-    points.push(
-      `Owner check: confirm ${item.primaryOwner} accepts the action and the control mapping.`
-    );
-  } else {
-    points.push(
-      "Board check: confirm timing, ownership and actions remain proportionate."
-    );
+function buildReportReviewText(item, mode) {
+  const parts = [`Status: ${getReportReviewStatus(item)}.`];
+  if (item.reviewer) parts.push(`Reviewer: ${item.reviewer}.`);
+  if (item.targetDate) parts.push(`Due: ${formatShortDate(item.targetDate)}.`);
+  if (item.actionOwner) parts.push(`Action owner: ${item.actionOwner}.`);
+
+  if (mode === "board") {
+    if (item.boardComment) {
+      parts.push(`Board note: ${item.boardComment}.`);
+    } else if (item.immediateActionRequired) {
+      parts.push("This item currently warrants management attention on timing, ownership and delivery readiness.");
+    }
+  } else if (item.ownerAction) {
+    parts.push(`Recorded owner action: ${item.ownerAction}.`);
   }
 
-  return points.slice(0, 5);
+  if (item.needsReview) {
+    parts.push("Further challenge or source validation is still required.");
+  }
+
+  return parts.join(" ");
+}
+
+function buildReportSourceText(item) {
+  const pages = item.sourcePages?.length ? item.sourcePages.join(", ") : "N/A";
+  const milestone = item.expectedKeyMilestones || item.timeline?.raw || "No clear milestone extracted.";
+  return `Lead regulator: ${item.leadRegulator || "Not isolated"}. Section: ${item.sectionName || "N/A"}. Timing reference: ${truncateText(milestone, 150)} Evidence pages: ${pages}.`;
+}
+
+function getReportReviewStatus(item) {
+  return item.reviewStatus || "Not reviewed";
+}
+
+function formatShortDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  }).format(date);
 }
 
 function buildPortfolioAuditPoints(items) {
   const summary = state.datasetMeta?.comparisonSummary;
-  const reviewCount = items.filter(item => item.needsReview).length;
+  const notReviewed = items.filter(item => getReportReviewStatus(item) === "Not reviewed").length;
+  const actionDefined = items.filter(item => getReportReviewStatus(item) === "Action defined").length;
+  const escalated = items.filter(item => getReportReviewStatus(item) === "Escalate").length;
   const lowParseCount = items.filter(item => (item.parseConfidence || 0) < 70).length;
   const missingMilestoneCount = items.filter(item => !item.expectedKeyMilestones).length;
-  const changedCount = items.filter(item => item.changeStatus !== "Existing").length;
   const urgentCount = items.filter(item => item.immediateActionRequired).length;
 
   return [
-    `${reviewCount} items carry manual review flags.`,
-    `${lowParseCount} items have lower parsing confidence.`,
-    `${missingMilestoneCount} items do not yet have clear milestones.`,
-    `${changedCount} items show movement against the previous upload.`,
-    `${urgentCount} items currently require immediate action.`,
+    `${urgentCount} items currently require immediate action under the active weighting model.`,
+    `${notReviewed} items do not yet have a recorded analyst review status.`,
+    `${actionDefined} items have a defined action recorded and ${escalated} are marked for escalation.`,
+    `${lowParseCount} items carry lower parsing confidence and should be checked against the source PDF.`,
+    `${missingMilestoneCount} items do not yet have a clean milestone extraction, which weakens timing confidence.`,
     summary?.removedCount
-      ? `${summary.removedCount} items no longer appear in the latest upload.`
-      : "No removed items detected in the current comparison set."
+      ? `${summary.removedCount} items no longer appear in the latest upload and should be checked for completion, deferral or removal from the grid.`
+      : "No items dropped out of the latest comparison set."
   ];
 }
 
@@ -4243,15 +4522,21 @@ function buildOwnerOptions(currentOwner, overrideOwner) {
     .join("");
 }
 
-function renderSignalSet(values, className) {
-  if (!values?.length) {
-    return chipHtml("None", "chip-neutral");
-  }
-  return values.map(value => chipHtml(value, className)).join("");
-}
+function buildReviewStatusOptions(selectedStatus) {
+  const options = [
+    "Not reviewed",
+    "Reviewed",
+    "Action defined",
+    "Escalate",
+    "Monitor"
+  ];
 
-function evidenceButtonHtml(entry) {
-  return `<button class="evidence-chip" data-evidence-key="${escapeHtml(entry.key)}" type="button">P${entry.pageNumber} ${escapeHtml(fieldLabel(entry.field))}</button>`;
+  return options
+    .map(value => {
+      const selected = value === (selectedStatus || "Not reviewed") ? " selected" : "";
+      return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(value)}</option>`;
+    })
+    .join("");
 }
 
 function fieldLabel(field) {
@@ -4266,35 +4551,6 @@ function fieldLabel(field) {
     isNew: "new",
     general: "source"
   }[field] || field;
-}
-
-function chipHtml(value, className) {
-  return `<span class="chip ${className}">${escapeHtml(value)}</span>`;
-}
-
-function chipClassForBand(value) {
-  if (value === "High") return "chip-high";
-  if (value === "Medium") return "chip-medium";
-  if (value === "Low") return "chip-low";
-  return "chip-neutral";
-}
-
-function stageChipClass(value) {
-  if (/final|reporting/i.test(value)) return "chip-high";
-  if (/consultation|supervisory/i.test(value)) return "chip-medium";
-  return "chip-neutral";
-}
-
-function changeChipClass(value) {
-  if (value === "New" || value === "Accelerated") return "chip-high";
-  if (value === "Changed" || value === "Delayed") return "chip-medium";
-  return "chip-neutral";
-}
-
-function parseChipClass(score) {
-  if (score >= 85) return "chip-high";
-  if (score >= 70) return "chip-medium";
-  return "chip-low";
 }
 
 function topCounts(values, limit) {
@@ -4376,6 +4632,65 @@ function parseTimelineDate(text) {
   }
 
   return null;
+}
+
+function extractTimelineMarkers(text) {
+  const source = String(text || "").toLowerCase();
+  if (!source) return [];
+
+  const markers = [];
+  const pushMarker = entry => {
+    if (!entry?.label || !Number.isFinite(entry.dateValue)) return;
+    if (!markers.find(marker => marker.label === entry.label && marker.dateValue === entry.dateValue)) {
+      markers.push(entry);
+    }
+  };
+
+  const quarterPattern = /\b(q[1-4]|h[12])\s+(\d{4})\b/gi;
+  let match = quarterPattern.exec(source);
+  while (match) {
+    pushMarker(parseTimelineDate(match[0]));
+    match = quarterPattern.exec(source);
+  }
+
+  const monthPattern = /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/gi;
+  match = monthPattern.exec(source);
+  while (match) {
+    pushMarker(parseTimelineDate(match[0]));
+    match = monthPattern.exec(source);
+  }
+
+  const dayMonthPattern = /\b\d{1,2}\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/gi;
+  match = dayMonthPattern.exec(source);
+  while (match) {
+    pushMarker(parseTimelineDate(match[0]));
+    match = dayMonthPattern.exec(source);
+  }
+
+  const gridRanges = [
+    { pattern: /\boct-dec\s+(\d{4})\b/gi, label: year => `Oct-Dec ${year}`, month: 9 },
+    { pattern: /\bjan-mar\s+(\d{4})\b/gi, label: year => `Jan-Mar ${year}`, month: 0 },
+    { pattern: /\bapr-jun\s+(\d{4})\b/gi, label: year => `Apr-Jun ${year}`, month: 3 },
+    { pattern: /\bjul-sept\s+(\d{4})\b/gi, label: year => `Jul-Sep ${year}`, month: 6 },
+    { pattern: /\bjul-dec\s+(\d{4})\b/gi, label: year => `Jul-Dec ${year}`, month: 6 },
+    { pattern: /\bjan-jun\s+(\d{4})\b/gi, label: year => `Jan-Jun ${year}`, month: 0 },
+    { pattern: /\bjuly to december\s+(\d{4})\b/gi, label: year => `Jul-Dec ${year}`, month: 6 },
+    { pattern: /\bpost july\s+(\d{4})\b/gi, label: year => `Post July ${year}`, month: 6 }
+  ];
+
+  gridRanges.forEach(range => {
+    let rangeMatch = range.pattern.exec(source);
+    while (rangeMatch) {
+      const year = Number(rangeMatch[1]);
+      pushMarker({
+        label: range.label(year),
+        dateValue: new Date(year, range.month, 1).getTime()
+      });
+      rangeMatch = range.pattern.exec(source);
+    }
+  });
+
+  return markers.sort((a, b) => a.dateValue - b.dateValue);
 }
 
 function estimateTimingBucketDate(bucket) {
@@ -4489,16 +4804,64 @@ function isPlausibleTitle(value) {
 
 function shouldTreatAsTitleContinuation(accumulator, value, row) {
   if (!value) return false;
-  if (accumulator.initiativeTitle.length > 120) return false;
+  if (accumulator.initiativeTitle.length > 140) return false;
+  if (accumulator.titleLineCount >= 3) return false;
   if (cellText(row, "milestones") || cellText(row, "impact") || cellText(row, "consumer")) return false;
-  if (/[.:;]/.test(value)) return false;
+  if (/[.:;]/.test(value) && !row.hasBold) return false;
   if (looksLikeMilestoneText(value)) return false;
-  return value.length <= 90;
+  if (isQuarterHeaderText(value)) return false;
+  if (row.hasBold) return true;
+  if (!/[a-z]/.test(value) || value.length > 95) return false;
+  return /^[A-Z0-9]/.test(value) && !/[.!?]$/.test(value);
 }
 
 function looksLikeMilestoneText(text) {
   const value = String(text || "").toLowerCase();
   return /\b(?:q[1-4]|h[12]|january|february|march|april|may|june|july|august|september|october|november|december|202[5-9])\b/.test(value);
+}
+
+function isQuarterHeaderText(text) {
+  const value = normaliseWs(text).toLowerCase();
+  if (!value) return false;
+
+  if (
+    /^(oct-dec|jan-mar|apr-jun|jul-sept|jul-dec|jan-jun|post july)\s+\d{4}$/.test(value) ||
+    /^july to december \d{4}$/.test(value) ||
+    /^beyond (that )?horizon$/.test(value)
+  ) {
+    return true;
+  }
+
+  const hits = [
+    /\boct-dec \d{4}\b/.test(value),
+    /\bjan-mar \d{4}\b/.test(value),
+    /\bapr-jun \d{4}\b/.test(value),
+    /\bjul-sept \d{4}\b/.test(value),
+    /\bjul-dec \d{4}\b/.test(value),
+    /\bjan-jun \d{4}\b/.test(value),
+    /\bpost july \d{4}\b/.test(value)
+  ].filter(Boolean).length;
+
+  return hits >= 2;
+}
+
+function cleanStructuredText(value) {
+  const text = normaliseWs(value);
+  if (!text) return "";
+  if (ROW_NOISE_PATTERNS.some(pattern => pattern.test(text))) return "";
+  if (HEADER_TEXT_PATTERNS.some(pattern => pattern.test(text))) return "";
+  if (isQuarterHeaderText(text)) return "";
+  if (/^(h|l|u|m|yes|no)$/i.test(text)) return "";
+  return text;
+}
+
+function isLikelyTitleContinuationText(value, row) {
+  const text = cleanStructuredText(value);
+  if (!text) return false;
+  if (cellText(row, "milestones") || cellText(row, "impact") || cellText(row, "consumer")) return false;
+  if (looksLikeMilestoneText(text)) return false;
+  if (row.hasBold) return true;
+  return text.length <= 96 && !/[.!?]$/.test(text);
 }
 
 function cellText(row, key) {
